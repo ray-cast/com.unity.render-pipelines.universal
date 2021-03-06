@@ -33,13 +33,13 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/Utils/Lighting.shader")]
             public Shader lightingPS;
 
-#if !(UNITY_IOS || UNITY_STANDALONE_OSX)
+#if UNITY_EDITOR
             [Reload("Shaders/Utils/DebugCluster.shader")]
             public Shader clusterGS;
-#endif
 
             [Reload("Shaders/Utils/HeatLight.shader")]
             public Shader heatMapPS;
+#endif
 
             [Reload("Shaders/Utils/ClusterLights128.compute")]
             public ComputeShader clusterX128CS;
