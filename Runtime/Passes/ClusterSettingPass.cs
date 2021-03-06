@@ -85,12 +85,7 @@ namespace UnityEngine.Rendering.Universal
 			this._computeClusterCountKernel = _clusterCompute.FindKernel("ComputeClusterCount");
 			this._updateIndirectArgumentBuffersKernel = _clusterCompute.FindKernel("UpdateIndirectArgumentBuffers");
 			this._clusterLightClampedKernel = _clusterCompute.FindKernel("AssignLightsToClustersClamped");
-
-#if UNITY_ANDROID || UNITY_WEBGL || UNITY_IOS || UNITY_STANDALONE_OSX
 			this._clusterLightIndirectKernel = _clusterCompute.FindKernel("AssignLightsToClustersIndirect");
-#else
-			this._clusterLightIndirectKernel = _clusterCompute.FindKernel("AssignLightsToClustersIndirectNoLimit");
-#endif
 
 			this._clusterAdditionalLightsCount = 0;
 
