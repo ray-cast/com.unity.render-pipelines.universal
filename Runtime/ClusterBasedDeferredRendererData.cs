@@ -33,7 +33,7 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/Utils/Lighting.shader")]
             public Shader lightingPS;
 
-#if !(UNITY_IOS || UNITY_IPHONE || UNITY_STANDALONE_OSX)
+#if !(UNITY_IOS || UNITY_STANDALONE_OSX)
             [Reload("Shaders/Utils/DebugCluster.shader")]
             public Shader clusterGS;
 #endif

@@ -86,7 +86,7 @@ namespace UnityEngine.Rendering.Universal
 			this._updateIndirectArgumentBuffersKernel = _clusterCompute.FindKernel("UpdateIndirectArgumentBuffers");
 			this._clusterLightClampedKernel = _clusterCompute.FindKernel("AssignLightsToClustersClamped");
 
-#if UNITY_ANDROID || UNITY_WEBGL || UNITY_IOS || UNITY_IPHONE || UNITY_STANDALONE_OSX
+#if UNITY_ANDROID || UNITY_WEBGL || UNITY_IOS || UNITY_STANDALONE_OSX
 			this._clusterLightIndirectKernel = _clusterCompute.FindKernel("AssignLightsToClustersIndirect");
 #else
 			this._clusterLightIndirectKernel = _clusterCompute.FindKernel("AssignLightsToClustersIndirectNoLimit");
@@ -99,23 +99,23 @@ namespace UnityEngine.Rendering.Universal
 			this._clusterData.height = 0;
 			this._clusterData.fieldOfViewY = 0;
 
-			if (SystemInfo.maxComputeWorkGroupSize >= 128)
-				this._maxComputeWorkGroupSize = 128;
-			if (SystemInfo.maxComputeWorkGroupSize >= 256)
-				this._maxComputeWorkGroupSize = 256;
-			if (SystemInfo.maxComputeWorkGroupSize >= 512)
-				this._maxComputeWorkGroupSize = 512;
 			if (SystemInfo.maxComputeWorkGroupSize >= 1024)
 				this._maxComputeWorkGroupSize = 1024;
+			else if (SystemInfo.maxComputeWorkGroupSize >= 512)
+				this._maxComputeWorkGroupSize = 512;
+			else if (SystemInfo.maxComputeWorkGroupSize >= 256)
+				this._maxComputeWorkGroupSize = 256;
+			else if (SystemInfo.maxComputeWorkGroupSize >= 128)
+				this._maxComputeWorkGroupSize = 128;
 
-			if (SystemInfo.maxComputeWorkGroupSize >= 128)
-				this._maxComputeWorkGroupUV = 8;
-			if (SystemInfo.maxComputeWorkGroupSize >= 256)
-				this._maxComputeWorkGroupUV = 16;
-			if (SystemInfo.maxComputeWorkGroupSize >= 512)
-				this._maxComputeWorkGroupUV = 16;
 			if (SystemInfo.maxComputeWorkGroupSize >= 1024)
 				this._maxComputeWorkGroupUV = 32;
+			else if (SystemInfo.maxComputeWorkGroupSize >= 512)
+				this._maxComputeWorkGroupUV = 16;
+			else if (SystemInfo.maxComputeWorkGroupSize >= 256)
+				this._maxComputeWorkGroupUV = 16;
+			else if (SystemInfo.maxComputeWorkGroupSize >= 128)
+				this._maxComputeWorkGroupUV = 8;
 		}
 
 		public void Setup(RenderTargetHandle depthAttachment, bool drawMainCamera = false)

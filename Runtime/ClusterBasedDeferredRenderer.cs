@@ -94,14 +94,14 @@
             _capturePass = new CapturePass(RenderPassEvent.AfterRendering);
             _finalBlitPass = new FinalBlitPass(RenderPassEvent.AfterRendering + 1, _blitMaterial);
 
-            if (SystemInfo.maxComputeWorkGroupSize >= 128)
-                _clusterCompute = data.shaders.clusterX128CS;
-            if (SystemInfo.maxComputeWorkGroupSize >= 256)
-                _clusterCompute = data.shaders.clusterX256CS;
-            if (SystemInfo.maxComputeWorkGroupSize >= 512)
-                _clusterCompute = data.shaders.clusterX512CS;
             if (SystemInfo.maxComputeWorkGroupSize >= 1024)
                 _clusterCompute = data.shaders.clusterX1024CS;
+            else if (SystemInfo.maxComputeWorkGroupSize >= 512)
+                _clusterCompute = data.shaders.clusterX512CS;
+            else if (SystemInfo.maxComputeWorkGroupSize >= 256)
+                _clusterCompute = data.shaders.clusterX256CS;
+            else if (SystemInfo.maxComputeWorkGroupSize >= 128)
+                _clusterCompute = data.shaders.clusterX128CS;
 
             _requireClusterLighting = false;// (SystemInfo.supportsComputeShaders && _clusterCompute) ? true : false;
 
