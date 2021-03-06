@@ -24,37 +24,6 @@ namespace UnityEngine.Rendering.Universal
 
         private RenderTargetHandle _depthAttachmentHandle { get; set; }
 
-        static List<ShaderTagId> _LegacyShaderPassNames = new List<ShaderTagId>()
-        {
-            new ShaderTagId("Always"),
-            new ShaderTagId("ForwardBase"),
-            new ShaderTagId("PrepassBase"),
-            new ShaderTagId("Vertex"),
-            new ShaderTagId("VertexLMRGBM"),
-            new ShaderTagId("VertexLM"),
-        };
-
-        static Material s_ErrorMaterial;
-        static Material errorMaterial
-        {
-            get
-            {
-                if (s_ErrorMaterial == null)
-                {
-                    try
-                    {
-                        s_ErrorMaterial = new Material(Shader.Find("Hidden/Universal Render Pipeline/GbufferError"));
-                    }
-                    catch { }
-                }
-
-                return s_ErrorMaterial;
-            }
-        }
-
-        /// <summary>
-        /// Create the GbufferPreparePass
-        /// </summary>
         public GbufferPreparePass(string profilerTag, bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState, int stencilReference)
         {
             renderPassEvent = evt;
@@ -91,9 +60,6 @@ namespace UnityEngine.Rendering.Universal
             return desc;
         }
 
-        /// <summary>
-        /// Configure the pass
-        /// </summary>
         public void Setup(RenderTextureDescriptor cameraTextureDescriptor, RenderTargetHandle[] colorAttachmentHandle, RenderTargetHandle depthAttachmentHandle)
         {
             this._width = cameraTextureDescriptor.width;
@@ -149,26 +115,6 @@ namespace UnityEngine.Rendering.Universal
 #endif
 
                 context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref filterSettings, ref _renderStateBlock);
-
-                if (errorMaterial)
-                {
-                    SortingSettings sortingSettings = new SortingSettings(renderingData.cameraData.camera) { criteria = SortingCriteria.None };
-                    DrawingSettings errorSettings = new DrawingSettings(_LegacyShaderPassNames[0], sortingSettings)
-                    {
-                        perObjectData = PerObjectData.None,
-                        overrideMaterial = errorMaterial,
-                        overrideMaterialPassIndex = 0
-                    };
-
-                    for (int i = 1; i < _LegacyShaderPassNames.Count; ++i)
-                        errorSettings.SetShaderPassName(i, _LegacyShaderPassNames[i]);
-
-                    context.DrawRenderers(renderingData.cullResults, ref errorSettings, ref filterSettings);
-                }
-				else
-				{
-                    Debug.LogErrorFormat("Missing {0}. {1} render pass will not execute. Check for missing reference in the renderer resources.", errorMaterial, GetType().Name);
-                }
             }
 
             context.ExecuteCommandBuffer(cmd);

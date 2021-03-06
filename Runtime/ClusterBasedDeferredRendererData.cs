@@ -27,9 +27,6 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/Utils/FallbackError.shader")]
             public Shader fallbackErrorPS;
 
-            [Reload("Shaders/Utils/GbufferError.shader")]
-            public Shader gbufferErrorPS;
-
             [Reload("Shaders/Utils/Lighting.shader")]
             public Shader lightingPS;
 
