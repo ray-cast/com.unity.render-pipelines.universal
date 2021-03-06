@@ -30,10 +30,12 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/Utils/Lighting.shader")]
             public Shader lightingPS;
 
-#if UNITY_EDITOR
+#if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             [Reload("Shaders/Utils/DebugCluster.shader")]
             public Shader clusterGS;
+#endif
 
+#if UNITY_EDITOR
             [Reload("Shaders/Utils/HeatLight.shader")]
             public Shader heatMapPS;
 #endif

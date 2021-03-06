@@ -26,7 +26,9 @@
         FinalBlitPass _finalBlitPass;
 
 #if UNITY_EDITOR
+#if !(UNITY_IOS || UNITY_STANDALONE_OSX)
         DrawClusterPass _drawClusterPass;
+#endif
         ClusterHeatPass _drawClusterHeatPass;
         SceneViewDepthCopyPass _sceneViewDepthCopyPass;
 #endif
@@ -66,8 +68,10 @@
             _clusterLightingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.clusterLightingPS);
             _lightingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.lightingPS);
 
-#if UNITY_EDITOR
+#if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             _debugCluster = CoreUtils.CreateEngineMaterial(data.shaders.clusterGS);
+#endif
+#if UNITY_EDITOR
             _heatMapCluster = CoreUtils.CreateEngineMaterial(data.shaders.heatMapPS);
 #endif
 
@@ -112,9 +116,11 @@
 			{
                 _clusterSettingPass = new ClusterSettingPass(RenderPassEvent.BeforeRenderingOpaques, _clusterCompute);
                 _clusterOpaqueLightingPass = new ClusterLightingPass(RenderPassEvent.BeforeRenderingOpaques, _clusterLightingMaterial);
+#if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
+                _drawClusterPass = new DrawClusterPass(RenderPassEvent.BeforeRenderingOpaques, _debugCluster);
+#endif
 #if UNITY_EDITOR
                 _drawClusterHeatPass = new ClusterHeatPass(RenderPassEvent.AfterRenderingSkybox, _heatMapCluster);
-                _drawClusterPass = new DrawClusterPass(RenderPassEvent.BeforeRenderingOpaques, _debugCluster);
 #endif
             }
 
@@ -153,8 +159,10 @@
             CoreUtils.Destroy(_lightingMaterial);
             CoreUtils.Destroy(_clusterLightingMaterial);
             CoreUtils.Destroy(_samplingMaterial);
-#if UNITY_EDITOR
+#if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             CoreUtils.Destroy(_debugCluster);
+#endif
+#if UNITY_EDITOR
             CoreUtils.Destroy(_heatMapCluster);
 #endif
         }
@@ -309,13 +317,14 @@
                     EnqueuePass(_drawSkyboxPass);
             }
 
-#if UNITY_EDITOR
+#if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             if (SystemInfo.supportsGeometryShaders && _requireClusterLighting && cameraData.requireDrawCluster && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
             {
                 _drawClusterPass.Setup(_clusterSettingPass.clusterData.clusterDimXYZ, cameraData.requireDrawCluster);
                 EnqueuePass(_drawClusterPass);
             }
-
+#endif
+#if UNITY_EDITOR
             if (_requireClusterLighting && cameraData.requireHeatMap && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
             {
                 _drawClusterHeatPass.ConfigureTarget(this.cameraColorTarget);
