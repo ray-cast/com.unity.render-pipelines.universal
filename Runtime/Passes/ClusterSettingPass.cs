@@ -30,7 +30,7 @@ namespace UnityEngine.Rendering.Universal
 		public int clusterDimZ;
 		public int clusterDimXYZ;
 
-		public int threadGroup;
+		public int clusterThreadGroup;
 	}
 
 	public class ClusterSettingPass : ScriptableRenderPass
@@ -146,12 +146,12 @@ namespace UnityEngine.Rendering.Universal
 			_clusterData.clusterDimY = clusterDimY;
 			_clusterData.clusterDimZ = Mathf.FloorToInt(_clusterData.logDepth * _clusterData.logDimY);
 			_clusterData.clusterDimXYZ = _clusterData.clusterDimX * _clusterData.clusterDimY * _clusterData.clusterDimZ;
-			_clusterData.threadGroup = Mathf.CeilToInt(_clusterData.clusterDimXYZ / (float)this._maxComputeWorkGroupSize);
+			_clusterData.clusterThreadGroup = Mathf.CeilToInt(_clusterData.clusterDimXYZ / (float)this._maxComputeWorkGroupSize);
 
-			ShaderData.instance.CreateAABBBuffer(_clusterData.clusterDimXYZ);
-			ShaderData.instance.CreateFlagBuffer(_clusterData.clusterDimXYZ);
-			ShaderData.instance.CreateUniqueBuffer(_clusterData.clusterDimXYZ);
-			ShaderData.instance.CreateLightGridBuffer(_clusterData.clusterDimXYZ);
+			ShaderData.instance.CreateAABBBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize);
+			ShaderData.instance.CreateFlagBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize);
+			ShaderData.instance.CreateUniqueBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize);
+			ShaderData.instance.CreateLightGridBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize);
 		}
 
 		void SetupClusterAABB(ref CommandBuffer cmd, ref Camera camera)
@@ -170,21 +170,21 @@ namespace UnityEngine.Rendering.Universal
 			cmd.SetComputeVectorParam(_clusterCompute, ShaderConstants._ClusterScreenDimensionParams, screenDim);
 			cmd.SetComputeMatrixParam(_clusterCompute, ShaderConstants._TransformToViewMatrix, projectionMatrixInvers);
 			cmd.SetComputeBufferParam(_clusterCompute, _clusterAABBKernel, ShaderConstants._RWClusterBoxBuffer, ShaderData.instance.AABBBuffer);
-			cmd.DispatchCompute(_clusterCompute, _clusterAABBKernel, _clusterData.threadGroup, 1, 1);
+			cmd.DispatchCompute(_clusterCompute, _clusterAABBKernel, _clusterData.clusterThreadGroup, 1, 1);
 		}
 
 		void ClearLightGirdIndexCounter(ref CommandBuffer cmd, ref RenderingData renderingData)
 		{
+			cmd.SetComputeBufferParam(_clusterCompute, _clearLightIndexCounterKernel, ShaderConstants._RWClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
 			cmd.SetComputeBufferParam(_clusterCompute, _clearLightIndexCounterKernel, ShaderConstants._RWClusterLightIndexCounterBuffer, ShaderData.instance.lightIndexCounterBuffer);
 			cmd.SetComputeBufferParam(_clusterCompute, _clearLightIndexListKernel, ShaderConstants._RWClusterLightIndexListBuffer, ShaderData.instance.lightIndexListBuffer);
 			cmd.SetComputeBufferParam(_clusterCompute, _clearClusterBuffersKernel, ShaderConstants._RWClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
 			cmd.SetComputeBufferParam(_clusterCompute, _clearClusterBuffersKernel, ShaderConstants._RWClusterFlagBuffer, ShaderData.instance.flagBuffer);
 			cmd.SetComputeBufferParam(_clusterCompute, _clearClusterBuffersKernel, ShaderConstants._RWClusterUniqueBuffer, ShaderData.instance.uniquesBuffer);
 
-			var threadGroup = Mathf.CeilToInt(_clusterData.clusterDimXYZ * renderingData.lightData.maxPerClusterAdditionalLightsCount / (float)this._maxComputeWorkGroupSize);
 			cmd.DispatchCompute(_clusterCompute, _clearLightIndexCounterKernel, 1, 1, 1);
-			cmd.DispatchCompute(_clusterCompute, _clearLightIndexListKernel, threadGroup, 1, 1);
-			cmd.DispatchCompute(_clusterCompute, _clearClusterBuffersKernel, _clusterData.threadGroup, 1, 1);
+			cmd.DispatchCompute(_clusterCompute, _clearClusterBuffersKernel, _clusterData.clusterThreadGroup, 1, 1);
+			cmd.DispatchCompute(_clusterCompute, _clearLightIndexListKernel, _clusterData.clusterThreadGroup * renderingData.lightData.maxPerClusterAdditionalLightsCount, 1, 1);
 		}
 
 		void InitializeLightConstants(NativeArray<VisibleLight> lights, int lightIndex, out Vector4 lightPos, out Vector4 lightColor, out Vector4 lightAttenuation, out Vector4 lightSpotDir, out Vector4 lightOcclusionProbeChannel)
@@ -282,8 +282,8 @@ namespace UnityEngine.Rendering.Universal
 
 		void SetupClusterFlags(ref CommandBuffer cmd, ref Camera camera)
 		{
-			var width = (float)camera.pixelWidth;
-			var height = (float)camera.pixelHeight;
+			var width = camera.pixelWidth;
+			var height = camera.pixelHeight;
 
 			var sizeParams = new Vector2(ShaderConstants.blockSizeX, ShaderConstants.blockSizeY);
 			var screenDimParams = new Vector4((float)width, (float)height, 1.0f / width, 1.0f / height);
@@ -339,41 +339,37 @@ namespace UnityEngine.Rendering.Universal
 				cmd.SetComputeBufferParam(_clusterCompute, _clusterLightKernel, ShaderConstants._RWClusterLightIndexCounterBuffer, ShaderData.instance.lightIndexCounterBuffer);
 				cmd.SetComputeBufferParam(_clusterCompute, _clusterLightKernel, ShaderConstants._RWClusterLightIndexListBuffer, ShaderData.instance.lightIndexListBuffer);
 
-				cmd.DispatchCompute(_clusterCompute, _clusterLightKernel, _clusterData.threadGroup, 1, 1);
+				cmd.DispatchCompute(_clusterCompute, _clusterLightKernel, _clusterData.clusterThreadGroup, 1, 1);
 			}
 			else
 			{
-				ShaderData.instance.uniquesBuffer.SetCounterValue(0);
-
 				cmd.SetComputeBufferParam(_clusterCompute, _computeClusterCountKernel, ShaderConstants._ClusterFlagBuffer, ShaderData.instance.flagBuffer);
 				cmd.SetComputeBufferParam(_clusterCompute, _computeClusterCountKernel, ShaderConstants._RWClusterUniqueBuffer, ShaderData.instance.uniquesBuffer);
-				cmd.DispatchCompute(_clusterCompute, _computeClusterCountKernel, _clusterData.threadGroup, 1, 1);
-
-				var uniqueCount = ShaderData.instance.CreateUniqueCountBuffer(1);
-				cmd.CopyCounterValue(ShaderData.instance.uniquesBuffer, uniqueCount, 0);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeClusterCountKernel, ShaderConstants._RWClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
+				cmd.DispatchCompute(_clusterCompute, _computeClusterCountKernel, _clusterData.clusterThreadGroup, 1, 1);
 
 				if (this._maxComputeWorkGroupSize < 1024 || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal)
 				{
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightClampedKernel, ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightClampedKernel, ShaderConstants._ClusterAABBBuffer, ShaderData.instance.AABBBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightClampedKernel, ShaderConstants._ClusterUniquesBuffer, ShaderData.instance.uniquesBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightClampedKernel, ShaderConstants._ClusterUniqueCounterBuffer, uniqueCount);
+					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightClampedKernel, ShaderConstants._ClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightClampedKernel, ShaderConstants._RWClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightClampedKernel, ShaderConstants._RWClusterLightIndexCounterBuffer, ShaderData.instance.lightIndexCounterBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightClampedKernel, ShaderConstants._RWClusterLightIndexListBuffer, ShaderData.instance.lightIndexListBuffer);
-					cmd.DispatchCompute(_clusterCompute, _clusterLightClampedKernel, _clusterData.threadGroup, 1, 1);
+					cmd.DispatchCompute(_clusterCompute, _clusterLightClampedKernel, _clusterData.clusterThreadGroup, 1, 1);
 				}
 				else
 				{
 					var indirectArgumentBuffer = ShaderData.instance.CreateIndirectArgumentBuffer(1);
-					cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._ClusterUniqueCounterBuffer, uniqueCount);
-					cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._RWClustersIndirectArgumentBuffer, indirectArgumentBuffer);
+					cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._ClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
+					cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._RWClusterIndirectArgumentBuffer, indirectArgumentBuffer);
 					cmd.DispatchCompute(_clusterCompute, _updateIndirectArgumentBuffersKernel, 1, 1, 1);
 
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightIndirectKernel, ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightIndirectKernel, ShaderConstants._ClusterAABBBuffer, ShaderData.instance.AABBBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightIndirectKernel, ShaderConstants._ClusterUniquesBuffer, ShaderData.instance.uniquesBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightIndirectKernel, ShaderConstants._ClusterUniqueCounterBuffer, uniqueCount);
+					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightIndirectKernel, ShaderConstants._ClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightIndirectKernel, ShaderConstants._RWClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightIndirectKernel, ShaderConstants._RWClusterLightIndexCounterBuffer, ShaderData.instance.lightIndexCounterBuffer);
 					cmd.SetComputeBufferParam(_clusterCompute, _clusterLightIndirectKernel, ShaderConstants._RWClusterLightIndexListBuffer, ShaderData.instance.lightIndexListBuffer);
@@ -402,9 +398,10 @@ namespace UnityEngine.Rendering.Universal
 
 				cmd.Clear();
 
+				ShaderData.instance.CreateUniqueCounterBuffer(1);
 				ShaderData.instance.CreateLightDataBuffer(UniversalRenderPipeline.maxVisibleAdditionalLights);
 				ShaderData.instance.CreateLightIndexCountBuffer(1);
-				ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterDimXYZ * renderingData.lightData.maxPerClusterAdditionalLightsCount);
+				ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize * renderingData.lightData.maxPerClusterAdditionalLightsCount);
 
 				var sizeParams = new Vector2(ShaderConstants.blockSizeX, ShaderConstants.blockSizeY);
 				var dimensionParams = new Vector4(_clusterData.clusterDimX, _clusterData.clusterDimY, _clusterData.clusterDimZ, 0.0f);
@@ -467,18 +464,19 @@ namespace UnityEngine.Rendering.Universal
 			public static readonly int _ClusterAABBBuffer = Shader.PropertyToID("_ClusterBoxBuffer");
 			public static readonly int _ClusterFlagBuffer = Shader.PropertyToID("_ClusterFlagBuffer");
 			public static readonly int _ClusterUniquesBuffer = Shader.PropertyToID("_ClusterUniqueBuffer");
+			public static readonly int _ClusterUniqueCounterBuffer = Shader.PropertyToID("_ClusterUniqueCounterBuffer");
 			public static readonly int _ClusterLightBuffer = Shader.PropertyToID("_ClusterLightBuffer");
 			public static readonly int _ClusterLightGridBuffer = Shader.PropertyToID("_ClusterLightGridBuffer");
 			public static readonly int _ClusterLightIndexBuffer = Shader.PropertyToID("_ClusterLightIndexBuffer");
-			public static readonly int _ClusterUniqueCounterBuffer = Shader.PropertyToID("_ClusterUniqueCounterBuffer");
 
 			public static readonly int _RWClusterBoxBuffer = Shader.PropertyToID("_RWClusterBoxBuffer");
 			public static readonly int _RWClusterFlagBuffer = Shader.PropertyToID("_RWClusterFlagBuffer");
 			public static readonly int _RWClusterUniqueBuffer = Shader.PropertyToID("_RWClusterUniqueBuffer");
+			public static readonly int _RWClusterUniqueCounterBuffer = Shader.PropertyToID("_RWClusterUniqueCounterBuffer");
 			public static readonly int _RWClusterLightGridBuffer = Shader.PropertyToID("_RWClusterLightGridBuffer");
 			public static readonly int _RWClusterLightIndexCounterBuffer = Shader.PropertyToID("_RWClusterLightIndexCounterBuffer");
 			public static readonly int _RWClusterLightIndexListBuffer = Shader.PropertyToID("_RWClusterLightIndexListBuffer");
-			public static readonly int _RWClustersIndirectArgumentBuffer = Shader.PropertyToID("_RWClustersIndirectArgumentBuffer");
+			public static readonly int _RWClusterIndirectArgumentBuffer = Shader.PropertyToID("_RWClusterIndirectArgumentBuffer");
 		}
 
 		public class ShaderData : IDisposable
@@ -486,6 +484,7 @@ namespace UnityEngine.Rendering.Universal
 			static ShaderData _instance = null;
 
 			private ComputeBuffer _clusterUniques;
+			private ComputeBuffer _clusterUniquesCounter;
 			private ComputeBuffer _clusterFlags;
 			private ComputeBuffer _clusterAABBs;
 
@@ -494,10 +493,10 @@ namespace UnityEngine.Rendering.Universal
 			private ComputeBuffer _clusterLightIndexCounter;
 			private ComputeBuffer _clusterAdditionalLightsBuffer;
 
-			private ComputeBuffer _clusterUniqueCount;
 			private ComputeBuffer _clusterIndirectArgumentBuffer;
 
 			public ComputeBuffer uniquesBuffer { get => _clusterUniques; }
+			public ComputeBuffer uniquesCounterBuffer { get => _clusterUniquesCounter; }
 			public ComputeBuffer flagBuffer { get => _clusterFlags; }
 			public ComputeBuffer AABBBuffer { get => _clusterAABBs; }
 			public ComputeBuffer lightGridBuffer { get => _clusterLightGrid; }
@@ -522,10 +521,10 @@ namespace UnityEngine.Rendering.Universal
 
 			public void Dispose()
 			{
-				DisposeBuffer(ref _clusterUniques);
 				DisposeBuffer(ref _clusterFlags);
 				DisposeBuffer(ref _clusterAABBs);
-				DisposeBuffer(ref _clusterUniqueCount);
+				DisposeBuffer(ref _clusterUniques);
+				DisposeBuffer(ref _clusterUniquesCounter);
 				DisposeBuffer(ref _clusterIndirectArgumentBuffer);
 				DisposeBuffer(ref _clusterLightGrid);
 				DisposeBuffer(ref _clusterLightIndexList);
@@ -545,7 +544,12 @@ namespace UnityEngine.Rendering.Universal
 
 			internal ComputeBuffer CreateUniqueBuffer(int size)
 			{
-				return GetOrUpdateBuffer<uint>(ref _clusterUniques, size, ComputeBufferType.Counter);
+				return GetOrUpdateBuffer<uint>(ref _clusterUniques, size);
+			}
+
+			internal ComputeBuffer CreateUniqueCounterBuffer(int size)
+			{
+				return GetOrUpdateBuffer<uint>(ref _clusterUniquesCounter, size);
 			}
 
 			internal ComputeBuffer CreateLightGridBuffer(int size)
@@ -566,11 +570,6 @@ namespace UnityEngine.Rendering.Universal
 			internal ComputeBuffer CreateLightDataBuffer(int size)
 			{
 				return GetOrUpdateBuffer<ShaderInput.LightData>(ref _clusterAdditionalLightsBuffer, size);
-			}
-
-			internal ComputeBuffer CreateUniqueCountBuffer(int size)
-			{
-				return GetOrUpdateBuffer<uint>(ref _clusterUniqueCount, size, ComputeBufferType.Raw);
 			}
 
 			internal ComputeBuffer CreateIndirectArgumentBuffer(int size)

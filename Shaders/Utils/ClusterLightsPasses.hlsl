@@ -31,16 +31,16 @@ float4 _ClusterZBufferParams;
 StructuredBuffer<AABB> _ClusterBoxBuffer;
 StructuredBuffer<uint>	_ClusterUniqueBuffer;
 StructuredBuffer<uint> _ClusterFlagBuffer;
-ByteAddressBuffer _ClusterUniqueCounterBuffer;
+StructuredBuffer<uint> _ClusterUniqueCounterBuffer;
 
 RWStructuredBuffer<AABB> _RWClusterBoxBuffer;
 RWStructuredBuffer<uint> _RWClusterFlagBuffer;
 RWStructuredBuffer<uint> _RWClusterUniqueBuffer;
+RWStructuredBuffer<uint> _RWClusterUniqueCounterBuffer;
 RWStructuredBuffer<uint> _RWClusterLightIndexCounterBuffer;
 RWStructuredBuffer<uint2> _RWClusterLightGridBuffer;
-RWStructuredBuffer<uint3> _RWClusterIndirectArgumentsBuffer;
 RWStructuredBuffer<uint> _RWClusterLightIndexListBuffer;
-RWByteAddressBuffer _RWClustersIndirectArgumentBuffer;
+RWByteAddressBuffer _RWClusterIndirectArgumentBuffer;
 
 groupshared AABB gs_ClusterAABB;
 groupshared uint gs_ClusterIndex1D;
@@ -152,6 +152,7 @@ void ClearClusterBuffers(ComputeShaderInput input)
 [numthreads(1, 1, 1)]
 void ClearLightIndexCounter(ComputeShaderInput IN)
 {
+	_RWClusterUniqueCounterBuffer[0] = 0;
 	_RWClusterLightIndexCounterBuffer[0] = 0;
 }
 
@@ -218,16 +219,17 @@ void ComputeClusterCount(uint3 id : SV_DispatchThreadID)
 
 	if (_ClusterFlagBuffer[clusterID] > 0)
 	{
-		uint i = _RWClusterUniqueBuffer.IncrementCounter();
-		_RWClusterUniqueBuffer[i] = clusterID;
+		uint index = 0;
+		InterlockedAdd(_RWClusterUniqueCounterBuffer[0], 1, index);
+		_RWClusterUniqueBuffer[index] = clusterID;
 	}
 }
 
 [numthreads(1,1,1)]
 void UpdateIndirectArgumentBuffers(uint3 id : SV_DispatchThreadID)
 {
-	uint clusterCount = _ClusterUniqueCounterBuffer.Load(0);
-	_RWClustersIndirectArgumentBuffer.Store3(0, uint3(clusterCount, 1, 1));
+	uint clusterCount = _ClusterUniqueCounterBuffer[0];
+	_RWClusterIndirectArgumentBuffer.Store3(0, uint3(clusterCount, 1, 1));
 }
 
 void AssignLightsToClusterBuffer(uint clusterID)
@@ -292,7 +294,7 @@ void AssignLightsToClusters(uint3 id : SV_DispatchThreadID)
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
 void AssignLightsToClustersClamped(uint3 id : SV_DispatchThreadID)
 {	
-	uint clusterCount = _ClusterUniqueCounterBuffer.Load(0);
+	uint clusterCount = _ClusterUniqueCounterBuffer[0];
 	if (id.x < clusterCount)
 	{
 		uint clusterID = _ClusterUniqueBuffer[id.x];
@@ -302,7 +304,7 @@ void AssignLightsToClustersClamped(uint3 id : SV_DispatchThreadID)
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
 void AssignLightsToClustersIndirect(uint3 id : SV_DispatchThreadID)
-{	
+{
 	uint clusterID = _ClusterUniqueBuffer[id.x];
 	AssignLightsToClusterBuffer(clusterID);
 }
