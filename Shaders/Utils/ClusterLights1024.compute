@@ -5,10 +5,10 @@
 #pragma kernel SetupClusterFlags
 #pragma kernel ComputeClusterCount
 #pragma kernel UpdateIndirectArgumentBuffers
-#pragma kernel AssignLightsToClusters
-#pragma kernel AssignLightsToClustersIndirect
-#pragma kernel AssignLightsToClustersClamped
-#pragma kernel AssignLightsToClustersIndirectNoLimit
+#pragma kernel ComputeLightsToClusterBuffer
+#pragma kernel ComputeLightsToClusterBufferClamped
+#pragma kernel ComputeLightsToClusterBufferIndirect
+#pragma kernel ComputeLightsToDynamicClusterBufferIndirect
 #pragma enable_d3d11_debug_symbols
 
 #ifndef MAX_WORKGROUP_UV_X

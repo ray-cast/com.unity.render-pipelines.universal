@@ -97,6 +97,59 @@ bool ComputeRayPlaneInterction(float3 a, float3 b, Plane p, out float3 q)
 	return intersect;
 }
 
+void ComputeLightsClusterIntersection(uint clusterID)
+{
+	uint lightCount = 0;
+	uint lightStartOffset = 0;
+
+	InterlockedAdd(_RWClusterLightIndexCounterBuffer[0], _ClusterLightParams.y, lightStartOffset);
+
+	AABB aabb = _ClusterBoxBuffer[clusterID];
+
+	for (uint i = 0, count = 0; i < uint(_ClusterLightParams.x) && lightCount < uint(_ClusterLightParams.y); i++)
+	{
+		float4 lightPositionWS = _ClusterLightBuffer[i].position;
+		if (lightPositionWS.w > 0)
+		{
+			float4 color = _ClusterLightBuffer[i].color;
+			float4 spotDirection = _ClusterLightBuffer[i].spotDirection;
+			float3 lightPosView = mul(_InverseViewMatrix, float4(lightPositionWS.xyz, 1)).xyz;
+
+			if (spotDirection.w > 0)
+			{
+				Cone cone = (Cone)0;
+				cone.center = lightPosView;
+				cone.direction = mul((float3x3)_InverseViewMatrix, -spotDirection.xyz).xyz;
+				cone.angle = spotDirection.w;
+				cone.range = color.w;
+
+				if (ComputeConeBoxIntersection(cone, aabb))
+				{
+					_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
+					lightCount++;
+				}
+			}
+			else
+			{
+				Sphere sphere = { lightPosView, color.w };
+
+				if (ComputeSphereBoxIntersection(sphere, aabb))
+				{
+					_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
+					lightCount++;
+				}
+			}
+		}
+		else
+		{
+			_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
+			lightCount++;
+		}
+	}
+
+	_RWClusterLightGridBuffer[clusterID] = uint2(lightStartOffset, lightCount);
+}
+
 uint ComputeClusterIndex1D(uint3 clusterIndex3D)
 {
 	return clusterIndex3D.x + (_ClusterDimensionParams.x * (clusterIndex3D.y + _ClusterDimensionParams.y * clusterIndex3D.z));
@@ -232,85 +285,32 @@ void UpdateIndirectArgumentBuffers(uint3 id : SV_DispatchThreadID)
 	_RWClusterIndirectArgumentBuffer.Store3(0, uint3(clusterCount, 1, 1));
 }
 
-void AssignLightsToClusterBuffer(uint clusterID)
-{
-	uint lightCount = 0;
-	uint lightStartOffset = 0;
-
-	InterlockedAdd(_RWClusterLightIndexCounterBuffer[0], _ClusterLightParams.y, lightStartOffset);
-
-	AABB aabb = _ClusterBoxBuffer[clusterID];
-
-	for (uint i = 0, count = 0; i < uint(_ClusterLightParams.x) && lightCount < uint(_ClusterLightParams.y); i++)
-	{
-		float4 lightPositionWS = _ClusterLightBuffer[i].position;
-		if (lightPositionWS.w > 0)
-		{
-			float4 color = _ClusterLightBuffer[i].color;
-			float4 spotDirection = _ClusterLightBuffer[i].spotDirection;
-			float3 lightPosView = mul(_InverseViewMatrix, float4(lightPositionWS.xyz, 1)).xyz;
-
-			if (spotDirection.w > 0)
-			{
-				Cone cone = (Cone)0;
-				cone.center = lightPosView;
-				cone.direction = mul((float3x3)_InverseViewMatrix, -spotDirection.xyz).xyz;
-				cone.angle = spotDirection.w;
-				cone.range = color.w;
-
-				if (ComputeConeBoxIntersection(cone, aabb))
-				{
-					_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
-					lightCount++;
-				}
-			}
-			else
-			{
-				Sphere sphere = { lightPosView, color.w };
-
-				if (ComputeSphereBoxIntersection(sphere, aabb))
-				{
-					_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
-					lightCount++;
-				}
-			}
-		}
-		else
-		{
-			_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
-			lightCount++;
-		}
-	}
-
-	_RWClusterLightGridBuffer[clusterID] = uint2(lightStartOffset, lightCount);
-}
-
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
-void AssignLightsToClusters(uint3 id : SV_DispatchThreadID)
+void ComputeLightsToClusterBuffer(uint3 id : SV_DispatchThreadID)
 {	
-	AssignLightsToClusterBuffer(id.x);
+	ComputeLightsClusterIntersection(id.x);
 }
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
-void AssignLightsToClustersClamped(uint3 id : SV_DispatchThreadID)
+void ComputeLightsToClusterBufferClamped(uint3 id : SV_DispatchThreadID)
 {	
 	uint clusterCount = _ClusterUniqueCounterBuffer[0];
 	if (id.x < clusterCount)
 	{
 		uint clusterID = _ClusterUniqueBuffer[id.x];
-		AssignLightsToClusterBuffer(clusterID);
+		ComputeLightsClusterIntersection(clusterID);
 	}
 }
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
-void AssignLightsToClustersIndirect(uint3 id : SV_DispatchThreadID)
+void ComputeLightsToClusterBufferIndirect(uint3 id : SV_DispatchThreadID)
 {
 	uint clusterID = _ClusterUniqueBuffer[id.x];
-	AssignLightsToClusterBuffer(clusterID);
+	ComputeLightsClusterIntersection(clusterID);
 }
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
-void AssignLightsToClustersIndirectNoLimit(ComputeShaderInput IN)
+void ComputeLightsToDynamicClusterBufferIndirect(ComputeShaderInput IN)
 {	
 	uint i, index;
 
