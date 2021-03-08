@@ -250,7 +250,7 @@ namespace UnityEngine.Rendering.Universal
 			lightOcclusionProbeChannel.y = occlusionProbeChannel == -1 ? 1f : 0f;
 		}
 
-		void SetupAdditionalLightConstants(ref CommandBuffer cmd, ref RenderingData renderingData)
+		int SetupAdditionalLightConstants(ref CommandBuffer cmd, ref RenderingData renderingData)
 		{
 			ref LightData lightData = ref renderingData.lightData;
 			var lights = lightData.visibleLights;
@@ -278,6 +278,8 @@ namespace UnityEngine.Rendering.Universal
 			ShaderData.instance.additionalLightsBuffer.SetData(additionalLightsData);
 			
 			additionalLightsData.Dispose();
+
+			return _clusterAdditionalLightsCount;
 		}
 
 		void SetupClusterFlags(ref CommandBuffer cmd, ref Camera camera)
@@ -399,6 +401,9 @@ namespace UnityEngine.Rendering.Universal
 				ShaderData.instance.CreateLightIndexCountBuffer(1);
 				ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize * renderingData.lightData.maxPerClusterAdditionalLightsCount);
 
+				this.ClearLightGirdIndexCounter(ref cmd, ref renderingData);
+
+				var additionalLightsCount = this.SetupAdditionalLightConstants(ref cmd, ref renderingData);
 				var sizeParams = new Vector2(ShaderConstants.blockSizeX, ShaderConstants.blockSizeY);
 				var dimensionParams = new Vector4(_clusterData.clusterDimX, _clusterData.clusterDimY, _clusterData.clusterDimZ, 0.0f);
 				var projectionParams = new Vector4(_clusterData.zNear, _clusterData.zFar, _clusterData.nearK, _clusterData.logDimY);
@@ -416,11 +421,11 @@ namespace UnityEngine.Rendering.Universal
 				cmd.SetGlobalBuffer(ShaderConstants._ClusterLightIndexBuffer, ShaderData.instance.lightIndexListBuffer);
 				cmd.SetGlobalBuffer(ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
 
-				this.ClearLightGirdIndexCounter(ref cmd, ref renderingData);
-
-				this.SetupAdditionalLightConstants(ref cmd, ref renderingData);
-				this.SetupClusterFlags(ref cmd, ref renderingData.cameraData.camera);
-				this.ComputeLightClusterIntersection(ref cmd, ref renderingData, ref camera);
+				if (additionalLightsCount > 0)
+				{
+					this.SetupClusterFlags(ref cmd, ref renderingData.cameraData.camera);
+					this.ComputeLightClusterIntersection(ref cmd, ref renderingData, ref camera);
+				}
 			}
 
 			context.ExecuteCommandBuffer(cmd);
