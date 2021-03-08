@@ -1,4 +1,4 @@
-Shader "Hidden/CUniversal Render Pipeline/UberPost"
+Shader "Hidden/Universal Render Pipeline/UberPost"
 {
     HLSLINCLUDE
         

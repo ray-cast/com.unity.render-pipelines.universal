@@ -24,7 +24,7 @@ namespace UnityEngine.Rendering.Universal
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
-            ConfigureTarget(_colorAttachmentHandle.Identifier());
+            ConfigureTarget(_colorAttachmentHandle.Identifier(), _depthAttachmentHandle.Identifier());
             ConfigureClear(ClearFlag.Color, new Color(0, 0, 0, 0));
         }
 

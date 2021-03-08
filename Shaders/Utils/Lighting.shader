@@ -4,7 +4,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Gbuffer.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthAttachment.hlsl"
+		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
 		half4 _LightParams;
 		half4 _ScaleBiasRT;
@@ -61,7 +61,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			float3 n = surface.normalWS;
 			float3 v = normalize(input.viewdir);
 
-			float deviceDepth = SampleDepthAttachment(input.uv.xy);
+			float deviceDepth = SampleSceneDepth(input.uv.xy);
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
 			deviceDepth = 2 * deviceDepth - 1;
 #endif
@@ -92,7 +92,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			float3 n = surface.normalWS;
 			float3 v = normalize(input.viewdir);
 
-			float deviceDepth = SampleDepthAttachment(input.uv.xy);
+			float deviceDepth = SampleSceneDepth(input.uv.xy);
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
             deviceDepth = 2 * deviceDepth - 1;
 #endif
@@ -140,7 +140,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		}
 		Pass
 		{
-			ZTest Off ZWrite Off
+			ZTest Greater ZWrite Off
 			Cull Front
 			Blend One One
 
