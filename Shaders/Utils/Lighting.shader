@@ -39,7 +39,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			return output;
 		}
 
-		Varyings MeshLightingVertex(Attributes input)
+		Varyings VolumeLightingVertex(Attributes input)
 		{
 			Varyings output;
 			
@@ -146,7 +146,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			Blend One One
 
 			HLSLPROGRAM
-				#pragma vertex MeshLightingVertex
+				#pragma vertex VolumeLightingVertex
 				#pragma fragment AdditionalLightingFragment
 
 				#pragma multi_compile _ _SHADOWS_SOFT
@@ -163,7 +163,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			Blend One One
 
 			HLSLPROGRAM
-				#pragma vertex MeshLightingVertex
+				#pragma vertex VolumeLightingVertex
 				#pragma fragment AdditionalLightingFragment
 
 				#pragma multi_compile _ _SHADOWS_SOFT
