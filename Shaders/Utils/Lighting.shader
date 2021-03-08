@@ -101,7 +101,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			Light light = GetAdditionalPerObjectLight(uint(_LightParams.x), worldPosition);
 			float3 lighting = LightingPhysicallyBased(brdfData, light, n, v);
 
-			return float4(lighting, 1);
+			return float4(lighting, 0);
 		}
 	ENDHLSL
 
@@ -140,8 +140,26 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		}
 		Pass
 		{
+			// inside volume
 			ZTest Greater ZWrite Off
 			Cull Front
+			Blend One One
+
+			HLSLPROGRAM
+				#pragma vertex MeshLightingVertex
+				#pragma fragment AdditionalLightingFragment
+
+				#pragma multi_compile _ _SHADOWS_SOFT
+				#pragma multi_compile _ _ADDITIONAL_LIGHTS
+				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
+				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
+			ENDHLSL
+		}
+		Pass
+		{
+			// outside volume
+			ZTest Lequal ZWrite Off
+			Cull Back
 			Blend One One
 
 			HLSLPROGRAM

@@ -49,9 +49,10 @@ namespace UnityEngine.Rendering.Universal
                 {
                     VisibleLight light = lights[i];
 
+                    var lightRange = light.light.range * light.light.range;
                     var distanceThreadhold = renderingData.lightData.maxLightingDistance * renderingData.lightData.maxLightingDistance;
-                    var distanceSqr = Vector3.SqrMagnitude(camera.transform.position - light.light.transform.position) - light.light.range * light.light.range;
-                    if (distanceSqr > distanceThreadhold)
+                    var distanceSqr = Vector3.SqrMagnitude(camera.transform.position - light.light.transform.position);
+                    if (distanceSqr - lightRange > distanceThreadhold)
                         continue;
                     
                     switch (light.lightType)
@@ -62,11 +63,17 @@ namespace UnityEngine.Rendering.Universal
                             break;
                         case LightType.Point:
                             cmd.SetGlobalVector(ShaderConstants._LightParams, new Vector4(lightIter, light.range, 0, 0));
-                            cmd.DrawMesh(RenderingUtils.icosphereMesh, light.localToWorldMatrix, _material, 0, 2);
+                            if (distanceSqr < lightRange)
+                                cmd.DrawMesh(RenderingUtils.icosphereMesh, light.localToWorldMatrix, _material, 0, 2);
+                            else
+                                cmd.DrawMesh(RenderingUtils.icosphereMesh, light.localToWorldMatrix, _material, 0, 3);
                             break;
                         case LightType.Spot:
                             cmd.SetGlobalVector(ShaderConstants._LightParams, new Vector4(lightIter, light.range, 0, 0));
-                            cmd.DrawMesh(RenderingUtils.icosphereMesh, light.localToWorldMatrix, _material, 0, 2);
+                            if (distanceSqr < lightRange)
+                                cmd.DrawMesh(RenderingUtils.icosphereMesh, light.localToWorldMatrix, _material, 0, 2);
+                            else
+                                cmd.DrawMesh(RenderingUtils.icosphereMesh, light.localToWorldMatrix, _material, 0, 3);
                             break;
                     }
 
