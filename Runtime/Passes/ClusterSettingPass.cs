@@ -42,13 +42,14 @@ namespace UnityEngine.Rendering.Universal
 		private int _clusterAABBKernel;
 		private int _clusterFlagsKernel;
 		private int _clusterLightKernel;
-		private int _computeLightClusterIntersectionClampedKernel;
-		private int _computeLightClusterIntersectionIndirectKernel;
+		private int _computeLightClusterIntersectionKernel;
 		private int _clearClusterBuffersKernel;
 		private int _clearLightIndexCounterKernel;
 		private int _clearLightIndexListKernel;
 		private int _computeClusterCountKernel;
+#if !(UNITY_ANDROID || UNITY_IOS || UNITY_STANDALONE_OSX || UNITY_WII || UNITY_PS4 || UNITY_XBOXONE)
 		private int _updateIndirectArgumentBuffersKernel;
+#endif
 
 		private int _clusterAdditionalLightsCount;
 
@@ -82,10 +83,14 @@ namespace UnityEngine.Rendering.Universal
 			this._clusterAABBKernel = _clusterCompute.FindKernel("SetupClusterAABBs");
 			this._clusterFlagsKernel = _clusterCompute.FindKernel("SetupClusterFlags");
 			this._computeClusterCountKernel = _clusterCompute.FindKernel("ComputeClusterCount");
-			this._updateIndirectArgumentBuffersKernel = _clusterCompute.FindKernel("UpdateIndirectArgumentBuffers");
 			this._clusterLightKernel = _clusterCompute.FindKernel("ComputeLightsToClusterBuffer");
-			this._computeLightClusterIntersectionClampedKernel = _clusterCompute.FindKernel("ComputeLightsToClusterBufferClamped");
-			this._computeLightClusterIntersectionIndirectKernel = _clusterCompute.FindKernel("ComputeLightsToClusterBufferIndirect");
+
+#if UNITY_ANDROID || UNITY_IOS || UNITY_STANDALONE_OSX || UNITY_WII || UNITY_PS4 || UNITY_XBOXONE
+			this._computeLightClusterIntersectionKernel = _clusterCompute.FindKernel("ComputeLightsToClusterBufferIndirect");
+#else
+			this._updateIndirectArgumentBuffersKernel = _clusterCompute.FindKernel("UpdateIndirectArgumentBuffers");
+			this._computeLightClusterIntersectionKernel = _clusterCompute.FindKernel("ComputeLightsToClusterBufferIndirectArguments");
+#endif
 
 			this._clusterAdditionalLightsCount = 0;
 
@@ -321,7 +326,7 @@ namespace UnityEngine.Rendering.Universal
 			cmd.DispatchCompute(_clusterCompute, _clusterFlagsKernel, Mathf.CeilToInt(width / (float)_maxComputeWorkGroupUV), Mathf.CeilToInt(height / (float)_maxComputeWorkGroupUV), 1);
 		}
 
-		void SetupAssignLightsToClusts(ref CommandBuffer cmd, ref RenderingData renderingData, ref Camera camera)
+		void ComputeLightClusterIntersection(ref CommandBuffer cmd, ref RenderingData renderingData, ref Camera camera)
 		{
 			cmd.SetComputeVectorParam(_clusterCompute, ShaderConstants._ClusterLightParams, new Vector4(_clusterAdditionalLightsCount, renderingData.lightData.maxPerClusterAdditionalLightsCount, 0.0f, 0.0f));
 			cmd.SetComputeMatrixParam(_clusterCompute, ShaderConstants._InverseViewMatrix, camera.transform.worldToLocalMatrix);
@@ -343,32 +348,29 @@ namespace UnityEngine.Rendering.Universal
 				cmd.SetComputeBufferParam(_clusterCompute, _computeClusterCountKernel, ShaderConstants._RWClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
 				cmd.DispatchCompute(_clusterCompute, _computeClusterCountKernel, _clusterData.clusterThreadGroup, 1, 1);
 
-				if (this._maxComputeWorkGroupSize < 1024 || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal)
-				{
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionClampedKernel, ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionClampedKernel, ShaderConstants._ClusterAABBBuffer, ShaderData.instance.AABBBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionClampedKernel, ShaderConstants._ClusterUniquesBuffer, ShaderData.instance.uniquesBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionClampedKernel, ShaderConstants._ClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionClampedKernel, ShaderConstants._RWClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionClampedKernel, ShaderConstants._RWClusterLightIndexCounterBuffer, ShaderData.instance.lightIndexCounterBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionClampedKernel, ShaderConstants._RWClusterLightIndexListBuffer, ShaderData.instance.lightIndexListBuffer);
-					cmd.DispatchCompute(_clusterCompute, _computeLightClusterIntersectionClampedKernel, _clusterData.clusterThreadGroup, 1, 1);
-				}
-				else
-				{
-					var indirectArgumentBuffer = ShaderData.instance.CreateIndirectArgumentBuffer(1);
-					cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._ClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._RWClusterIndirectArgumentBuffer, indirectArgumentBuffer);
-					cmd.DispatchCompute(_clusterCompute, _updateIndirectArgumentBuffersKernel, 1, 1, 1);
+#if UNITY_ANDROID || UNITY_IOS || UNITY_STANDALONE_OSX || UNITY_WII || UNITY_PS4 || UNITY_XBOXONE
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterAABBBuffer, ShaderData.instance.AABBBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterUniquesBuffer, ShaderData.instance.uniquesBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._RWClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._RWClusterLightIndexCounterBuffer, ShaderData.instance.lightIndexCounterBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._RWClusterLightIndexListBuffer, ShaderData.instance.lightIndexListBuffer);
+				cmd.DispatchCompute(_clusterCompute, _computeLightClusterIntersectionKernel, _clusterData.clusterThreadGroup, 1, 1);
+#else
+				var indirectArgumentBuffer = ShaderData.instance.CreateIndirectArgumentBuffer(1);
+				cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._ClusterUniqueCounterBuffer, ShaderData.instance.uniquesCounterBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._RWClusterIndirectArgumentBuffer, indirectArgumentBuffer);
+				cmd.DispatchCompute(_clusterCompute, _updateIndirectArgumentBuffersKernel, 1, 1, 1);
 
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionIndirectKernel, ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionIndirectKernel, ShaderConstants._ClusterAABBBuffer, ShaderData.instance.AABBBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionIndirectKernel, ShaderConstants._ClusterUniquesBuffer, ShaderData.instance.uniquesBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionIndirectKernel, ShaderConstants._RWClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionIndirectKernel, ShaderConstants._RWClusterLightIndexCounterBuffer, ShaderData.instance.lightIndexCounterBuffer);
-					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionIndirectKernel, ShaderConstants._RWClusterLightIndexListBuffer, ShaderData.instance.lightIndexListBuffer);
-					cmd.DispatchCompute(_clusterCompute, _computeLightClusterIntersectionIndirectKernel, indirectArgumentBuffer, 0);
-				}
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterAABBBuffer, ShaderData.instance.AABBBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterUniquesBuffer, ShaderData.instance.uniquesBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._RWClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._RWClusterLightIndexCounterBuffer, ShaderData.instance.lightIndexCounterBuffer);
+				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._RWClusterLightIndexListBuffer, ShaderData.instance.lightIndexListBuffer);
+				cmd.DispatchCompute(_clusterCompute, _computeLightClusterIntersectionKernel, indirectArgumentBuffer, 0);
+#endif
 			}
 		}
 
@@ -418,7 +420,7 @@ namespace UnityEngine.Rendering.Universal
 
 				this.SetupAdditionalLightConstants(ref cmd, ref renderingData);
 				this.SetupClusterFlags(ref cmd, ref renderingData.cameraData.camera);
-				this.SetupAssignLightsToClusts(ref cmd, ref renderingData, ref camera);
+				this.ComputeLightClusterIntersection(ref cmd, ref renderingData, ref camera);
 			}
 
 			context.ExecuteCommandBuffer(cmd);

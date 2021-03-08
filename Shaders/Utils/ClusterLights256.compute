@@ -6,8 +6,8 @@
 #pragma kernel ComputeClusterCount
 #pragma kernel UpdateIndirectArgumentBuffers
 #pragma kernel ComputeLightsToClusterBuffer
-#pragma kernel ComputeLightsToClusterBufferClamped
 #pragma kernel ComputeLightsToClusterBufferIndirect
+#pragma kernel ComputeLightsToClusterBufferIndirectArguments
 #pragma kernel ComputeLightsToDynamicClusterBufferIndirect
 #pragma enable_d3d11_debug_symbols
 

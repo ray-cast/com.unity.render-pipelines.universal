@@ -292,7 +292,7 @@ void ComputeLightsToClusterBuffer(uint3 id : SV_DispatchThreadID)
 }
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
-void ComputeLightsToClusterBufferClamped(uint3 id : SV_DispatchThreadID)
+void ComputeLightsToClusterBufferIndirect(uint3 id : SV_DispatchThreadID)
 {	
 	uint clusterCount = _ClusterUniqueCounterBuffer[0];
 	if (id.x < clusterCount)
@@ -303,7 +303,7 @@ void ComputeLightsToClusterBufferClamped(uint3 id : SV_DispatchThreadID)
 }
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
-void ComputeLightsToClusterBufferIndirect(uint3 id : SV_DispatchThreadID)
+void ComputeLightsToClusterBufferIndirectArguments(uint3 id : SV_DispatchThreadID)
 {
 	uint clusterID = _ClusterUniqueBuffer[id.x];
 	ComputeLightsClusterIntersection(clusterID);
