@@ -682,7 +682,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.postProcessEnabled = CoreUtils.ArePostProcessesEnabled(camera);
                 cameraData.requiresDepthTexture = settings.supportsCameraDepthTexture;
                 cameraData.requiresOpaqueTexture = settings.supportsCameraOpaqueTexture;
-                cameraData.requiresDeferredLighting = settings.deferredLightingMode == LightRenderingMode.PerPixel;
+                cameraData.deferredLightingMode = settings.deferredLightingMode;
                 cameraData.requireHeatMap = settings.requireHeatMap;
                 cameraData.requireDrawCluster = settings.requireDrawCluster;
                 cameraData.renderer = asset.scriptableRenderer;
@@ -695,7 +695,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.maxShadowDistance = (additionalCameraData.renderShadows) ? cameraData.maxShadowDistance : 0.0f;
                 cameraData.requiresDepthTexture = additionalCameraData.requiresDepthTexture;
                 cameraData.requiresOpaqueTexture = additionalCameraData.requiresColorTexture;
-                cameraData.requiresDeferredLighting = additionalCameraData.requiresDeferredLighting;
+                cameraData.deferredLightingMode = additionalCameraData.deferredLightingMode;
                 cameraData.requireHeatMap = additionalCameraData.requiresHeatMap;
                 cameraData.requireDrawCluster = additionalCameraData.requiresDrawCluster;
                 cameraData.renderer = additionalCameraData.scriptableRenderer;
@@ -707,7 +707,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.postProcessEnabled = false;
                 cameraData.requiresDepthTexture = settings.supportsCameraDepthTexture;
                 cameraData.requiresOpaqueTexture = settings.supportsCameraOpaqueTexture;
-                cameraData.requiresDeferredLighting = settings.deferredLightingMode == LightRenderingMode.PerPixel;
+                cameraData.deferredLightingMode = settings.deferredLightingMode;
                 cameraData.requireHeatMap = settings.requireHeatMap;
                 cameraData.requireDrawCluster = settings.requireDrawCluster;
                 cameraData.renderer = asset.scriptableRenderer;
@@ -720,7 +720,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 cameraData.requiresDepthTexture = false;
                 cameraData.requiresOpaqueTexture = false;
-                cameraData.requiresDeferredLighting = false;
+                cameraData.deferredLightingMode = DeferredRenderingMode.Disabled;
             }
 
             // Disables post if GLes2
@@ -908,7 +908,7 @@ namespace UnityEngine.Rendering.Universal
                 lightData.maxPerObjectAdditionalLightsCount = 0;
             }
 
-            if (settings.deferredLightingMode != LightRenderingMode.Disabled)
+            if (settings.deferredLightingMode != DeferredRenderingMode.Disabled)
 			{
                 lightData.maxLightingDistance = Mathf.Max(1, settings.maxLightingDistance);
                 lightData.maxPerClusterAdditionalLightsCount = Math.Min(settings.maxClusterLightsCount, UniversalRenderPipeline.maxPerClusterLights);

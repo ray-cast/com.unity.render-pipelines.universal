@@ -25,10 +25,11 @@ namespace UnityEngine.Rendering.Universal
         UsePipelineSettings,
     }
 
-    //[Obsolete("Renderer override is no longer used, renderers are referenced by index on the pipeline asset.")]
-    public enum RendererOverrideOption
+    public enum CameraDeferredLightingOption
     {
-        Custom,
+        Off,
+        PerPixel,
+        PerCluster,
         UsePipelineSettings,
     }
 
@@ -138,7 +139,7 @@ namespace UnityEngine.Rendering.Universal
 
         [Tooltip("If enabled deferred lighting will render for this camera bound as Cluster Based Deferred Lighting.")]
         [SerializeField]
-        CameraOverrideOption m_RequiresDeferredLightingOption = CameraOverrideOption.UsePipelineSettings;
+        CameraDeferredLightingOption m_DeferredLightingModeOption = CameraDeferredLightingOption.UsePipelineSettings;
 
         [SerializeField]
         CameraOverrideOption m_RequiresHeatMapOption = CameraOverrideOption.UsePipelineSettings;
@@ -167,14 +168,14 @@ namespace UnityEngine.Rendering.Universal
         [FormerlySerializedAs("requiresColorTexture"), SerializeField]
         bool m_RequiresColorTexture = false;
 
-        [FormerlySerializedAs("requiresDeferredLighting"), SerializeField]
-        bool m_RequiresDeferredLighting = false;
-
         [FormerlySerializedAs("requiresHeatMap"), SerializeField]
         bool m_RequiresHeatMap = false;
 
         [FormerlySerializedAs("requiresDrawCluster"), SerializeField]
         bool m_RequiresDrawCluster = false;
+
+        [FormerlySerializedAs("deferredRenderingMode"), SerializeField]
+        DeferredRenderingMode m_DeferredLightingMode = DeferredRenderingMode.Disabled;
 
         [HideInInspector] [SerializeField]
         float m_Version = 2;
@@ -225,10 +226,10 @@ namespace UnityEngine.Rendering.Universal
             set => m_RequiresOpaqueTextureOption = value;
         }
 
-        public CameraOverrideOption requiresDeferredLightingOption
+        public CameraDeferredLightingOption requiresDeferredLightingOption
         {
-            get => m_RequiresDeferredLightingOption;
-            set => m_RequiresDeferredLightingOption = value;
+            get => m_DeferredLightingModeOption;
+            set => m_DeferredLightingModeOption = value;
         }
 
         public CameraOverrideOption requireHeatMapOption
@@ -379,20 +380,33 @@ namespace UnityEngine.Rendering.Universal
             set { m_RequiresOpaqueTextureOption = (value) ? CameraOverrideOption.On : CameraOverrideOption.Off; }
         }
 
-        public bool requiresDeferredLighting
+        public DeferredRenderingMode deferredLightingMode
         {
             get
             {
-                if (m_RequiresDepthTextureOption == CameraOverrideOption.UsePipelineSettings)
+                if (m_DeferredLightingModeOption == CameraDeferredLightingOption.UsePipelineSettings)
                 {
-                    return UniversalRenderPipeline.asset.deferredLightingMode == LightRenderingMode.PerPixel;
+                    return UniversalRenderPipeline.asset.deferredLightingMode;
                 }
                 else
                 {
-                    return m_RequiresDepthTextureOption == CameraOverrideOption.On;
+                    if (m_DeferredLightingModeOption == CameraDeferredLightingOption.PerPixel)
+                        return DeferredRenderingMode.PerPixel;
+                    else if (m_DeferredLightingModeOption == CameraDeferredLightingOption.PerCluster)
+                        return DeferredRenderingMode.PerCluster;
+                    else
+                        return DeferredRenderingMode.Disabled;
                 }
             }
-            set { m_RequiresDeferredLightingOption = (value) ? CameraOverrideOption.On : CameraOverrideOption.Off; }
+            set
+            {
+                if (value == DeferredRenderingMode.PerPixel)
+                    m_DeferredLightingModeOption = CameraDeferredLightingOption.PerPixel;
+                else if (value == DeferredRenderingMode.PerCluster)
+                    m_DeferredLightingModeOption = CameraDeferredLightingOption.PerCluster;
+                else
+                    m_DeferredLightingModeOption = CameraDeferredLightingOption.Off;
+            }
         }
 
         public bool requiresHeatMap
@@ -507,9 +521,15 @@ namespace UnityEngine.Rendering.Universal
             {
                 m_RequiresDepthTextureOption = (m_RequiresDepthTexture) ? CameraOverrideOption.On : CameraOverrideOption.Off;
                 m_RequiresOpaqueTextureOption = (m_RequiresColorTexture) ? CameraOverrideOption.On : CameraOverrideOption.Off;
-                m_RequiresDeferredLightingOption = (m_RequiresDeferredLighting) ? CameraOverrideOption.On : CameraOverrideOption.Off;
                 m_RequiresHeatMapOption = (m_RequiresHeatMap) ? CameraOverrideOption.On : CameraOverrideOption.Off;
                 m_RequiresDrawClusterOption = (m_RequiresDrawCluster) ? CameraOverrideOption.On : CameraOverrideOption.Off;
+
+                if (m_DeferredLightingMode == DeferredRenderingMode.PerPixel)
+                    m_DeferredLightingModeOption = CameraDeferredLightingOption.PerPixel;
+                else if (m_DeferredLightingMode == DeferredRenderingMode.PerCluster)
+                    m_DeferredLightingModeOption = CameraDeferredLightingOption.PerCluster;
+                else
+                    m_DeferredLightingModeOption = CameraDeferredLightingOption.Off;
             }
         }
 

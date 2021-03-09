@@ -39,7 +39,7 @@ namespace UnityEngine.Rendering.Universal
             public static GUIContent priority = EditorGUIUtility.TrTextContent("Priority", "A camera with a higher priority is drawn on top of a camera with a lower priority [ -100, 100 ].");
             public static GUIContent clearDepth = EditorGUIUtility.TrTextContent("Clear Depth", "If enabled, depth from the previous camera will be cleared.");
 
-            public static GUIContent requireDeferredLighting = EditorGUIUtility.TrTextContent("Deferred Lighting", "If enabled, depth from the previous camera will be cleared.");
+            public static GUIContent deferredLightingMode = EditorGUIUtility.TrTextContent("Deferred Lighting", "If enabled, depth from the previous camera will be cleared.");
             public static GUIContent requireHeatMap = EditorGUIUtility.TrTextContent("Heat Map", "If enabled, depth from the previous camera will be cleared.");
             public static GUIContent requireDrawCluster = EditorGUIUtility.TrTextContent("Draw Cluster", "If enabled, depth from the previous camera will be cleared.");
 
@@ -81,7 +81,16 @@ namespace UnityEngine.Rendering.Universal
                 new GUIContent("Use Pipeline Settings"),
             };
 
+            public static GUIContent[] displayedDeferredLightingDataOptions =
+            {
+                new GUIContent("Off"),
+                new GUIContent("Per Pixel"),
+                new GUIContent("Per Cluster"),
+                new GUIContent("Use Pipeline Settings"),
+            };
+
             public static int[] additionalDataOptions = Enum.GetValues(typeof(CameraOverrideOption)).Cast<int>().ToArray();
+            public static int[] deferredLightingDataOptions = Enum.GetValues(typeof(CameraDeferredLightingOption)).Cast<int>().ToArray();
 
             // Using the pipeline Settings
             public static GUIContent[] displayedCameraOptions =
@@ -440,7 +449,7 @@ namespace UnityEngine.Rendering.Universal
             m_AdditionalCameraDataStopNaN = m_AdditionalCameraDataSO.FindProperty("m_StopNaN");
             m_AdditionalCameraDataDithering = m_AdditionalCameraDataSO.FindProperty("m_Dithering");
             m_AdditionalCameraClearDepth = m_AdditionalCameraDataSO.FindProperty("m_ClearDepth");
-            m_AdditionalCameraDataDeferredLightingProp = m_AdditionalCameraDataSO.FindProperty("m_RequiresDeferredLightingOption");
+            m_AdditionalCameraDataDeferredLightingProp = m_AdditionalCameraDataSO.FindProperty("m_DeferredLightingModeOption");
             m_AdditionalCameraDataHeatMapProp = m_AdditionalCameraDataSO.FindProperty("m_RequiresHeatMapOption");
             m_AdditionalCameraDataDrawClusterProp = m_AdditionalCameraDataSO.FindProperty("m_RequiresDrawClusterOption");
             m_AdditionalCameraDataCameraTypeProp = m_AdditionalCameraDataSO.FindProperty("m_CameraType");
@@ -1038,10 +1047,10 @@ namespace UnityEngine.Rendering.Universal
 
             Rect controlRectColor = EditorGUILayout.GetControlRect(true);
 
-            EditorGUI.BeginProperty(controlRectColor, Styles.requireDeferredLighting, m_AdditionalCameraDataDeferredLightingProp);
+            EditorGUI.BeginProperty(controlRectColor, Styles.deferredLightingMode, m_AdditionalCameraDataDeferredLightingProp);
             EditorGUI.BeginChangeCheck();
 
-            selectedDeferredLightingOption = (CameraOverrideOption)EditorGUI.IntPopup(controlRectColor, Styles.requireDeferredLighting, (int)selectedDeferredLightingOption, Styles.displayedAdditionalDataOptions, Styles.additionalDataOptions);
+            selectedDeferredLightingOption = (CameraOverrideOption)EditorGUI.IntPopup(controlRectColor, Styles.deferredLightingMode, (int)selectedDeferredLightingOption, Styles.displayedDeferredLightingDataOptions, Styles.deferredLightingDataOptions);
 
             if (EditorGUI.EndChangeCheck())
             {

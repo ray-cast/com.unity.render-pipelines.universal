@@ -44,6 +44,7 @@
 
         RenderTargetHandle _activeCameraColorAttachment;
         RenderTargetHandle _activeCameraDepthAttachment;
+        RenderTargetHandle _activeCameraDepthTexture;
 
         ForwardLights _forwardLights;
 
@@ -59,7 +60,7 @@
 
         ComputeShader _clusterCompute;
 
-        bool _requireClusterLighting;
+        bool _supportsClusterLighting;
 
         public ClusterBasedDeferredRenderer(ClusterBasedDeferredRendererData data) : base(data)
         {
@@ -112,9 +113,9 @@
             else if (SystemInfo.maxComputeWorkGroupSize >= 128)
                 _clusterCompute = data.shaders.clusterX128CS;
 
-            _requireClusterLighting = (SystemInfo.supportsComputeShaders && _clusterCompute) ? true : false;
+            _supportsClusterLighting = (SystemInfo.supportsComputeShaders && _clusterCompute) ? true : false;
 
-            if (_requireClusterLighting)
+            if (_supportsClusterLighting)
 			{
                 _clusterSettingPass = new ClusterSettingPass(RenderPassEvent.BeforeRenderingOpaques, _clusterCompute);
                 _clusterOpaqueLightingPass = new ClusterLightingPass(RenderPassEvent.BeforeRenderingOpaques, _clusterLightingMaterial);
@@ -215,11 +216,11 @@
             bool createColorTexture = RequiresIntermediateColorTexture(ref cameraData);
             createColorTexture |= (rendererFeatures.Count != 0 && !isRunningHololens);
             createColorTexture &= !isPreviewCamera;
-            createColorTexture |= cameraData.requiresDeferredLighting;
+            createColorTexture |= (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled);
 
             bool createDepthTexture = cameraData.requiresDepthTexture && !requiresDepthPrepass;
             createDepthTexture |= (cameraData.renderType == CameraRenderType.Base && !cameraData.resolveFinalTarget);
-            createDepthTexture |= cameraData.requiresDeferredLighting;
+            createDepthTexture |= (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled);
 
 #if UNITY_ANDROID || UNITY_WEBGL
             if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan)
@@ -234,10 +235,10 @@
             {
                 _activeCameraColorAttachment = (createColorTexture) ? _cameraColorAttachment : RenderTargetHandle.CameraTarget;
                 _activeCameraDepthAttachment = (createDepthTexture) ? _cameraDepthAttachment : RenderTargetHandle.CameraTarget;
+                _activeCameraDepthTexture = _cameraDepthTexture;
 
                 bool intermediateRenderTexture = createColorTexture || createDepthTexture;
-                if (intermediateRenderTexture)
-                    CreateCameraRenderTarget(context, ref renderingData.cameraData);
+                CreateCameraRenderTarget(context, ref renderingData.cameraData);
 
                 int backbufferMsaaSamples = (intermediateRenderTexture) ? 1 : cameraTargetDescriptor.msaaSamples;
                 if (Camera.main == camera && camera.cameraType == CameraType.Game && cameraData.targetTexture == null)
@@ -247,6 +248,7 @@
             {
                 _activeCameraColorAttachment = _cameraColorAttachment;
                 _activeCameraDepthAttachment = _cameraDepthAttachment;
+                _activeCameraDepthAttachment = _cameraDepthTexture;
             }
 
             if (requiresDepthPrepass)
@@ -255,12 +257,12 @@
                 EnqueuePass(_depthPrepass);
             }
 
-            if (cameraData.requiresDeferredLighting)
+            if (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled)
             {
                 _renderOpaqueGbufferPass.Setup(cameraTargetDescriptor, _cameraGbufferAttachments, _activeCameraDepthAttachment);
                 EnqueuePass(_renderOpaqueGbufferPass);
 
-                if (_requireClusterLighting)
+                if (cameraData.deferredLightingMode == DeferredRenderingMode.PerCluster && _supportsClusterLighting)
 				{
                     _clusterSettingPass.Setup(_activeCameraDepthAttachment, cameraData.requireDrawCluster);
                     EnqueuePass(_clusterSettingPass);
@@ -326,14 +328,14 @@
             }
 
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
-            if (SystemInfo.supportsGeometryShaders && _requireClusterLighting && cameraData.requireDrawCluster && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
+            if (SystemInfo.supportsGeometryShaders && _supportsClusterLighting && cameraData.requireDrawCluster && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
             {
                 _drawClusterPass.Setup(_clusterSettingPass.clusterData.clusterDimXYZ, cameraData.requireDrawCluster);
                 EnqueuePass(_drawClusterPass);
             }
 #endif
 #if UNITY_EDITOR
-            if (_requireClusterLighting && cameraData.requireHeatMap && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
+            if (_supportsClusterLighting && cameraData.requireHeatMap && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
             {
                 _drawClusterHeatPass.ConfigureTarget(this.cameraColorTarget);
                 EnqueuePass(_drawClusterHeatPass);
@@ -454,10 +456,10 @@
                 _activeCameraDepthAttachment = RenderTargetHandle.CameraTarget;
             }
 
-            if (_cameraDepthTexture != RenderTargetHandle.CameraTarget)
+            if (_activeCameraDepthTexture != RenderTargetHandle.CameraTarget)
 			{
-                cmd.ReleaseTemporaryRT(_cameraDepthTexture.id);
-                _cameraDepthTexture = RenderTargetHandle.CameraTarget;
+                cmd.ReleaseTemporaryRT(_activeCameraDepthTexture.id);
+                _activeCameraDepthTexture = RenderTargetHandle.CameraTarget;
             }
         }
 
@@ -467,12 +469,6 @@
 
             var descriptor = cameraData.cameraTargetDescriptor;
             int msaaSamples = descriptor.msaaSamples;
-
-            var colorDepthDescriptor = descriptor;
-            colorDepthDescriptor.colorFormat = RenderTextureFormat.Depth;
-            colorDepthDescriptor.depthBufferBits = k_DepthStencilBufferBits;
-            colorDepthDescriptor.msaaSamples = 1;
-            cmd.GetTemporaryRT(_cameraDepthTexture.id, colorDepthDescriptor, FilterMode.Point);
 
             if (_activeCameraColorAttachment != RenderTargetHandle.CameraTarget)
             {
@@ -492,6 +488,15 @@
                 depthDescriptor.colorFormat = RenderTextureFormat.Depth;
                 depthDescriptor.depthBufferBits = k_DepthStencilBufferBits;
                 cmd.GetTemporaryRT(_activeCameraDepthAttachment.id, depthDescriptor, FilterMode.Point);
+            }
+
+            if (_activeCameraDepthTexture != RenderTargetHandle.CameraTarget)
+			{
+                var colorDepthDescriptor = descriptor;
+                colorDepthDescriptor.colorFormat = RenderTextureFormat.Depth;
+                colorDepthDescriptor.depthBufferBits = k_DepthStencilBufferBits;
+                colorDepthDescriptor.msaaSamples = 1;
+                cmd.GetTemporaryRT(_activeCameraDepthTexture.id, colorDepthDescriptor, FilterMode.Point);
             }
 
             context.ExecuteCommandBuffer(cmd);

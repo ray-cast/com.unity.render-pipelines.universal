@@ -69,8 +69,8 @@ namespace UnityEngine.Rendering.Universal
     public enum DeferredRenderingMode
     {
         Disabled = 0,
-        Normal = 1,
-        Cluster = 2,
+        PerPixel = 1,
+        PerCluster = 2,
     }
 
     public enum ShaderVariantLogLevel
@@ -177,7 +177,7 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] ShadowResolution m_AdditionalLightsShadowmapResolution = ShadowResolution._512;
 
         // Deferred Lighting settings
-        [SerializeField] LightRenderingMode _deferredLightingMode = LightRenderingMode.Disabled;
+        [SerializeField] DeferredRenderingMode _deferredLightingMode = DeferredRenderingMode.PerCluster;
         [SerializeField] bool _deferredRequireClusterHeatMap = false;
         [SerializeField] bool _deferredRequireDrawCluster = false;
         [SerializeField] float _deferredMaxLightingDistance = 200;
@@ -606,7 +606,7 @@ namespace UnityEngine.Rendering.Universal
             get { return (int)m_AdditionalLightsShadowmapResolution; }
         }
 
-        public LightRenderingMode deferredLightingMode
+        public DeferredRenderingMode deferredLightingMode
         {
             get { return _deferredLightingMode; }
             set { _deferredLightingMode = value; }

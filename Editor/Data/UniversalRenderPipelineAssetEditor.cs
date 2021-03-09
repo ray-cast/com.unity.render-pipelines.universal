@@ -92,6 +92,7 @@ namespace UnityEngine.Rendering.Universal
 
             // Dropdown menu options
             public static string[] mainLightOptions = { "Disabled", "Per Pixel" };
+            public static string[] deferredLightOptions = { "Disabled", "Per Pixel", "Per Cluster" };
             public static string[] shadowCascadeOptions = { "No Cascades", "Two Cascades", "Four Cascades" };
             public static string[] opaqueDownsamplingOptions = { "None", "2x (Bilinear)", "4x (Box)", "4x (Bilinear)" };
         }
@@ -149,7 +150,7 @@ namespace UnityEngine.Rendering.Universal
         SerializedProperty _shaderVariantLogLevel;
 
         LightRenderingMode selectedLightRenderingMode;
-        LightRenderingMode selectedDeferredLightRenderingMode;
+        DeferredRenderingMode selectedDeferredLightRenderingMode;
 
         SerializedProperty _postProcessingFeatureSet;
         SerializedProperty _colorGradingMode;
@@ -236,7 +237,7 @@ namespace UnityEngine.Rendering.Universal
             _useAdaptivePerformance = serializedObject.FindProperty("m_UseAdaptivePerformance");
 
             selectedLightRenderingMode = (LightRenderingMode)_additionalLightsRenderingModeProp.intValue;
-            selectedDeferredLightRenderingMode = (LightRenderingMode)_deferredLightingModeProp.intValue;
+            selectedDeferredLightRenderingMode = (DeferredRenderingMode)_deferredLightingModeProp.intValue;
         }
 
         void DrawGeneralSettings()
@@ -345,13 +346,19 @@ namespace UnityEngine.Rendering.Universal
                 }
 
                 // Deferred Lighting
-                CoreEditorUtils.DrawPopup(Styles.requireDeferredLightingText, _deferredLightingModeProp, Styles.mainLightOptions);
-				{
-                    disableGroup = _deferredLightingModeProp.intValue == (int)LightRenderingMode.Disabled;
+                selectedDeferredLightRenderingMode = (DeferredRenderingMode)EditorGUILayout.EnumPopup(Styles.requireDeferredLightingText, selectedDeferredLightRenderingMode);
+                {
+                    _deferredLightingModeProp.intValue = (int)selectedDeferredLightRenderingMode;
+
+                    disableGroup = _deferredLightingModeProp.intValue == (int)DeferredRenderingMode.Disabled;
                     EditorGUI.indentLevel++;
 
                     EditorGUI.BeginDisabledGroup(disableGroup);
                     EditorGUILayout.PropertyField(_deferredMaxLightingDistanceProp, Styles.clusterMaxDistanceLabel, true);
+                    EditorGUI.EndDisabledGroup();
+
+                    disableGroup = !(_deferredLightingModeProp.intValue == (int)DeferredRenderingMode.PerCluster);
+                    EditorGUI.BeginDisabledGroup(disableGroup);
                     _deferredLightsPerClusterLimitProp.intValue = EditorGUILayout.IntSlider(Styles.clusterPerObjectLimit, _deferredLightsPerClusterLimitProp.intValue, 1, UniversalRenderPipeline.maxPerClusterLights);
                     EditorGUILayout.PropertyField(_deferredRequireClusterHeatMapProp, Styles.clusterRequireHeatMapLabel, true);
                     EditorGUILayout.PropertyField(_deferredRequireDrawClusterProp, Styles.clusterRequireDrawClusterLabel, true);

@@ -71,7 +71,7 @@ namespace UnityEngine.Rendering.Universal
         public bool requiresDepthTexture;
         public bool requiresOpaqueTexture;
 
-        public bool requiresDeferredLighting;
+        public DeferredRenderingMode deferredLightingMode;
         public bool requireHeatMap;
         public bool requireDrawCluster;
 
