@@ -13,39 +13,25 @@ namespace UnityEngine.Rendering.Universal
         int kDepthBufferBits = 32;
 
         private RenderTargetHandle depthAttachmentHandle { get; set; }
-        internal RenderTextureDescriptor descriptor { get; private set; }
 
         FilteringSettings _filteringSettings;
         const string _profilerTag = "Depth Prepass";
         ProfilingSampler _profilingSampler = new ProfilingSampler(_profilerTag);
         ShaderTagId _shaderTagId = new ShaderTagId("DepthOnly");
 
-        /// <summary>
-        /// Create the DepthOnlyPass
-        /// </summary>
         public DepthOnlyPass(RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask)
         {
             _filteringSettings = new FilteringSettings(renderQueueRange, layerMask);
             renderPassEvent = evt;
         }
 
-        /// <summary>
-        /// Configure the pass
-        /// </summary>
         public void Setup(RenderTextureDescriptor baseDescriptor, RenderTargetHandle depthAttachmentHandle)
         {
             this.depthAttachmentHandle = depthAttachmentHandle;
-            baseDescriptor.colorFormat = RenderTextureFormat.Depth;
-            baseDescriptor.depthBufferBits = kDepthBufferBits;
-
-            // Depth-Only pass don't use MSAA
-            baseDescriptor.msaaSamples = 1;
-            descriptor = baseDescriptor;
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
-            cmd.GetTemporaryRT(depthAttachmentHandle.id, descriptor, FilterMode.Point);
             ConfigureTarget(depthAttachmentHandle.Identifier());
             ConfigureClear(ClearFlag.All, Color.black);
         }

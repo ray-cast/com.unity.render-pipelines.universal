@@ -462,6 +462,12 @@
             var descriptor = cameraData.cameraTargetDescriptor;
             int msaaSamples = descriptor.msaaSamples;
 
+            var colorDepthDescriptor = descriptor;
+            colorDepthDescriptor.colorFormat = RenderTextureFormat.Depth;
+            colorDepthDescriptor.depthBufferBits = k_DepthStencilBufferBits;
+            colorDepthDescriptor.msaaSamples = 1;
+            cmd.GetTemporaryRT(_cameraDepthTexture.id, colorDepthDescriptor, FilterMode.Point);
+
             if (_activeCameraColorAttachment != RenderTargetHandle.CameraTarget)
             {
                 bool useDepthRenderBuffer = _activeCameraDepthAttachment == RenderTargetHandle.CameraTarget;
