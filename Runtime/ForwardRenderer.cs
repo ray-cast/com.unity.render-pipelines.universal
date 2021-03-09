@@ -511,10 +511,10 @@
                 _activeCameraDepthAttachment = RenderTargetHandle.CameraTarget;
             }
 
-            if (_cameraDepthTexture != RenderTargetHandle.CameraTarget)
+            if (_depthTexture != RenderTargetHandle.CameraTarget)
             {
-                cmd.ReleaseTemporaryRT(_cameraDepthTexture.id);
-                _cameraDepthTexture = RenderTargetHandle.CameraTarget;
+                cmd.ReleaseTemporaryRT(_depthTexture.id);
+                _depthTexture = RenderTargetHandle.CameraTarget;
             }
         }
 
@@ -528,7 +528,7 @@
             colorDepthDescriptor.colorFormat = RenderTextureFormat.Depth;
             colorDepthDescriptor.depthBufferBits = k_DepthStencilBufferBits;
             colorDepthDescriptor.msaaSamples = 1;
-            cmd.GetTemporaryRT(_cameraDepthTexture.id, colorDepthDescriptor, FilterMode.Point);
+            cmd.GetTemporaryRT(_depthTexture.id, colorDepthDescriptor, FilterMode.Point);
 
             if (_activeCameraColorAttachment != RenderTargetHandle.CameraTarget)
             {
