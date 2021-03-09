@@ -11,7 +11,6 @@ namespace UnityEngine.Rendering.Universal
         public ClusterLightingPass(RenderPassEvent evt, Material lightingMaterial)
         {
             this.renderPassEvent = evt;
-            this.renderPassEvent = evt;
             this._lightingMaterial = lightingMaterial;
         }
 

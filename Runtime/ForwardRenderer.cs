@@ -510,6 +510,12 @@
                 cmd.ReleaseTemporaryRT(_activeCameraDepthAttachment.id);
                 _activeCameraDepthAttachment = RenderTargetHandle.CameraTarget;
             }
+
+            if (_cameraDepthTexture != RenderTargetHandle.CameraTarget)
+            {
+                cmd.ReleaseTemporaryRT(_cameraDepthTexture.id);
+                _cameraDepthTexture = RenderTargetHandle.CameraTarget;
+            }
         }
 
         void CreateCameraRenderTarget(ScriptableRenderContext context, ref CameraData cameraData)
@@ -517,6 +523,13 @@
             CommandBuffer cmd = CommandBufferPool.Get(k_CreateCameraTextures);
             var descriptor = cameraData.cameraTargetDescriptor;
             int msaaSamples = descriptor.msaaSamples;
+
+            var colorDepthDescriptor = descriptor;
+            colorDepthDescriptor.colorFormat = RenderTextureFormat.Depth;
+            colorDepthDescriptor.depthBufferBits = k_DepthStencilBufferBits;
+            colorDepthDescriptor.msaaSamples = 1;
+            cmd.GetTemporaryRT(_cameraDepthTexture.id, colorDepthDescriptor, FilterMode.Point);
+
             if (_activeCameraColorAttachment != RenderTargetHandle.CameraTarget)
             {
                 bool useDepthRenderBuffer = _activeCameraDepthAttachment == RenderTargetHandle.CameraTarget;

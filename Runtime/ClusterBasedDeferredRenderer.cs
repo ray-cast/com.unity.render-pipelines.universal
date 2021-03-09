@@ -453,6 +453,12 @@
                 cmd.ReleaseTemporaryRT(_activeCameraDepthAttachment.id);
                 _activeCameraDepthAttachment = RenderTargetHandle.CameraTarget;
             }
+
+            if (_cameraDepthTexture != RenderTargetHandle.CameraTarget)
+			{
+                cmd.ReleaseTemporaryRT(_cameraDepthTexture.id);
+                _cameraDepthTexture = RenderTargetHandle.CameraTarget;
+            }
         }
 
         void CreateCameraRenderTarget(ScriptableRenderContext context, ref CameraData cameraData)

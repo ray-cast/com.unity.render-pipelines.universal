@@ -1,5 +1,3 @@
-using System;
-
 namespace UnityEngine.Rendering.Universal
 {
     /// <summary>
@@ -10,19 +8,19 @@ namespace UnityEngine.Rendering.Universal
     /// </summary>
     public class DepthOnlyPass : ScriptableRenderPass
     {
-        int kDepthBufferBits = 32;
-
         private RenderTargetHandle depthAttachmentHandle { get; set; }
 
+        ShaderTagId _shaderTagId;
         FilteringSettings _filteringSettings;
-        const string _profilerTag = "Depth Prepass";
-        ProfilingSampler _profilingSampler = new ProfilingSampler(_profilerTag);
-        ShaderTagId _shaderTagId = new ShaderTagId("DepthOnly");
+        ProfilingSampler _profilingSampler;
 
         public DepthOnlyPass(RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask)
         {
-            _filteringSettings = new FilteringSettings(renderQueueRange, layerMask);
             renderPassEvent = evt;
+
+            _shaderTagId = new ShaderTagId("DepthOnly");
+            _profilingSampler = new ProfilingSampler(ShaderConstants._profilerTag);
+            _filteringSettings = new FilteringSettings(renderQueueRange, layerMask);
         }
 
         public void Setup(RenderTextureDescriptor baseDescriptor, RenderTargetHandle depthAttachmentHandle)
@@ -38,7 +36,8 @@ namespace UnityEngine.Rendering.Universal
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            CommandBuffer cmd = CommandBufferPool.Get(_profilerTag);
+            CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
+
             using (new ProfilingScope(cmd, _profilingSampler))
             {
                 context.ExecuteCommandBuffer(cmd);
@@ -56,22 +55,15 @@ namespace UnityEngine.Rendering.Universal
                 }
 
                 context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref _filteringSettings);
-
             }
+
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
 
-        public override void FrameCleanup(CommandBuffer cmd)
+        static class ShaderConstants
         {
-            if (cmd == null)
-                throw new ArgumentNullException("cmd");
-
-            if (depthAttachmentHandle != RenderTargetHandle.CameraTarget)
-            {
-                cmd.ReleaseTemporaryRT(depthAttachmentHandle.id);
-                depthAttachmentHandle = RenderTargetHandle.CameraTarget;
-            }
+            public const string _profilerTag = "Depth Prepass";
         }
     }
 }

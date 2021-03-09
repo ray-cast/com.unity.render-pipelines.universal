@@ -74,14 +74,5 @@ namespace UnityEngine.Rendering.Universal
 
             CommandBufferPool.Release(cmd);
         }
-
-        public override void FrameCleanup(CommandBuffer cmd)
-        {
-            if (cmd == null)
-                throw new ArgumentNullException("cmd");
-
-            cmd.ReleaseTemporaryRT(destination.id);
-            destination = RenderTargetHandle.CameraTarget;
-        }
     }
 }
