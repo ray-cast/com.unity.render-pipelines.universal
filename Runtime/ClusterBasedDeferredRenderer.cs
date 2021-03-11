@@ -335,7 +335,7 @@
             }
 #endif
 #if UNITY_EDITOR
-            if (_supportsClusterLighting && cameraData.requireHeatMap && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
+            if (_supportsClusterLighting && cameraData.renderType == CameraRenderType.Base && cameraData.requireHeatMap && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
             {
                 _drawClusterHeatPass.ConfigureTarget(this.cameraColorTarget);
                 EnqueuePass(_drawClusterHeatPass);

@@ -261,8 +261,8 @@ void SetupClusterFlags(uint3 id : SV_DispatchThreadID)
 	float depth = LoadDepthAttachment(texCoord).x;
 	uint3 clusterIndex3D = ComputeClusterIndex3D(texCoord, LinearEyeDepth(depth, _ClusterZBufferParams));
 	uint clusterIndex1D = ComputeClusterIndex1D(clusterIndex3D);
-
 	_RWClusterFlagBuffer[clusterIndex1D] = 1;
+	_RWClusterFlagBuffer[clusterIndex1D - _ClusterDimensionParams.x] = 1;
 }
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]

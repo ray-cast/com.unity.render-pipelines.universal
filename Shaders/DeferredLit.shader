@@ -10,28 +10,25 @@ Shader "Universal Render Pipeline/Deferred Lit"
         _Cutoff("透明度剔除阈值", Range(0.0, 1.0)) = 0.5
 
         [Space(20)]
-        [Toggle(_NORMALMAP)]_UseNormal("法线贴图启用", int) = 0
         _BumpScale("法线强度", Float) = 1.0
-        _BumpMap("法线贴图", 2D) = "bump" {}
+        [TexToggle(_NORMALMAP)]_BumpMap("法线贴图", 2D) = "bump" {}
 
         [Space(20)]
         _Metallic("金属程度", Range(0.0, 1.0)) = 0.0
         _Smoothness("光滑度", Range(0.0, 1.0)) = 0.5
 
-        [Toggle(_METALLICSPECGLOSSMAP)]_UseMetalGloss("复合贴图启用", int) = 0
-        _MetallicGlossMap("材质复合贴图", 2D) = "white" {}
+        [TexToggle(_METALLICSPECGLOSSMAP)]_MetallicGlossMap("材质复合贴图", 2D) = "white" {}
 
         _SpecColor("镜面颜色", Color) = (0.2, 0.2, 0.2)
         _SpecGlossMap("镜面贴图", 2D) = "white" {}
 
         [Space(20)]
         _OcclusionStrength("遮蔽强度", Range(0.0, 1.0)) = 1.0
-        [Toggle(_OCCLUSIONMAP)]_UseOcclusion("遮蔽贴图启用", int) = 0
-        _OcclusionMap("遮蔽贴图", 2D) = "white" {}
+        [TexToggle(_OCCLUSIONMAP)]_OcclusionMap("遮蔽贴图", 2D) = "white" {}
 
         [Space(20)]
-        [Toggle(_WETNESS_ON)]_WetnessEnable("启用积水", int) = 0
-        _WetnessMap("积水贴图", 2D) = "black" {}
+        _WetnessEnable("启用积水", int) = 0
+        [TexToggle(_WETNESS_ON)]_WetnessMap("积水贴图", 2D) = "black" {}
 
         [Space(20)]
         [KeywordEnum(None, Color, Albedo, Texture)]
