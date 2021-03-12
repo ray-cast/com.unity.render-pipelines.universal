@@ -196,7 +196,7 @@
             bool requiresForwardPrepass = true;
             bool isStereoEnabled = cameraData.isStereoEnabled;
 
-            bool mainLightShadows = _mainLightShadowCasterPass.Setup(ref renderingData);
+            bool mainLightShadows = _mainLightShadowCasterPass.Setup(ref context, ref renderingData);
             if (mainLightShadows)
                 EnqueuePass(_mainLightShadowCasterPass);
 
