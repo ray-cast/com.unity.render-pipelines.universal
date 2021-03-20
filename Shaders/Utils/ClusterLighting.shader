@@ -69,6 +69,7 @@
 
 			uint2 cullingLightIndex = GetCullingLightIndex(ComputeClusterClipSpacePosition(input.uv.xy), linearDepth);
 
+			[loop]
 			for (uint i = 0; i < cullingLightIndex.y; i++)
 			{
 				Light light = GetClusterAdditionalLight(cullingLightIndex.x + i, worldPosition);

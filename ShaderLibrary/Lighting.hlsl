@@ -689,11 +689,19 @@ Light GetClusterAdditionalLight(uint i, float3 positionWS)
 {
 	uint perObjectLightIndex = _ClusterLightIndexBuffer[i];
 
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
     float4 lightPositionWS = _ClusterLightBuffer[perObjectLightIndex].position;
     half3 color = _ClusterLightBuffer[perObjectLightIndex].color.rgb;
     half4 distanceAndSpotAttenuation = _ClusterLightBuffer[perObjectLightIndex].attenuation;
     half4 spotDirection = _ClusterLightBuffer[perObjectLightIndex].spotDirection;
     half4 lightOcclusionProbeInfo = _ClusterLightBuffer[perObjectLightIndex].occlusionProbeChannels;
+#else
+    float4 lightPositionWS = _AdditionalLightsPosition[perObjectLightIndex];
+    half3 color = _AdditionalLightsColor[perObjectLightIndex].rgb;
+    half4 distanceAndSpotAttenuation = _AdditionalLightsAttenuation[perObjectLightIndex];
+    half4 spotDirection = _AdditionalLightsSpotDir[perObjectLightIndex];
+    half4 lightOcclusionProbeInfo = _AdditionalLightsOcclusionProbes[perObjectLightIndex];
+#endif
 
 	float3 lightVector = lightPositionWS.xyz - positionWS * lightPositionWS.w;
 	float distanceSqr = max(dot(lightVector, lightVector), HALF_MIN);
