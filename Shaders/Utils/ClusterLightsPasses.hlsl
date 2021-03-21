@@ -281,8 +281,8 @@ void ComputeClusterCount(uint3 id : SV_DispatchThreadID)
 [numthreads(1,1,1)]
 void UpdateIndirectArgumentBuffers(uint3 id : SV_DispatchThreadID)
 {
-	uint clusterCount = _ClusterUniqueCounterBuffer[0];
-	_RWClusterIndirectArgumentBuffer.Store3(0, uint3(clusterCount, 1, 1));
+	float clusterCount = float(_ClusterUniqueCounterBuffer[0]);
+	_RWClusterIndirectArgumentBuffer.Store3(0, uint3(ceil(clusterCount / MAX_WORKGROUP_SIZE_X), 1, 1));
 }
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
