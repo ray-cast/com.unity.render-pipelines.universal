@@ -40,12 +40,12 @@ Shader "Hidden/Universal Render Pipeline/HeatMap"
 			return heat;
 		}
 
-		Varyings vert(Attributes input)
+		Varyings vert(uint id : SV_VERTEXID)
 		{
 			Varyings output = (Varyings)0;
-    		output.positionCS = float4(input.positionHCS.xyz, 1.0);
-    		output.positionCS.y *= _ScaleBiasRT.x;
-    		output.uv = input.uv;
+			output.uv = float2(id / 2, id % 2) * 2;
+			output.positionCS = float4(output.uv * 2 - 1, 0, 1);
+			output.positionCS.y *= _ScaleBiasRT.x;
 			return output;
 		}
 

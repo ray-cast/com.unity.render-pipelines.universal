@@ -54,6 +54,9 @@ namespace UnityEngine.Rendering.Universal
 
             [Reload("Shaders/Utils/ClusterLighting.shader")]
             public Shader clusterLightingPS;
+
+            [Reload("Shaders/Environment/MipFog.shader")]
+            public Shader mipFogPS;
         }
 
         [Reload("Runtime/Data/PostProcessData.asset")]

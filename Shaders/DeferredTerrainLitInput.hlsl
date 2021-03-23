@@ -12,20 +12,26 @@ CBUFFER_START(UnityPerMaterial)
 CBUFFER_END
 
 CBUFFER_START(_Terrain)
-float4 _Control_ST;
-float4 _Splat0_ST;
-float4 _Splat1_ST;
-float4 _Splat2_ST;
-float4 _Splat3_ST;
-half _Metallic0;
-half _Metallic1;
-half _Metallic2;
-half _Metallic3;
-half _Smoothness0;
-half _Smoothness1;
-half _Smoothness2;
-half _Smoothness3;
-half _specularAntiAliasingThreshold;
+    float4 _Control_ST;
+    float4 _Splat0_ST;
+    float4 _Splat1_ST;
+    float4 _Splat2_ST;
+    float4 _Splat3_ST;
+    half _Metallic0;
+    half _Metallic1;
+    half _Metallic2;
+    half _Metallic3;
+    half _Smoothness0;
+    half _Smoothness1;
+    half _Smoothness2;
+    half _Smoothness3;
+    half _specularAntiAliasingThreshold;
+CBUFFER_END
+
+CBUFFER_START(_TerrainShadow)
+    float _ShadowDepthBias;
+    float _ShadowNormalBias;
+    float3 _LightDirection;
 CBUFFER_END
 
 TEXTURE2D(_Control);

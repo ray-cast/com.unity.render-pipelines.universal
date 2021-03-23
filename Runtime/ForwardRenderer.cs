@@ -182,7 +182,7 @@
             bool requiresDepthTexture = cameraData.requiresDepthTexture;
             bool isStereoEnabled = cameraData.isStereoEnabled;
 
-            bool mainLightShadows = _mainLightShadowCasterPass.Setup(ref context, ref renderingData);
+            bool mainLightShadows = _mainLightShadowCasterPass.Setup(ref renderingData);
             bool additionalLightShadows = _additionalLightsShadowCasterPass.Setup(ref renderingData);
             bool transparentsNeedSettingsPass = _transparentSettingsPass.Setup(ref renderingData);
 

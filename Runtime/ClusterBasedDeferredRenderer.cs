@@ -5,9 +5,11 @@
         const int k_DepthStencilBufferBits = 32;
         const string k_CreateCameraTextures = "Create Camera Texture";
 
-        DepthOnlyPass _depthPrepass;
+        DepthOnlyPass _depthOnlyPass;
+        DepthPrePass _depthPrePass;
         MainLightShadowCasterPass _mainLightShadowCasterPass;
         AdditionalLightsShadowCasterPass _additionalLightsShadowCasterPass;
+        GbufferDepthPass _renderGbufferDepthPass;
         GbufferPreparePass _renderOpaqueGbufferPass;
         CopyDepthPass _copyGbufferDepthPass;
         ClusterSettingPass _clusterSettingPass;
@@ -85,10 +87,14 @@
             _defaultStencilState.SetFailOperation(stencilData.failOperation);
             _defaultStencilState.SetZFailOperation(stencilData.zFailOperation);
 
+            _forwardLights = new ForwardLights();
+
             _mainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
             _additionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
-            _depthPrepass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, RenderQueueRange.opaque, data.opaqueLayerMask);
+            _depthOnlyPass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, RenderQueueRange.opaque, data.opaqueLayerMask);
             _colorGradingLutPass = new ColorGradingLutPass(RenderPassEvent.BeforeRenderingPrepasses, data.postProcessData);
+            _depthPrePass = new DepthPrePass(RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask);
+            _renderGbufferDepthPass = new GbufferDepthPass("G-Buffer Depth", RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
             _renderOpaqueGbufferPass = new GbufferPreparePass("G-Buffer Prepare", true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
             _copyGbufferDepthPass = new CopyDepthPass(RenderPassEvent.BeforeRenderingOpaques, _copyDepthMaterial);
             _deferredLightingPass = new DrawLightsPass(RenderPassEvent.BeforeRenderingOpaques, _lightingMaterial);
@@ -117,7 +123,7 @@
 
             if (_supportsClusterLighting)
 			{
-                _clusterSettingPass = new ClusterSettingPass(RenderPassEvent.BeforeRenderingOpaques, _clusterCompute);
+                _clusterSettingPass = new ClusterSettingPass(RenderPassEvent.BeforeRenderingOpaques, _forwardLights, _clusterCompute);
                 _clusterOpaqueLightingPass = new ClusterLightingPass(RenderPassEvent.BeforeRenderingOpaques, _clusterLightingMaterial);
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
                 _drawClusterPass = new DrawClusterPass(RenderPassEvent.BeforeRenderingOpaques, _debugCluster);
@@ -141,8 +147,6 @@
             _cameraGbufferAttachments = new RenderTargetHandle[4];
             for (int i = 0; i < 4; i++)
                 _cameraGbufferAttachments[i].Init("_CameraGBufferTexture" + i);
-
-            _forwardLights = new ForwardLights();
 
             supportedRenderingFeatures = new RenderingFeatures()
             {
@@ -187,7 +191,16 @@
                         rendererFeatures[i].AddRenderPasses(this, ref renderingData);
                 }
 
+                if (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled)
+                    EnqueuePass(_renderGbufferDepthPass);
+
+                EnqueuePass(_renderOpaqueForwardPass);
                 EnqueuePass(_drawSkyboxPass);
+#if ADAPTIVE_PERFORMANCE_2_1_0_OR_NEWER
+                if (!needTransparencyPass)
+                    return;
+#endif
+                EnqueuePass(_renderTransparentForwardPass);
                 return;
             }
 
@@ -196,7 +209,7 @@
             bool requiresForwardPrepass = true;
             bool isStereoEnabled = cameraData.isStereoEnabled;
 
-            bool mainLightShadows = _mainLightShadowCasterPass.Setup(ref context, ref renderingData);
+            bool mainLightShadows = _mainLightShadowCasterPass.Setup(ref renderingData);
             if (mainLightShadows)
                 EnqueuePass(_mainLightShadowCasterPass);
 
@@ -204,9 +217,9 @@
             if (additionalLightShadows)
                 EnqueuePass(_additionalLightsShadowCasterPass);
 
-            bool requiresDepthPrepass = cameraData.requiresDepthTexture && !CanCopyDepth(ref renderingData.cameraData);
-            requiresDepthPrepass |= isSceneViewCamera;
-            requiresDepthPrepass |= isPreviewCamera;
+            bool requiresDepthOnlyPass = cameraData.requiresDepthTexture && !CanCopyDepth(ref renderingData.cameraData);
+            requiresDepthOnlyPass |= isSceneViewCamera;
+            requiresDepthOnlyPass |= isPreviewCamera;
 
             bool isRunningHololens = false;
 #if ENABLE_VR && ENABLE_VR_MODULE
@@ -218,7 +231,7 @@
             createColorTexture &= !isPreviewCamera;
             createColorTexture |= (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled);
 
-            bool createDepthTexture = cameraData.requiresDepthTexture && !requiresDepthPrepass;
+            bool createDepthTexture = cameraData.requiresDepthTexture && !requiresDepthOnlyPass;
             createDepthTexture |= (cameraData.renderType == CameraRenderType.Base && !cameraData.resolveFinalTarget);
             createDepthTexture |= (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled);
 
@@ -248,23 +261,30 @@
             {
                 _activeCameraColorAttachment = _cameraColorAttachment;
                 _activeCameraDepthAttachment = _cameraDepthAttachment;
-                _activeCameraDepthAttachment = _cameraDepthTexture;
+                _activeCameraDepthTexture = _cameraDepthTexture;
             }
 
-            if (requiresDepthPrepass)
+            if (requiresDepthOnlyPass)
             {
-                _depthPrepass.Setup(cameraTargetDescriptor, _cameraDepthTexture);
-                EnqueuePass(_depthPrepass);
+                _depthOnlyPass.Setup(cameraTargetDescriptor, _cameraDepthTexture);
+                EnqueuePass(_depthOnlyPass);
             }
 
             if (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled)
             {
+                _depthPrePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment);
+                EnqueuePass(_depthPrePass);
+
                 _renderOpaqueGbufferPass.Setup(cameraTargetDescriptor, _cameraGbufferAttachments, _activeCameraDepthAttachment);
                 EnqueuePass(_renderOpaqueGbufferPass);
 
-                if (cameraData.deferredLightingMode == DeferredRenderingMode.PerCluster && _supportsClusterLighting)
+                bool requireClusterLighting = _supportsClusterLighting;
+                requireClusterLighting &= renderingData.lightData.visibleLights.Length > 5;
+                requireClusterLighting &= cameraData.deferredLightingMode == DeferredRenderingMode.PerCluster;
+
+                if (requireClusterLighting)
 				{
-                    _clusterSettingPass.Setup(_activeCameraDepthAttachment, cameraData.requireDrawCluster);
+                    _clusterSettingPass.Setup(cameraData.requireDrawCluster);
                     EnqueuePass(_clusterSettingPass);
 
                     _clusterOpaqueLightingPass.Setup(cameraTargetDescriptor, _activeCameraColorAttachment);
@@ -272,7 +292,7 @@
                 }
 				else
 				{
-                    if (!requiresDepthPrepass && renderingData.cameraData.requiresDepthTexture && createDepthTexture)
+                    if (!requiresDepthOnlyPass && renderingData.cameraData.requiresDepthTexture && createDepthTexture)
                     {
                         _copyGbufferDepthPass.Setup(_activeCameraDepthAttachment, _cameraDepthTexture);
                         EnqueuePass(_copyGbufferDepthPass);
@@ -342,7 +362,7 @@
             }
 #endif
 
-            if (!requiresDepthPrepass && renderingData.cameraData.requiresDepthTexture && createDepthTexture)
+            if (!requiresDepthOnlyPass && renderingData.cameraData.requiresDepthTexture && createDepthTexture)
             {
                 _copyDepthPass.Setup(_activeCameraDepthAttachment, _cameraDepthTexture);
                 EnqueuePass(_copyDepthPass);

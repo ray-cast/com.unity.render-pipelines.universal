@@ -1,6 +1,4 @@
 ﻿using System;
-using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -23,7 +21,10 @@ namespace UnityEngine.Rendering.Universal
         public ColorParameter tint = new ColorParameter(Color.white, false, false, true);
 
         [Tooltip("Use bicubic sampling instead of bilinear sampling for the upsampling passes. This is slightly more expensive but helps getting smoother visuals.")]
-        public BoolParameter highQualityFiltering = new BoolParameter(false);
+        public BoolParameter highQualityFiltering = new BoolParameter(true);
+
+        [Tooltip("Use bicubic sampling instead of bilinear sampling for the upsampling passes. This is slightly more expensive but helps getting smoother visuals.")]
+        public BoolParameter glowFiltering = new BoolParameter(true);
 
         [Tooltip("Dirtiness texture to add smudges or dust to the bloom effect.")]
         public TextureParameter dirtTexture = new TextureParameter(null);

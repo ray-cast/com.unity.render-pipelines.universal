@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -41,8 +42,6 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        private static readonly int s_DrawObjectPassDataPropID = Shader.PropertyToID("_DrawObjectPassData");
-
         public DrawObjectsPass(string profilerTag, bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState, int stencilReference)
         {
             _profilerTag = profilerTag;
@@ -64,7 +63,6 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        /// <inheritdoc/>
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             CommandBuffer cmd = CommandBufferPool.Get(_profilerTag);
@@ -72,7 +70,7 @@ namespace UnityEngine.Rendering.Universal
             using (new ProfilingScope(cmd, _profilingSampler))
             {
                 Vector4 drawObjectPassData = new Vector4(0.0f, 0.0f, 0.0f, (_isOpaque) ? 1.0f : 0.0f);
-                cmd.SetGlobalVector(s_DrawObjectPassDataPropID, drawObjectPassData);
+                cmd.SetGlobalVector(ShaderConstants._DrawObjectPassDataPropID, drawObjectPassData);
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
@@ -113,6 +111,13 @@ namespace UnityEngine.Rendering.Universal
 
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
+        }
+
+        static class ShaderConstants
+        {
+            public static readonly int _DrawObjectPassDataPropID = Shader.PropertyToID("_DrawObjectPassData");
+
+            public static readonly Color clearColor = new Color(0.0f, 0.0f, 0.0f, 0.0f);
         }
     }
 }

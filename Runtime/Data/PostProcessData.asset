@@ -27,6 +27,7 @@ MonoBehaviour:
     lutBuilderLdrPS: {fileID: 4800000, guid: 2ae23ba2ee57f7847a4bd5210d30891f, type: 3}
     lutBuilderHdrPS: {fileID: 4800000, guid: 43baa41deb82eb747bb195f4097f4a73, type: 3}
     bloomPS: {fileID: 4800000, guid: a1d1958a09e9d834692b2163f6461b46, type: 3}
+    kawaseBloomPS: {fileID: 4800000, guid: a43398d2886b20742b6e291d2ce3f48e, type: 3}
     uberPostPS: {fileID: 4800000, guid: 1976f7e1a46cf924fb8982a79b234e8a, type: 3}
     finalPostPassPS: {fileID: 4800000, guid: d4a9b604c55004048b1b7a0110b63993, type: 3}
   textures:

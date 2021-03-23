@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace UnityEngine.Rendering.Universal.ShaderGUI
+namespace UnityEditor.Rendering.Universal.ShaderGUI
 {
     public static class SimpleLitGUI
     {

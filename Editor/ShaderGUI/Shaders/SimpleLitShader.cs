@@ -2,7 +2,7 @@ using System;
 using UnityEditor;
 using UnityEngine;
 
-namespace UnityEngine.Rendering.Universal.ShaderGUI
+namespace UnityEditor.Rendering.Universal.ShaderGUI
 {
     internal class SimpleLitShader : BaseShaderGUI
     {

@@ -91,7 +91,7 @@ namespace UnityEngine.Rendering.Universal
                 EditorGUILayout.Space();
                 EditorGUILayout.PropertyField(_shaders, true);
 
-                if (GUILayout.Button("Reload All"))
+                if (GUILayout.Button("÷ÿ–¬º”‘ÿ"))
                 {
                     var resources = target as ForwardRendererData;
                     resources.shaders = null;

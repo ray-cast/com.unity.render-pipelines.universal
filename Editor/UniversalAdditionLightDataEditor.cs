@@ -10,7 +10,7 @@ namespace UnityEngine.Rendering.Universal
         {
         }
 
-        [MenuItem("CONTEXT/LWRPAdditionalLightData/Remove Component")]
+        [MenuItem("CONTEXT/UniversalAdditionLightData/Remove Component")]
         static void RemoveComponent(MenuCommand command)
         {
             if (EditorUtility.DisplayDialog("Remove Component?", "Are you sure you want to remove this component? If you do, you will lose some settings.", "Remove", "Cancel"))

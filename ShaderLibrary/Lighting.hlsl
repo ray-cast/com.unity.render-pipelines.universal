@@ -43,11 +43,21 @@ struct Light
     half3   color;
     half    distanceAttenuation;
     half    shadowAttenuation;
+    half    softness;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 //                        Attenuation Functions                               /
 ///////////////////////////////////////////////////////////////////////////////
+float GetPhysicalLightAttenuation(float dist, half radius, half attenuationBulbSize)
+{
+    float d = dist;
+    half fadeoutFactor = saturate((radius - d) * (rcp(radius) / 0.2h));
+    d = max(d - attenuationBulbSize, 0);
+    half denom = 1 + d / attenuationBulbSize;
+    half attenuation = fadeoutFactor * fadeoutFactor / (denom * denom);
+    return attenuation / (attenuationBulbSize * attenuationBulbSize);
+}
 
 // Matches Unity Vanila attenuation
 // Attenuation smoothly decreases to light range.
@@ -55,6 +65,7 @@ float DistanceAttenuation(float distanceSqr, half2 distanceAttenuation)
 {
     // We use a shared distance attenuation for additional directional and puctual lights
     // for directional lights attenuation will be 1
+
     float lightAtten = rcp(distanceSqr);
 
 #if SHADER_HINT_NICE_QUALITY
@@ -106,6 +117,7 @@ Light GetMainLight()
     light.distanceAttenuation *= unity_ProbesOcclusion.x;
 #endif
     light.shadowAttenuation = 1.0;
+    light.softness = 0.0;
     light.color = _MainLightColor.rgb;
 
     return light;
@@ -124,13 +136,13 @@ Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS)
     // Abstraction over Light input constants
 #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
     float4 lightPositionWS = _AdditionalLightsBuffer[perObjectLightIndex].position;
-    half3 color = _AdditionalLightsBuffer[perObjectLightIndex].color.rgb;
+    half4 color = _AdditionalLightsBuffer[perObjectLightIndex].color;
     half4 distanceAndSpotAttenuation = _AdditionalLightsBuffer[perObjectLightIndex].attenuation;
     half4 spotDirection = _AdditionalLightsBuffer[perObjectLightIndex].spotDirection;
     half4 lightOcclusionProbeInfo = _AdditionalLightsBuffer[perObjectLightIndex].occlusionProbeChannels;
 #else
     float4 lightPositionWS = _AdditionalLightsPosition[perObjectLightIndex];
-    half3 color = _AdditionalLightsColor[perObjectLightIndex].rgb;
+    half4 color = _AdditionalLightsColor[perObjectLightIndex];
     half4 distanceAndSpotAttenuation = _AdditionalLightsAttenuation[perObjectLightIndex];
     half4 spotDirection = _AdditionalLightsSpotDir[perObjectLightIndex];
     half4 lightOcclusionProbeInfo = _AdditionalLightsOcclusionProbes[perObjectLightIndex];
@@ -138,17 +150,18 @@ Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS)
 
     // Directional lights store direction in lightPosition.xyz and have .w set to 0.0.
     // This way the following code will work for both directional and punctual lights.
-    float3 lightVector = lightPositionWS.xyz - positionWS * lightPositionWS.w;
+    float3 lightVector = lightPositionWS.xyz - positionWS * any(lightPositionWS.w);
     float distanceSqr = max(dot(lightVector, lightVector), HALF_MIN);
-
-    half3 lightDirection = half3(lightVector * rsqrt(distanceSqr));
-    half attenuation = DistanceAttenuation(distanceSqr, distanceAndSpotAttenuation.xy) * AngleAttenuation(spotDirection.xyz, lightDirection, distanceAndSpotAttenuation.zw);
+    float dist = sqrt(distanceSqr);
+    half3 lightDirection = half3(lightVector * rcp(dist));
+    half attenuation = GetPhysicalLightAttenuation(dist, lightPositionWS.w, distanceAndSpotAttenuation.x) * AngleAttenuation(spotDirection.xyz, lightDirection, distanceAndSpotAttenuation.zw);
 
     Light light;
     light.direction = lightDirection;
-    light.distanceAttenuation = attenuation;
+    light.distanceAttenuation = lerp(attenuation, 1, distanceAndSpotAttenuation.y);
     light.shadowAttenuation = AdditionalLightRealtimeShadow(perObjectLightIndex, positionWS);
-    light.color = color;
+    light.softness = color.w;
+    light.color = color.rgb;
 
     // In case we're using light probes, we can sample the attenuation from the `unity_ProbesOcclusion`
 #if defined(LIGHTMAP_ON) || defined(_MIXED_LIGHTING_SUBTRACTIVE)
@@ -531,16 +544,16 @@ half3 LightingSpecular(half3 lightColor, half3 lightDir, half3 normal, half3 vie
     return lightColor * specularReflection;
 }
 
-half3 LightingPhysicallyBased(BRDFData brdfData, half3 lightColor, half3 lightDirectionWS, half lightAttenuation, half3 normalWS, half3 viewDirectionWS)
+half3 LightingPhysicallyBased(BRDFData brdfData, half3 lightColor, half3 lightDirectionWS, half lightAttenuation, half softness, half3 normalWS, half3 viewDirectionWS)
 {
     half NdotL = saturate(dot(normalWS, lightDirectionWS));
-    half3 radiance = lightColor * (lightAttenuation * NdotL);
+    half3 radiance = lightColor * (lightAttenuation * lerp(NdotL, 1, softness));
     return DirectBDRF(brdfData, normalWS, lightDirectionWS, viewDirectionWS) * radiance;
 }
 
 half3 LightingPhysicallyBased(BRDFData brdfData, Light light, half3 normalWS, half3 viewDirectionWS)
 {
-    return LightingPhysicallyBased(brdfData, light.color, light.direction, light.distanceAttenuation * light.shadowAttenuation, normalWS, viewDirectionWS);
+    return LightingPhysicallyBased(brdfData, light.color, light.direction, light.distanceAttenuation * light.shadowAttenuation, light.softness, normalWS, viewDirectionWS);
 }
 
 half3 VertexLighting(float3 positionWS, half3 normalWS)
@@ -691,27 +704,30 @@ Light GetClusterAdditionalLight(uint i, float3 positionWS)
 
 #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
     float4 lightPositionWS = _ClusterLightBuffer[perObjectLightIndex].position;
-    half3 color = _ClusterLightBuffer[perObjectLightIndex].color.rgb;
+    half4 color = _ClusterLightBuffer[perObjectLightIndex].color;
     half4 distanceAndSpotAttenuation = _ClusterLightBuffer[perObjectLightIndex].attenuation;
     half4 spotDirection = _ClusterLightBuffer[perObjectLightIndex].spotDirection;
     half4 lightOcclusionProbeInfo = _ClusterLightBuffer[perObjectLightIndex].occlusionProbeChannels;
 #else
     float4 lightPositionWS = _AdditionalLightsPosition[perObjectLightIndex];
-    half3 color = _AdditionalLightsColor[perObjectLightIndex].rgb;
+    half4 color = _AdditionalLightsColor[perObjectLightIndex];
     half4 distanceAndSpotAttenuation = _AdditionalLightsAttenuation[perObjectLightIndex];
     half4 spotDirection = _AdditionalLightsSpotDir[perObjectLightIndex];
     half4 lightOcclusionProbeInfo = _AdditionalLightsOcclusionProbes[perObjectLightIndex];
 #endif
 
-	float3 lightVector = lightPositionWS.xyz - positionWS * lightPositionWS.w;
+	float3 lightVector = lightPositionWS.xyz - positionWS * any(lightPositionWS.w);
 	float distanceSqr = max(dot(lightVector, lightVector), HALF_MIN);
-    half3 lightDirection = half3(lightVector * rsqrt(distanceSqr));
+    float dist = sqrt(distanceSqr);
+    half3 lightDirection = half3(lightVector * rcp(dist));
+    half attenuation = GetPhysicalLightAttenuation(dist, lightPositionWS.w, distanceAndSpotAttenuation.x) * AngleAttenuation(spotDirection.xyz, lightDirection, distanceAndSpotAttenuation.zw);
 
 	Light light;
 	light.direction = lightDirection;
-	light.color = color;
-	light.distanceAttenuation = DistanceAttenuation(distanceSqr, distanceAndSpotAttenuation.xy) * AngleAttenuation(spotDirection.xyz, lightDirection, distanceAndSpotAttenuation.zw);
+	light.color = color.xyz;
+	light.distanceAttenuation = lerp(attenuation, 1, distanceAndSpotAttenuation.y);
 	light.shadowAttenuation = AdditionalLightRealtimeShadow(perObjectLightIndex, positionWS);
+    light.softness = color.w;
 
 #if defined(LIGHTMAP_ON) || defined(_MIXED_LIGHTING_SUBTRACTIVE)
     int probeChannel = lightOcclusionProbeInfo.x;

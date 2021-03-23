@@ -5,32 +5,38 @@ Shader "Universal Render Pipeline/Lit"
         // Specular vs Metallic workflow
         [HideInInspector] _WorkflowMode("WorkflowMode", Float) = 1.0
 
-        [MainTexture] _BaseMap("Albedo", 2D) = "white" {}
-        [MainColor] _BaseColor("Color", Color) = (1,1,1,1)
+        [MainColor] _BaseColor("基本颜色", Color) = (1,1,1,1)
+        [MainTexture] _BaseMap("基本贴图", 2D) = "white" {}
 
-        _Cutoff("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
+        [Space(20)]
+        [Toggle(_ALPHATEST_ON)]_UseAlphaCutoff("启用透明度剔除", int) = 0
+        _Cutoff("透明度剔除阈值", Range(0.0, 1.0)) = 0.5
 
         _Smoothness("Smoothness", Range(0.0, 1.0)) = 0.5
         _GlossMapScale("Smoothness Scale", Range(0.0, 1.0)) = 1.0
         _SmoothnessTextureChannel("Smoothness texture channel", Float) = 0
 
         _Metallic("Metallic", Range(0.0, 1.0)) = 0.0
-        _MetallicGlossMap("Metallic", 2D) = "white" {}
+        [TexToggle(_METALLICSPECGLOSSMAP)][NoScaleOffset]_MetallicGlossMap("Metallic", 2D) = "white" {}
 
         _SpecColor("Specular", Color) = (0.2, 0.2, 0.2)
-        _SpecGlossMap("Specular", 2D) = "white" {}
+        [NoScaleOffset]_SpecGlossMap("Specular", 2D) = "white" {}
 
-        [ToggleOff] _SpecularHighlights("Specular Highlights", Float) = 1.0
-        [ToggleOff] _EnvironmentReflections("Environment Reflections", Float) = 1.0
+        [ToggleOff]_SpecularHighlights("Specular Highlights", Float) = 1.0
+        [ToggleOff]_EnvironmentReflections("Environment Reflections", Float) = 1.0
 
         _BumpScale("Scale", Float) = 1.0
-        _BumpMap("Normal Map", 2D) = "bump" {}
+        [TexToggle(_NORMALMAP)][NoScaleOffset]_BumpMap("Normal Map", 2D) = "bump" {}
 
         _OcclusionStrength("Strength", Range(0.0, 1.0)) = 1.0
-        _OcclusionMap("Occlusion", 2D) = "white" {}
+        [TexToggle(_OCCLUSIONMAP)][NoScaleOffset]_OcclusionMap("Occlusion", 2D) = "white" {}
 
         _EmissionColor("Color", Color) = (0,0,0)
-        _EmissionMap("Emission", 2D) = "white" {}
+        [NoScaleOffset]_EmissionMap("Emission", 2D) = "white" {}
+
+        [Space(20)]
+        _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
+        _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
 
         // Blending state
         [HideInInspector] _Surface("__surface", Float) = 0.0
@@ -240,9 +246,6 @@ Shader "Universal Render Pipeline/Lit"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/Utils/Universal2D.hlsl"
             ENDHLSL
         }
-
-
     }
     FallBack "Hidden/Universal Render Pipeline/FallbackError"
-    CustomEditor "UnityEditor.Rendering.Universal.ShaderGUI.LitShader"
 }

@@ -12,10 +12,12 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Filtering.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Gbuffer.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
 
         TEXTURE2D_X(_MainTex);
         TEXTURE2D_X(_MainTexLowMip);
+        TEXTURE2D_X(_CameraGlowTexture);
 
         float4 _MainTex_TexelSize;
         float4 _MainTexLowMip_TexelSize;
@@ -59,10 +61,17 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
             float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
-            half3 color = SAMPLE_TEXTURE2D_X(_MainTex, sampler_LinearClamp, uv).xyz;
+            half3 color = SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv).xyz;
+
+        #if _BLOOM_HQ
+            float2 texelSize = _MainTex_TexelSize;
+            color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(texelSize.x, 0)).xyz);
+            color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(texelSize.x, texelSize.y)).xyz);
+            color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(0, texelSize.y)).xyz);
+        #endif
 
             // User controlled clamp to limit crazy high broken spec
-            color = min(ClampMax, color);
+            color = min(color, ClampMax);
 
             // Thresholding
             half brightness = Max3(color.r, color.g, color.b);
@@ -70,6 +79,9 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             softness = (softness * softness) / (4.0 * ThresholdKnee + 1e-4);
             half multiplier = max(brightness - Threshold, softness) / max(brightness, 1e-4);
             color *= multiplier;
+        #if _BLOOM_GLOW
+            color += DecodeRGBM(SAMPLE_TEXTURE2D_X(_CameraGlowTexture, sampler_PointClamp, uv));
+        #endif
 
             return EncodeHDR(color);
         }
@@ -121,12 +133,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
         half3 Upsample(float2 uv)
         {
             half3 highMip = DecodeHDR(SAMPLE_TEXTURE2D_X(_MainTex, sampler_LinearClamp, uv));
-
-        #if _BLOOM_HQ && !defined(SHADER_API_GLES)
-            half3 lowMip = DecodeHDR(SampleTexture2DBicubic(TEXTURE2D_X_ARGS(_MainTexLowMip, sampler_LinearClamp), uv, _MainTexLowMip_TexelSize.zwxy, (1.0).xx, unity_StereoEyeIndex));
-        #else
             half3 lowMip = DecodeHDR(SAMPLE_TEXTURE2D_X(_MainTexLowMip, sampler_LinearClamp, uv));
-        #endif
 
             return lerp(highMip, lowMip, Scatter);
         }
@@ -153,6 +160,8 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             HLSLPROGRAM
                 #pragma vertex Vert
                 #pragma fragment FragPrefilter
+                #pragma multi_compile_local _ _BLOOM_HQ
+                #pragma multi_compile_local _ _BLOOM_GLOW
             ENDHLSL
         }
 
@@ -183,7 +192,6 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             HLSLPROGRAM
                 #pragma vertex Vert
                 #pragma fragment FragUpsample
-                #pragma multi_compile_local _ _BLOOM_HQ
             ENDHLSL
         }
     }

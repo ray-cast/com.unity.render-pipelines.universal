@@ -108,11 +108,18 @@ void ComputeLightsClusterIntersection(uint clusterID)
 
 	for (uint i = 0, count = 0; i < uint(_ClusterLightParams.x) && lightCount < uint(_ClusterLightParams.y); i++)
 	{
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
 		float4 lightPositionWS = _ClusterLightBuffer[i].position;
+#else
+		float4 lightPositionWS = _AdditionalLightsPosition[i];
+#endif
 		if (lightPositionWS.w > 0)
 		{
-			float4 color = _ClusterLightBuffer[i].color;
+#if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
 			float4 spotDirection = _ClusterLightBuffer[i].spotDirection;
+#else
+			float4 spotDirection = _AdditionalLightsSpotDir[i];
+#endif
 			float3 lightPosView = mul(_InverseViewMatrix, float4(lightPositionWS.xyz, 1)).xyz;
 
 			if (spotDirection.w > 0)
@@ -121,7 +128,7 @@ void ComputeLightsClusterIntersection(uint clusterID)
 				cone.center = lightPosView;
 				cone.direction = mul((float3x3)_InverseViewMatrix, -spotDirection.xyz).xyz;
 				cone.angle = spotDirection.w;
-				cone.range = color.w;
+				cone.range = lightPositionWS.w;
 
 				if (ComputeConeBoxIntersection(cone, aabb))
 				{
@@ -131,7 +138,7 @@ void ComputeLightsClusterIntersection(uint clusterID)
 			}
 			else
 			{
-				Sphere sphere = { lightPosView, color.w };
+				Sphere sphere = { lightPosView, lightPositionWS.w };
 
 				if (ComputeSphereBoxIntersection(sphere, aabb))
 				{
@@ -328,7 +335,6 @@ void ComputeLightsToDynamicClusterBufferIndirect(ComputeShaderInput IN)
 		float4 lightPositionWS = _ClusterLightBuffer[i].position;
 		if (lightPositionWS.w > 0)
 		{
-			float4 color = _ClusterLightBuffer[i].color;
 			float4 spotDirection = _ClusterLightBuffer[i].spotDirection;
 			float3 lightPosView = mul(_InverseViewMatrix, float4(lightPositionWS.xyz, 1)).xyz;
 
@@ -338,7 +344,7 @@ void ComputeLightsToDynamicClusterBufferIndirect(ComputeShaderInput IN)
 				cone.center = lightPosView;
 				cone.direction = mul((float3x3)_InverseViewMatrix, -spotDirection.xyz).xyz;
 				cone.angle = spotDirection.w;
-				cone.range = color.w;
+				cone.range = lightPositionWS.w;
 
 				if (ComputeConeBoxIntersection(cone, gs_ClusterAABB))
 				{
@@ -351,7 +357,7 @@ void ComputeLightsToDynamicClusterBufferIndirect(ComputeShaderInput IN)
 			}
 			else
 			{
-				Sphere sphere = { lightPosView, color.w };
+				Sphere sphere = { lightPosView, lightPositionWS.w };
 
 				if (ComputeSphereBoxIntersection(sphere, gs_ClusterAABB))
 				{

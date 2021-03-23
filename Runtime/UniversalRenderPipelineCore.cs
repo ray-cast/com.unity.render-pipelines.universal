@@ -70,6 +70,7 @@ namespace UnityEngine.Rendering.Universal
         public bool isHdrEnabled;
         public bool requiresDepthTexture;
         public bool requiresOpaqueTexture;
+        public bool requiresLightData;
 
         public DeferredRenderingMode deferredLightingMode;
         public bool requireHeatMap;
@@ -248,6 +249,7 @@ namespace UnityEngine.Rendering.Universal
         public const string BloomHQ = "_BLOOM_HQ";
         public const string BloomLQDirt = "_BLOOM_LQ_DIRT";
         public const string BloomHQDirt = "_BLOOM_HQ_DIRT";
+        public const string BloomGlow = "_BLOOM_GLOW";
         public const string UseRGBM = "_USE_RGBM";
         public const string Distortion = "_DISTORTION";
         public const string ChromaticAberration = "_CHROMATIC_ABERRATION";

@@ -4,6 +4,8 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
+float _ShadowDepthBias;
+float _ShadowNormalBias;
 float3 _LightDirection;
 
 struct Attributes
@@ -20,12 +22,13 @@ struct Varyings
     float4 positionCS   : SV_POSITION;
 };
 
-float4 GetShadowPositionHClip(Attributes input)
+
+float4 GetShadowPositionHClip(Attributes input, float2 shadowBias)
 {
     float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
     float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
 
-    float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection));
+    float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection, shadowBias));
 
 #if UNITY_REVERSED_Z
     positionCS.z = min(positionCS.z, positionCS.w * UNITY_NEAR_CLIP_VALUE);
@@ -42,7 +45,18 @@ Varyings ShadowPassVertex(Attributes input)
     UNITY_SETUP_INSTANCE_ID(input);
 
     output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
-    output.positionCS = GetShadowPositionHClip(input);
+    output.positionCS = GetShadowPositionHClip(input, float2(1, 1));
+    return output;
+}
+
+Varyings ShadowBiasPassVertex(Attributes input)
+{
+    Varyings output;
+    UNITY_SETUP_INSTANCE_ID(input);
+    float2 shadowBias = float2(_ShadowDepthBias, _ShadowNormalBias);
+
+    output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
+    output.positionCS = GetShadowPositionHClip(input, shadowBias);
     return output;
 }
 

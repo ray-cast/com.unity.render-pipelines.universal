@@ -4,31 +4,38 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
     {
         _ControlInt("Control : 0-普通 1-沙漠 2-草 3-雪 4-水", Int) = 0 //注意跟EnumGroundType对应
         _Control("Control", 2D) = "white" {}
-        _Splat0("Layer 1", 2D) = "white" {}
-        _Splat1("Layer 2", 2D) = "white" {}
-        _Splat2("Layer 3", 2D) = "white" {}
-        _Splat3("Layer 4", 2D) = "white" {}
-        [Toggle(_NORMALMAP)]_UseNormal("Normal Map Enable", int) = 1
-        _Normal0("Normalmap 1", 2D) = "bump" {}
-        _Normal1("Normalmap 2", 2D) = "bump" {}
-        _Normal2("Normalmap 3", 2D) = "bump" {}
-        _Normal3("Normalmap 4", 2D) = "bump" {}
-        [TexToggle(_USE_WETNESSMAP1)]_WetnessMap0("Wetness Map 1", 2D) = "black" {}
-        [TexToggle(_USE_WETNESSMAP2)]_WetnessMap1("Wetness Map 2", 2D) = "black" {}
-        [TexToggle(_USE_WETNESSMAP3)]_WetnessMap2("Wetness Map 3", 2D) = "black" {}
-        [TexToggle(_USE_WETNESSMAP4)]_WetnessMap3("Wetness Map 4", 2D) = "black" {}
-        _Metallic0("Metallic 1", Range(0 , 1)) = 0
-        _Metallic1("Metallic 2", Range(0 , 1)) = 0
-        _Metallic2("Metallic 3", Range(0 , 1)) = 0
-        _Metallic3("Metallic 4", Range(0 , 1)) = 0
-        _Smoothness0("Smoothness 1", Range(0 , 1)) = 0.5
-        _Smoothness1("Smoothness 2", Range(0 , 1)) = 0.5
-        _Smoothness2("Smoothness 3", Range(0 , 1)) = 0.5
-        _Smoothness3("Smoothness 4", Range(0 , 1)) = 0.5
+        _Splat0("基本颜色 1", 2D) = "white" {}
+        _Splat1("基本颜色 2", 2D) = "white" {}
+        _Splat2("基本颜色 3", 2D) = "white" {}
+        _Splat3("基本颜色 4", 2D) = "white" {}
+        [Toggle(_NORMALMAP)]_UseNormal("启用法线", int) = 1
+        _Normal0("法线贴图 1", 2D) = "bump" {}
+        _Normal1("法线贴图 2", 2D) = "bump" {}
+        _Normal2("法线贴图 3", 2D) = "bump" {}
+        _Normal3("法线贴图 4", 2D) = "bump" {}
+        [TexToggle(_USE_WETNESSMAP1)]_WetnessMap0("积水贴图 1", 2D) = "black" {}
+        [TexToggle(_USE_WETNESSMAP2)]_WetnessMap1("积水贴图 2", 2D) = "black" {}
+        [TexToggle(_USE_WETNESSMAP3)]_WetnessMap2("积水贴图 3", 2D) = "black" {}
+        [TexToggle(_USE_WETNESSMAP4)]_WetnessMap3("积水贴图 4", 2D) = "black" {}
+        _Metallic0("金属程度 1", Range(0 , 1)) = 0
+        _Metallic1("金属程度 2", Range(0 , 1)) = 0
+        _Metallic2("金属程度 3", Range(0 , 1)) = 0
+        _Metallic3("金属程度 4", Range(0 , 1)) = 0
+        _Smoothness0("光滑度 1", Range(0 , 1)) = 0.5
+        _Smoothness1("光滑度 2", Range(0 , 1)) = 0.5
+        _Smoothness2("光滑度 3", Range(0 , 1)) = 0.5
+        _Smoothness3("光滑度 4", Range(0 , 1)) = 0.5
 
         [Space(20)]
         [Toggle(_SPECULAR_ANTIALIASING)] _UseSpecularHighlights("启用镜面抗锯齿", Float) = 0
         [PowerSlider(2.0)] _specularAntiAliasingThreshold("镜面抗锯齿程度", Range(0.0, 10.0)) = 1
+
+        [Space(20)]
+        _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
+        _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
+
+        [Space(20)]
+        [Toggle]_DepthPrepass("深度预渲染", Float) = 0
 
         [HideInInspector] [MainColor] _BaseColor("基本颜色", Color) = (1,1,1,1)
         [HideInInspector] [MainTexture] _BaseMap("基本贴图", 2D) = "white" {}
@@ -70,7 +77,7 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
         {
             // Lightmode matches the ShaderPassName set in StandardRenderPipeline.cs. SRPDefaultUnlit and passes with
             // no LightMode tag are also rendered by Universal Render Pipeline
-            Name "ForwardLit"
+            Name "DeferredLit"
             Tags{"LightMode" = "Deferred"}
 
             Blend[_SrcBlend][_DstBlend]
@@ -144,8 +151,33 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma multi_compile_instancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/TerrainLitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/TerrainLitPasses.hlsl"
+            #include "DeferredTerrainLitInput.hlsl"
+            #include "DeferredTerrainLitPasses.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "PrepassDepth"
+            Tags{"LightMode" = "PrepassDepth"}
+
+            ZWrite On
+            ColorMask 0
+
+            HLSLPROGRAM
+            // Required to compile gles 2.0 with standard srp library
+            #pragma prefer_hlslcc gles
+            #pragma exclude_renderers d3d11_9x
+            #pragma target 2.0
+
+            #pragma vertex DepthOnlyVertex
+            #pragma fragment DepthOnlyFragment
+
+            #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
+
+            #include "DeferredTerrainLitInput.hlsl"
+            #include "DeferredTerrainLitPasses.hlsl"
             ENDHLSL
         }
 
@@ -205,4 +237,5 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
         }
     }
     FallBack "Hidden/Universal Render Pipeline/FallbackError"
+    CustomEditor "UnityEditor.Rendering.Universal.ShaderGUI.DeferredTerrainLitShader"
 }

@@ -3,6 +3,29 @@ namespace UnityEngine.Rendering.Universal
     public class DrawSkyboxPass : ScriptableRenderPass
     {
         static Mesh _icoskyboxMesh = null;
+        static Material _hdriMaterial = null;
+
+        Mesh icoskyboxMesh
+		{
+            get
+			{
+                if (_icoskyboxMesh == null)
+                    _icoskyboxMesh = IcoSphereCreator.Create(4, 0.985f); // 0.015 is padding
+
+                return _icoskyboxMesh;
+            }
+		}
+
+        Material hdriMaterial
+		{
+            get
+			{
+                if (_hdriMaterial == null)
+                    _hdriMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Skybox/Cubemap"));
+
+                return _hdriMaterial;
+            }
+		}
 
         public DrawSkyboxPass(RenderPassEvent evt)
         {
@@ -11,30 +34,50 @@ namespace UnityEngine.Rendering.Universal
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            var name = RenderSettings.skybox.name;
-            if (name == "Default-Skybox")
-			{
-                context.DrawSkybox(renderingData.cameraData.camera);
-			}
-            else
-			{
-                if (_icoskyboxMesh == null)
-                    _icoskyboxMesh = IcoSphereCreator.Create(10, 0.98f); // 0.01 is padding
+            ref CameraData cameraData = ref renderingData.cameraData;
 
-                CommandBuffer cmd = CommandBufferPool.Get("Draw Skybox");
+            var isOffscreenDepthTexture = cameraData.targetTexture != null && cameraData.targetTexture.format == RenderTextureFormat.Depth;
+            if (isOffscreenDepthTexture)
+            {
+                context.DrawSkybox(renderingData.cameraData.camera);
+                return;
+            }
+
+            var hdriSky = VolumeManager.instance.stack.GetComponent<HDRISky>();
+            if (hdriSky && hdriSky.IsActive())
+            {
+                CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
 
                 var camera = renderingData.cameraData.camera;
                 Matrix4x4 matrix = Matrix4x4.Scale(new Vector3(camera.farClipPlane, camera.farClipPlane, camera.farClipPlane));
                 matrix.SetColumn(3, new Vector4(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z, 1));
 
+                this.hdriMaterial.SetTexture(ShaderConstants._Tex, hdriSky.HdriSky.value);
+                this.hdriMaterial.SetFloat(ShaderConstants._Exposure, hdriSky.exposure.value);
+                this.hdriMaterial.SetFloat(ShaderConstants._Rotation, hdriSky.rotation.value);
+                this.hdriMaterial.SetColor(ShaderConstants._Tint, hdriSky.color.value);
 
                 cmd.Clear();
-                cmd.DrawMesh(_icoskyboxMesh, matrix, RenderSettings.skybox);
+                cmd.DrawMesh(this.icoskyboxMesh, matrix, this.hdriMaterial);
 
                 context.ExecuteCommandBuffer(cmd);
 
                 CommandBufferPool.Release(cmd);
             }
+            else
+            {
+                context.DrawSkybox(renderingData.cameraData.camera);
+            }
+        }
+
+        static class ShaderConstants
+        {
+            public const string _renderTag = "Draw Skybox";
+
+            public static readonly int _Tex = Shader.PropertyToID("_Tex");
+            public static readonly int _Tint = Shader.PropertyToID("_Tint");
+            public static readonly int _Exposure = Shader.PropertyToID("_Exposure");
+            public static readonly int _Rotation = Shader.PropertyToID("_Rotation");
         }
     }
 }

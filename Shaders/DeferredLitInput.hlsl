@@ -7,6 +7,8 @@
 
 CBUFFER_START(UnityPerMaterial)
 float4 _BaseMap_ST;
+float4 _DetailMap_ST;
+float4 _DetailBumpMap_ST;
 half4 _BaseColor;
 half4 _SpecColor;
 half4 _EmissionColor;
@@ -15,6 +17,7 @@ half _Cutoff;
 half _Smoothness;
 half _Metallic;
 half _BumpScale;
+half _DetialBumpMapScale;
 half _OcclusionStrength;
 half _specularAntiAliasingThreshold;
 CBUFFER_END
@@ -23,6 +26,8 @@ TEXTURE2D(_OcclusionMap);       SAMPLER(sampler_OcclusionMap);
 TEXTURE2D(_MetallicGlossMap);   SAMPLER(sampler_MetallicGlossMap);
 TEXTURE2D(_SpecGlossMap);       SAMPLER(sampler_SpecGlossMap);
 TEXTURE2D(_WetnessMap);         SAMPLER(sampler_WetnessMap);
+TEXTURE2D(_DetailMap);          SAMPLER(sampler_DetailMap);
+TEXTURE2D(_DetailBumpMap);      SAMPLER(sampler_DetailBumpMap);
 
 half4 SampleMetallicSpecGloss(float2 uv, half albedoAlpha)
 {
@@ -56,11 +61,18 @@ half SampleOcclusion(float2 uv)
 
 inline void InitializeStandardLitSurfaceData(float2 uv, out SurfaceData outSurfaceData)
 {
+    float2 uv_OriginMap = (uv - _BaseMap_ST.zw) / _BaseMap_ST.xy;
     half4 albedoAlpha = SampleAlbedoAlpha(uv, TEXTURE2D_ARGS(_BaseMap, sampler_BaseMap));
     outSurfaceData.alpha = Alpha(albedoAlpha.a, _BaseColor, _Cutoff);
 
     half4 specGloss = SampleMetallicSpecGloss(uv, albedoAlpha.a);
     outSurfaceData.albedo = albedoAlpha.rgb * _BaseColor.rgb;
+
+#if _DETAILMAP
+    float2 uv_DetailMap = uv_OriginMap * _DetailMap_ST.xy + _DetailMap_ST.zw;
+    half4 detailColor = SAMPLE_TEXTURE2D(_DetailMap, sampler_DetailMap, uv_DetailMap);
+    outSurfaceData.albedo.rgb = outSurfaceData.albedo.rgb * detailColor.rgb * 2;
+#endif
 
 #if _SPECULAR_SETUP
     outSurfaceData.metallic = 1.0h;
@@ -73,6 +85,13 @@ inline void InitializeStandardLitSurfaceData(float2 uv, out SurfaceData outSurfa
     outSurfaceData.smoothness = specGloss.a;
     outSurfaceData.normalTS = SampleNormal(uv, TEXTURE2D_ARGS(_BumpMap, sampler_BumpMap), _BumpScale);
     outSurfaceData.occlusion = SampleOcclusion(uv);
+
+#if _DETAILBUMPMAP
+    float2 uv_DetailBumpMap = uv_OriginMap * _DetailBumpMap_ST.xy + _DetailBumpMap_ST.zw;
+    half3 detailBump = UnpackNormalScale(SAMPLE_TEXTURE2D(_DetailBumpMap, sampler_DetailBumpMap, uv_DetailBumpMap), _DetialBumpMapScale);
+    detailBump.z = lerp(1, detailBump.z, saturate(_DetialBumpMapScale));
+    outSurfaceData.normalTS = BlendNormal(outSurfaceData.normalTS, detailBump);
+#endif
 
 #if _EMISSIONMODE_COLOR
     outSurfaceData.emission = _EmissionColor * _EmissionIntensity;

@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEngine.Rendering;
 using UnityEngine.Scripting.APIUpdating;
 
-namespace UnityEngine.Rendering.Universal.ShaderGUI
+namespace UnityEditor.Rendering.Universal.ShaderGUI
 {
     [MovedFrom("UnityEditor.Rendering.LWRP.ShaderGUI")] public static class BakedLitGUI
     {

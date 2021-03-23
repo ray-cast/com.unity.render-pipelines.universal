@@ -11,24 +11,20 @@ Shader "Universal Render Pipeline/Deferred Lit"
 
         [Space(20)]
         _BumpScale("法线强度", Float) = 1.0
-        [TexToggle(_NORMALMAP)]_BumpMap("法线贴图", 2D) = "bump" {}
+        [NoScaleOffset][TexToggle(_NORMALMAP)]_BumpMap("法线贴图", 2D) = "bump" {}
 
         [Space(20)]
         _Metallic("金属程度", Range(0.0, 1.0)) = 0.0
         _Smoothness("光滑度", Range(0.0, 1.0)) = 0.5
 
-        [TexToggle(_METALLICSPECGLOSSMAP)]_MetallicGlossMap("材质复合贴图", 2D) = "white" {}
+        [NoScaleOffset][TexToggle(_METALLICSPECGLOSSMAP)]_MetallicGlossMap("材质复合贴图", 2D) = "white" {}
 
         _SpecColor("镜面颜色", Color) = (0.2, 0.2, 0.2)
-        _SpecGlossMap("镜面贴图", 2D) = "white" {}
+        [NoScaleOffset]_SpecGlossMap("镜面贴图", 2D) = "white" {}
 
         [Space(20)]
         _OcclusionStrength("遮蔽强度", Range(0.0, 1.0)) = 1.0
-        [TexToggle(_OCCLUSIONMAP)]_OcclusionMap("遮蔽贴图", 2D) = "white" {}
-
-        [Space(20)]
-        _WetnessEnable("启用积水", int) = 0
-        [TexToggle(_WETNESS_ON)]_WetnessMap("积水贴图", 2D) = "black" {}
+        [NoScaleOffset][TexToggle(_OCCLUSIONMAP)]_OcclusionMap("遮蔽贴图", 2D) = "white" {}
 
         [Space(20)]
         [KeywordEnum(None, Color, Albedo, Texture)]
@@ -38,8 +34,23 @@ Shader "Universal Render Pipeline/Deferred Lit"
         [NoScaleOffset]_EmissionMap("自定义发光贴图", 2D) = "white" {}
 
         [Space(20)]
+        [TexToggle(_WETNESS_ON)]_WetnessMap("积水贴图", 2D) = "black" {}
+
+        [Space(20)]
+        [TexToggle(_DETAILMAP)]_DetailMap("细节贴图", 2D) = "black" {}
+        [TexToggle(_DETAILBUMPMAP)]_DetailBumpMap("细节法线贴图", 2D) = "bump" {}
+        _DetialBumpMapScale("细节法线强度", Range(0.0, 5.0)) = 1
+
+        [Space(20)]
         [Toggle(_SPECULAR_ANTIALIASING)] _UseSpecularHighlights("启用镜面抗锯齿", Float) = 0
         [PowerSlider(2.0)] _specularAntiAliasingThreshold("镜面抗锯齿程度", Range(0.0, 10.0)) = 1
+
+        [Space(20)]
+        _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
+        _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
+
+        [Space(20)]
+        [Toggle]_DepthPrepass("深度预渲染", Float) = 0
 
         [HideInInspector] [ToggleOff]_ReceiveShadows("接收阴影", Float) = 1.0
 
@@ -77,7 +88,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
         {
             // Lightmode matches the ShaderPassName set in StandardRenderPipeline.cs. SRPDefaultUnlit and passes with
             // no LightMode tag are also rendered by Universal Render Pipeline
-            Name "ForwardLit"
+            Name "DeferredLit"
             Tags{"LightMode" = "Deferred"}
 
             Blend[_SrcBlend][_DstBlend]
@@ -101,6 +112,8 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma shader_feature _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
             #pragma shader_feature _OCCLUSIONMAP
             #pragma shader_feature _WETNESS_ON
+            #pragma shader_feature _DETAILMAP
+            #pragma shader_feature _DETAILBUMPMAP
 
             #pragma shader_feature _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature _ENVIRONMENTREFLECTIONS_OFF
@@ -159,11 +172,43 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma multi_compile_instancing
             #pragma shader_feature _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
 
-            #pragma vertex ShadowPassVertex
+            #pragma vertex ShadowBiasPassVertex
             #pragma fragment ShadowPassFragment
 
             #include "DeferredLitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "PrepassDepth"
+            Tags{"LightMode" = "PrepassDepth"}
+
+            ZWrite On
+            ColorMask 0
+            Cull[_Cull]
+
+            HLSLPROGRAM
+            // Required to compile gles 2.0 with standard srp library
+            #pragma prefer_hlslcc gles
+            #pragma exclude_renderers d3d11_9x
+            #pragma target 2.0
+
+            #pragma vertex DepthOnlyVertex
+            #pragma fragment DepthOnlyFragment
+
+            // -------------------------------------
+            // Material Keywords
+            #pragma shader_feature _ALPHATEST_ON
+            #pragma shader_feature _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+
+            //--------------------------------------
+            // GPU Instancing
+            #pragma multi_compile_instancing
+
+            #include "DeferredLitInput.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
             ENDHLSL
         }
 
@@ -253,4 +298,5 @@ Shader "Universal Render Pipeline/Deferred Lit"
         }
     }
     FallBack "Hidden/Universal Render Pipeline/FallbackError"
+    CustomEditor "UnityEditor.Rendering.Universal.ShaderGUI.DeferredLitShader"
 }

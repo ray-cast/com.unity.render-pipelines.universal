@@ -379,7 +379,8 @@ namespace UnityEngine.Rendering.Universal
             FillBlockRanges(blockEventLimits, blockRanges);
             blockEventLimits.Dispose();
 
-            SetupLights(context, ref renderingData);
+            if (renderingData.cameraData.requiresLightData)
+                SetupLights(context, ref renderingData);
 
             // Before Render Block. This render blocks always execute in mono rendering.
             // Camera is not setup. Lights are not setup.

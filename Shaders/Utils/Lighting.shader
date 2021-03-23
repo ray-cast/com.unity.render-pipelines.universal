@@ -22,18 +22,16 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			float3 viewdir      : TEXCOORD1;
 		};
 
-		Varyings TiledLightingVertex(Attributes input)
+		Varyings TiledLightingVertex(uint id : SV_VERTEXID)
 		{
-			Varyings output;
-
-			float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(input.uv, 1));
-			hpositionWS /= hpositionWS.w;
-
-			output.uv = float4(UnityStereoTransformScreenSpaceTex(input.uv).xy, 0, 1);
-			
-			output.positionCS = float4(input.uv * 2 - 1, 0.0, 1.0);
+			Varyings output = (Varyings)0;
+			output.uv = float4(float2(id / 2, id % 2) * 2, 0, 1);
+			output.positionCS = float4(output.uv.xy * 2 - 1, 0, 1);
 			output.positionCS.y *= _ScaleBiasRT.x;
 
+			float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(output.uv.xy, 1));
+			hpositionWS /= hpositionWS.w;
+			
 			output.viewdir = GetCameraPositionWS() - hpositionWS.xyz;
 
 			return output;
@@ -43,12 +41,32 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		{
 			Varyings output;
 			
-			VertexPositionInputs vertexInput = GetVertexPositionInputs(input.position * _LightParams.y);
+			VertexPositionInputs vertexInput = GetVertexPositionInputs(input.position.xyz * _LightParams.y);
 			output.positionCS = vertexInput.positionCS;
 			output.uv = ComputeScreenPos(vertexInput.positionCS);
 			output.viewdir = GetCameraPositionWS() - vertexInput.positionWS.xyz;
 
 			return output;
+		}
+
+		float4 EmissionLightingFragment(Varyings input) : SV_Target
+		{
+			GbufferData surface = SampleGbufferTextures(input.uv.xy);
+
+			BRDFData brdfData;
+			InitializeBRDFData(surface.albedo, surface.metallic, surface.specular, surface.smoothness, 1, brdfData);
+
+			float3 n = surface.normalWS;
+			float3 v = normalize(input.viewdir);
+
+			float deviceDepth = SampleSceneDepth(input.uv.xy);
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+			deviceDepth = 2 * deviceDepth - 1;
+#endif
+			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, unity_MatrixInvVP);
+
+
+			return float4(surface.emission, 1);
 		}
 
 		float4 MainLightingFragment(Varyings input) : SV_Target
@@ -169,6 +187,21 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 				#pragma multi_compile _ _SHADOWS_SOFT
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
+				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
+			ENDHLSL
+		}
+		Pass
+		{
+			ZTest Off ZWrite Off
+			Cull Off
+
+			HLSLPROGRAM
+				#pragma vertex TiledLightingVertex
+				#pragma fragment EmissionLightingFragment
+
+				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
+				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
+				#pragma multi_compile _ _SHADOWS_SOFT
 				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
 			ENDHLSL
 		}

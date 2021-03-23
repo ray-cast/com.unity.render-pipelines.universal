@@ -21,6 +21,8 @@ namespace UnityEngine.Rendering.Universal
         class Styles
         {
             public readonly GUIContent SpotAngle = EditorGUIUtility.TrTextContent("Spot Angle", "Controls the angle in degrees at the base of a Spot light's cone.");
+            public static readonly GUIContent AttenuationBulbSize = EditorGUIUtility.TrTextContent("Attenuation Bulb Size");
+            public static readonly GUIContent Softness = EditorGUIUtility.TrTextContent("Softness");
 
             public readonly GUIContent BakingWarning = EditorGUIUtility.TrTextContent("Light mode is currently overridden to Realtime mode. Enable Baked Global Illumination to use Mixed or Baked light modes.");
             public readonly GUIContent DisabledLightWarning = EditorGUIUtility.TrTextContent("Lighting has been disabled in at least one Scene view. Any changes applied to lights in the Scene will not be updated in these views until Lighting has been enabled again.");
@@ -75,26 +77,30 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        UniversalAdditionalLightData m_AdditionalLightData;
-        SerializedObject m_AdditionalLightDataSO;
+        UniversalAdditionalLightData _additionalLightData;
+        SerializedObject _additionalLightDataSO;
 
-        SerializedProperty m_UseAdditionalDataProp;
-
+        SerializedProperty _softnessProp;
+        SerializedProperty _useAdditionalDataProp;
+        SerializedProperty _attenuationBulbSizeProp;
 
         protected override void OnEnable()
         {
-            m_AdditionalLightData = lightProperty.gameObject.GetComponent<UniversalAdditionalLightData>();
+            _additionalLightData = lightProperty.GetUniversalAdditionalLightData();
             settings.OnEnable();
-            init(m_AdditionalLightData);
+            init(_additionalLightData);
             UpdateShowOptions(true);
         }
 
         void init(UniversalAdditionalLightData additionalLightData)
         {
-            if(additionalLightData == null)
+            if (additionalLightData == null)
                 return;
-            m_AdditionalLightDataSO = new SerializedObject(additionalLightData);
-            m_UseAdditionalDataProp = m_AdditionalLightDataSO.FindProperty("_usePipelineSettings");
+
+            _additionalLightDataSO = new SerializedObject(additionalLightData);
+            _softnessProp = _additionalLightDataSO.FindProperty("_softness");
+            _attenuationBulbSizeProp = _additionalLightDataSO.FindProperty("_attenuationBulbSize");
+            _useAdditionalDataProp = _additionalLightDataSO.FindProperty("_usePipelineSettings");
 
             settings.ApplyModifiedProperties();
         }
@@ -150,6 +156,9 @@ namespace UnityEngine.Rendering.Universal
                 }
 
             settings.DrawIntensity();
+
+            DrawAttenuationBulbSize();
+            DrawSoftness();
 
             using (var group = new EditorGUILayout.FadeGroupScope(m_AnimLightBounceIntensity.faded))
                 if (group.visible)
@@ -222,19 +231,19 @@ namespace UnityEngine.Rendering.Universal
             bool hasChanged = false;
             int selectedUseAdditionalData;
 
-            if (m_AdditionalLightDataSO == null)
+            if (_additionalLightDataSO == null)
             {
                 selectedUseAdditionalData = 1;
             }
             else
             {
-                m_AdditionalLightDataSO.Update();
-                selectedUseAdditionalData = !m_AdditionalLightData.usePipelineSettings ? 0 : 1;
+                _additionalLightDataSO.Update();
+                selectedUseAdditionalData = !_additionalLightData.usePipelineSettings ? 0 : 1;
             }
 
             Rect controlRectAdditionalData = EditorGUILayout.GetControlRect(true);
-            if(m_AdditionalLightDataSO != null)
-                EditorGUI.BeginProperty(controlRectAdditionalData, Styles.shadowBias, m_UseAdditionalDataProp);
+            if(_additionalLightDataSO != null)
+                EditorGUI.BeginProperty(controlRectAdditionalData, Styles.shadowBias, _useAdditionalDataProp);
             EditorGUI.BeginChangeCheck();
 
             selectedUseAdditionalData = EditorGUI.IntPopup(controlRectAdditionalData, Styles.shadowBias, selectedUseAdditionalData, Styles.displayedDefaultOptions, Styles.optionDefaultValues);
@@ -242,35 +251,85 @@ namespace UnityEngine.Rendering.Universal
             {
                 hasChanged = true;
             }
-            if(m_AdditionalLightDataSO != null)
+            if(_additionalLightDataSO != null)
                 EditorGUI.EndProperty();
 
-            if (selectedUseAdditionalData != 1 && m_AdditionalLightDataSO != null)
+            if (selectedUseAdditionalData != 1 && _additionalLightDataSO != null)
             {
                 EditorGUI.indentLevel++;
                 EditorGUILayout.Slider(settings.shadowsBias, 0f, 10f, "Depth");
                 EditorGUILayout.Slider(settings.shadowsNormalBias, 0f, 10f, "Normal");
                 EditorGUI.indentLevel--;
 
-                m_AdditionalLightDataSO.ApplyModifiedProperties();
+                _additionalLightDataSO.ApplyModifiedProperties();
             }
 
             if (hasChanged)
             {
-                if (m_AdditionalLightDataSO == null)
+                if (_additionalLightDataSO == null)
                 {
                     lightProperty.gameObject.AddComponent<UniversalAdditionalLightData>();
-                    m_AdditionalLightData = lightProperty.gameObject.GetComponent<UniversalAdditionalLightData>();
+                    _additionalLightData = lightProperty.gameObject.GetComponent<UniversalAdditionalLightData>();
 
                     var asset = UniversalRenderPipeline.asset;
                     settings.shadowsBias.floatValue = asset.shadowDepthBias;
                     settings.shadowsNormalBias.floatValue = asset.shadowNormalBias;
 
-                    init(m_AdditionalLightData);
+                    init(_additionalLightData);
                 }
 
-                m_UseAdditionalDataProp.intValue = selectedUseAdditionalData;
-                m_AdditionalLightDataSO.ApplyModifiedProperties();
+                _useAdditionalDataProp.intValue = selectedUseAdditionalData;
+                _additionalLightDataSO.ApplyModifiedProperties();
+            }
+        }
+
+        void DrawAttenuationBulbSize()
+		{
+            Light light = target as Light;
+
+            EditorGUI.BeginChangeCheck();
+
+            Rect controlRect = EditorGUILayout.GetControlRect(true);
+            EditorGUI.BeginProperty(controlRect, Styles.AttenuationBulbSize, _attenuationBulbSizeProp);
+            EditorGUI.showMixedValue = _attenuationBulbSizeProp.hasMultipleDifferentValues;
+            float attenuationBulbSize = Mathf.Clamp(EditorGUI.FloatField(controlRect, Styles.AttenuationBulbSize, _attenuationBulbSizeProp.floatValue), 1e-3f, light.range);
+            EditorGUI.EndProperty();
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (_additionalLightData == null)
+                {
+                    _additionalLightData = Undo.AddComponent<UniversalAdditionalLightData>(light.gameObject);
+                    init(_additionalLightData);
+                }
+
+                _attenuationBulbSizeProp.floatValue = attenuationBulbSize;
+                _additionalLightDataSO.ApplyModifiedProperties();
+            }
+        }
+
+        void DrawSoftness()
+        {
+            Light light = target as Light;
+
+            EditorGUI.BeginChangeCheck();
+
+            Rect controlRect = EditorGUILayout.GetControlRect(true);
+            EditorGUI.BeginProperty(controlRect, Styles.Softness, _softnessProp);
+            EditorGUI.showMixedValue = _softnessProp.hasMultipleDifferentValues;
+            float softness = EditorGUI.Slider(controlRect, Styles.Softness, _softnessProp.floatValue, 0, 1);
+            EditorGUI.EndProperty();
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (_additionalLightData == null)
+                {
+                    _additionalLightData = Undo.AddComponent<UniversalAdditionalLightData>(light.gameObject);
+                    init(_additionalLightData);
+                }
+
+                _softnessProp.floatValue = softness;
+                _additionalLightDataSO.ApplyModifiedProperties();
             }
         }
 

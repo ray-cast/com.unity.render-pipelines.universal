@@ -19,7 +19,7 @@ namespace UnityEngine.Rendering.Universal
 
             cmd.Clear();
             cmd.SetGlobalVector(ShaderConstants._scaleBiasId, scaleBias);
-            cmd.DrawMesh(RenderingUtils.fullscreenMesh, Matrix4x4.identity, _material);
+            cmd.DrawProcedural(Matrix4x4.identity, _material, 0, MeshTopology.Triangles, 3);
 
             context.ExecuteCommandBuffer(cmd);
 

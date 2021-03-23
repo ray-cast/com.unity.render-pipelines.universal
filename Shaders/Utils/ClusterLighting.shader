@@ -22,19 +22,18 @@
 			float3 viewdir      : TEXCOORD1;
 		};
 
-		Varyings vert(Attributes input)
+		Varyings ClusterLightingVertex(uint id : SV_VERTEXID)
 		{
-			Varyings output;
-
-			output.uv = UnityStereoTransformScreenSpaceTex(input.uv).xyxy;
+			Varyings output = (Varyings)0;
+			output.uv = float4(float2(id / 2, id % 2) * 2, 0, 1);
+			output.positionCS = float4(output.uv.xy * 2 - 1, 0, 1);
+			output.positionCS.y *= _ScaleBiasRT.x;
 			
-    		output.positionCS = float4(input.positionHCS.xyz, 1.0);
-    		output.positionCS.y *= _ScaleBiasRT.x;
-
-			float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(input.uv, 1));
+			float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(output.uv, 1));
 			hpositionWS /= hpositionWS.w;
 
 			output.viewdir = GetCameraPositionWS() - hpositionWS.xyz;
+			output.uv = UnityStereoTransformScreenSpaceTex(output.uv.xy).xyxy;
 
 			return output;
 		}
@@ -78,6 +77,38 @@
 
 			return float4(lighting, 1);
 		}
+
+		float4 ClusterAdditionalLightingFragment(Varyings input) : SV_Target
+		{
+			GbufferData surface = SampleGbufferTextures(input.uv.xy);
+
+			BRDFData brdfData;
+			InitializeBRDFData(surface.albedo, surface.metallic, surface.specular, surface.smoothness, 1, brdfData);
+
+			float3 n = surface.normalWS;
+			float3 v = normalize(input.viewdir);
+
+			float deviceDepth = SampleDepthAttachment(input.uv.xy);
+			float linearDepth = LinearEyeDepth(deviceDepth, _ZBufferParams);
+
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+			deviceDepth = deviceDepth * 2 - 1;
+#endif
+			float3 worldPosition = ComputeWorldSpacePosition(input.uv.zw, deviceDepth, unity_MatrixInvVP);
+
+			float3 lighting = surface.emission;
+
+			uint2 cullingLightIndex = GetCullingLightIndex(ComputeClusterClipSpacePosition(input.uv.xy), linearDepth);
+
+			[loop]
+			for (uint i = 0; i < cullingLightIndex.y; i++)
+			{
+				Light light = GetClusterAdditionalLight(cullingLightIndex.x + i, worldPosition);
+				lighting += LightingPhysicallyBased(brdfData, light, n, v);
+			}
+
+			return float4(lighting, 1);
+		}
 	ENDHLSL
 
 	SubShader
@@ -88,8 +119,22 @@
 		Pass
 		{
 			HLSLPROGRAM
-				#pragma vertex vert
+				#pragma vertex ClusterLightingVertex
 				#pragma fragment ClusterLightingFragment
+
+				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
+				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
+				#pragma multi_compile _ _ADDITIONAL_LIGHTS
+				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
+				#pragma multi_compile _ _SHADOWS_SOFT
+				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
+			ENDHLSL
+		}
+		Pass
+		{
+			HLSLPROGRAM
+				#pragma vertex ClusterLightingVertex
+				#pragma fragment ClusterAdditionalLightingFragment
 
 				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
 				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE

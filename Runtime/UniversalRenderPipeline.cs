@@ -463,9 +463,7 @@ namespace UnityEngine.Rendering.Universal
             if (additionalCameraData != null)
             {
                 layerMask = additionalCameraData.volumeLayerMask;
-                trigger = additionalCameraData.volumeTrigger != null
-                    ? additionalCameraData.volumeTrigger
-                    : trigger;
+                trigger = additionalCameraData.volumeTrigger != null ? additionalCameraData.volumeTrigger : trigger;
             }
             else if (camera.cameraType == CameraType.SceneView)
             {
@@ -478,8 +476,12 @@ namespace UnityEngine.Rendering.Universal
 
                 trigger = mainAdditionalCameraData != null && mainAdditionalCameraData.volumeTrigger != null ? mainAdditionalCameraData.volumeTrigger : trigger;
             }
-
-            VolumeManager.instance.Update(trigger, layerMask);
+            
+            if (layerMask.value != 0)
+			{
+                VolumeManager.instance.Update(trigger, layerMask);
+                SwitcherManager.instance.Update(trigger, layerMask);
+            }
         }
 
         static bool CheckPostProcessForDepth(in CameraData cameraData)
@@ -682,6 +684,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.postProcessEnabled = CoreUtils.ArePostProcessesEnabled(camera);
                 cameraData.requiresDepthTexture = settings.supportsCameraDepthTexture;
                 cameraData.requiresOpaqueTexture = settings.supportsCameraOpaqueTexture;
+                cameraData.requiresLightData = true;
                 cameraData.deferredLightingMode = settings.deferredLightingMode;
                 cameraData.requireHeatMap = settings.requireHeatMap;
                 cameraData.requireDrawCluster = settings.requireDrawCluster;
@@ -695,6 +698,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.maxShadowDistance = (additionalCameraData.renderShadows) ? cameraData.maxShadowDistance : 0.0f;
                 cameraData.requiresDepthTexture = additionalCameraData.requiresDepthTexture;
                 cameraData.requiresOpaqueTexture = additionalCameraData.requiresColorTexture;
+                cameraData.requiresLightData = additionalCameraData.requireLightData;
                 cameraData.deferredLightingMode = additionalCameraData.deferredLightingMode;
                 cameraData.requireHeatMap = additionalCameraData.requiresHeatMap;
                 cameraData.requireDrawCluster = additionalCameraData.requiresDrawCluster;
@@ -707,6 +711,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.postProcessEnabled = false;
                 cameraData.requiresDepthTexture = settings.supportsCameraDepthTexture;
                 cameraData.requiresOpaqueTexture = settings.supportsCameraOpaqueTexture;
+                cameraData.requiresLightData = true;
                 cameraData.deferredLightingMode = settings.deferredLightingMode;
                 cameraData.requireHeatMap = settings.requireHeatMap;
                 cameraData.requireDrawCluster = settings.requireDrawCluster;

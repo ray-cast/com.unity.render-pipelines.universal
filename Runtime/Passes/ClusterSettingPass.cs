@@ -58,7 +58,7 @@ namespace UnityEngine.Rendering.Universal
 
 		private ClusterData _clusterData;
 
-		private RenderTargetHandle _depthAttachment;
+		private ForwardLights _forwardLights;
 
 		private ProfilingSampler _profilingSampler;
 
@@ -70,10 +70,11 @@ namespace UnityEngine.Rendering.Universal
 			}
 		}
 
-		public ClusterSettingPass(RenderPassEvent evt, ComputeShader clusterCompute)
+		public ClusterSettingPass(RenderPassEvent evt, ForwardLights forwardLights, ComputeShader clusterCompute)
 		{
 			this.renderPassEvent = evt;
 
+			this._forwardLights = forwardLights;
 			this._profilingSampler = new ProfilingSampler(ShaderConstants._profilerTag);
 
 			this._clusterCompute = clusterCompute;
@@ -118,9 +119,8 @@ namespace UnityEngine.Rendering.Universal
 				this._maxComputeWorkGroupUV = 8;
 		}
 
-		public void Setup(RenderTargetHandle depthAttachment, bool drawMainCamera = false)
+		public void Setup(bool drawMainCamera = false)
 		{
-			this._depthAttachment = depthAttachment;
 			this._drawMainCamera = drawMainCamera;
 		}
 
@@ -198,33 +198,30 @@ namespace UnityEngine.Rendering.Universal
 			if (lightIndex < 0)
 				return;
 
-			VisibleLight lightData = lights[lightIndex];
+			var lightData = lights[lightIndex];
+			var lightAdditionalData = lightData.light.GetUniversalAdditionalLightData();
+			var color = lightData.finalColor * lightAdditionalData.weight;
+
 			if (lightData.lightType == LightType.Directional)
 			{
-				Vector4 dir = -lightData.localToWorldMatrix.GetColumn(2);
+				var dir = -lightData.localToWorldMatrix.GetColumn(2);
 				lightPos = new Vector4(dir.x, dir.y, dir.z, 0.0f);
-				lightColor = new Vector4(lightData.finalColor.r, lightData.finalColor.g, lightData.finalColor.b, 0.0f);
+				lightColor = new Vector4(color.r, color.g, color.b, lightAdditionalData.softness);
 			}
 			else
 			{
 				Vector4 pos = lightData.localToWorldMatrix.GetColumn(3);
-				lightPos = new Vector4(pos.x, pos.y, pos.z, 1.0f);
-				lightColor = new Vector4(lightData.finalColor.r, lightData.finalColor.g, lightData.finalColor.b, lightData.range);
+				lightPos = new Vector4(pos.x, pos.y, pos.z, lightData.range);
+				lightColor = new Vector4(color.r, color.g, color.b, lightAdditionalData.softness);
 			}
 
+			// Directional Light attenuation is initialize so distance attenuation always be 1.0
 			if (lightData.lightType != LightType.Directional)
 			{
-				float lightRangeSqr = lightData.range * lightData.range;
-				float fadeStartDistanceSqr = 0.8f * 0.8f * lightRangeSqr;
-				float fadeRangeSqr = (fadeStartDistanceSqr - lightRangeSqr);
-				float oneOverFadeRangeSqr = 1.0f / fadeRangeSqr;
-				float lightRangeSqrOverFadeRangeSqr = -lightRangeSqr / fadeRangeSqr;
-				float oneOverLightRangeSqr = 1.0f / Mathf.Max(0.0001f, lightData.range * lightData.range);
-
-				lightAttenuation.x = Application.isMobilePlatform || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Switch ? oneOverFadeRangeSqr : oneOverLightRangeSqr;
-				lightAttenuation.y = lightRangeSqrOverFadeRangeSqr;
+				lightAttenuation.x = lightAdditionalData.attenuationBulbSize;
+				lightAttenuation.y = 0;
 			}
-			
+
 			if (lightData.lightType == LightType.Spot)
 			{
 				Vector4 dir = lightData.localToWorldMatrix.GetColumn(2);
@@ -250,7 +247,7 @@ namespace UnityEngine.Rendering.Universal
 			lightOcclusionProbeChannel.y = occlusionProbeChannel == -1 ? 1f : 0f;
 		}
 
-		int SetupAdditionalLightConstants(ref CommandBuffer cmd, ref RenderingData renderingData)
+		int SetupAdditionalLightConstants(ref RenderingData renderingData)
 		{
 			ref LightData lightData = ref renderingData.lightData;
 			var lights = lightData.visibleLights;
@@ -365,7 +362,14 @@ namespace UnityEngine.Rendering.Universal
 				cmd.SetComputeBufferParam(_clusterCompute, _updateIndirectArgumentBuffersKernel, ShaderConstants._RWClusterIndirectArgumentBuffer, indirectArgumentBuffer);
 				cmd.DispatchCompute(_clusterCompute, _updateIndirectArgumentBuffersKernel, 1, 1, 1);
 
-				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
+				if (RenderingUtils.useStructuredBuffer)
+					cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
+				else
+				{
+					cmd.SetComputeVectorArrayParam(_clusterCompute, ShaderConstants._AdditionalLightsPosition, _forwardLights.additionalLightPositions);
+					cmd.SetComputeVectorArrayParam(_clusterCompute, ShaderConstants._AdditionalLightsSpotDir, _forwardLights.additionalLightSpotDirections);
+				}
+
 				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterAABBBuffer, ShaderData.instance.AABBBuffer);
 				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._ClusterUniquesBuffer, ShaderData.instance.uniquesBuffer);
 				cmd.SetComputeBufferParam(_clusterCompute, _computeLightClusterIntersectionKernel, ShaderConstants._RWClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
@@ -379,22 +383,22 @@ namespace UnityEngine.Rendering.Universal
 		public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
 		{
 			var cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
-			var camera = this._drawMainCamera ? Camera.main : renderingData.cameraData.camera;
-
-			if (this._clusterData.width != camera.pixelWidth || this._clusterData.height != camera.pixelHeight ||
-				this._clusterData.zNear != camera.nearClipPlane ||
-				this._clusterData.zFar != Mathf.Min(renderingData.lightData.maxLightingDistance, camera.farClipPlane) ||
-				this._clusterData.fieldOfView != Mathf.Max(1, camera.fieldOfView))
-			{
-				this.SetupClusterData(ref camera, ref renderingData);
-				this.SetupClusterAABB(ref cmd, ref camera);
-			}
 
 			using (new ProfilingScope(cmd, _profilingSampler))
 			{
 				context.ExecuteCommandBuffer(cmd);
-
 				cmd.Clear();
+
+				var camera = this._drawMainCamera ? Camera.main : renderingData.cameraData.camera;
+
+				if (this._clusterData.width != camera.pixelWidth || this._clusterData.height != camera.pixelHeight ||
+					this._clusterData.zNear != camera.nearClipPlane ||
+					this._clusterData.zFar != Mathf.Min(renderingData.lightData.maxLightingDistance, camera.farClipPlane) ||
+					this._clusterData.fieldOfView != Mathf.Max(1, camera.fieldOfView))
+				{
+					this.SetupClusterData(ref camera, ref renderingData);
+					this.SetupClusterAABB(ref cmd, ref camera);
+				}
 
 				ShaderData.instance.CreateUniqueCounterBuffer(1);
 				ShaderData.instance.CreateLightDataBuffer(UniversalRenderPipeline.maxVisibleAdditionalLights);
@@ -403,7 +407,7 @@ namespace UnityEngine.Rendering.Universal
 
 				this.ClearLightGirdIndexCounter(ref cmd, ref renderingData);
 
-				var additionalLightsCount = this.SetupAdditionalLightConstants(ref cmd, ref renderingData);
+				var additionalLightsCount = this.SetupAdditionalLightConstants(ref renderingData);
 				var sizeParams = new Vector2(ShaderConstants.blockSizeX, ShaderConstants.blockSizeY);
 				var dimensionParams = new Vector4(_clusterData.clusterDimX, _clusterData.clusterDimY, _clusterData.clusterDimZ, 0.0f);
 				var projectionParams = new Vector4(_clusterData.zNear, _clusterData.zFar, _clusterData.nearK, _clusterData.logDimY);
@@ -454,6 +458,12 @@ namespace UnityEngine.Rendering.Universal
 
 			public static readonly int _InverseViewMatrix = Shader.PropertyToID("_InverseViewMatrix");
 			public static readonly int _TransformToViewMatrix = Shader.PropertyToID("_TransformToViewMatrix");
+
+			public static readonly int _AdditionalLightsPosition = Shader.PropertyToID("_AdditionalLightsPosition");
+			public static readonly int _AdditionalLightsColor = Shader.PropertyToID("_AdditionalLightsColor");
+			public static readonly int _AdditionalLightsAttenuation = Shader.PropertyToID("_AdditionalLightsAttenuation");
+			public static readonly int _AdditionalLightsSpotDir = Shader.PropertyToID("_AdditionalLightsSpotDir");
+			public static readonly int _AdditionalLightOcclusionProbeChannel = Shader.PropertyToID("_AdditionalLightsOcclusionProbes");
 
 			public static readonly int _ClusterSizeParams = Shader.PropertyToID("_ClusterSizeParams");
 			public static readonly int _ClusterDimensionParams = Shader.PropertyToID("_ClusterDimensionParams");

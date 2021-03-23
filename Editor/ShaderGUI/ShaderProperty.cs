@@ -45,21 +45,23 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
 
             Texture value = editor.TextureProperty(prop, label);
 
+            if (value != null)
+                mat.EnableKeyword(keywordName);
+            else
+                mat.DisableKeyword(keywordName);
+
             EditorGUI.showMixedValue = false;
+
             if (EditorGUI.EndChangeCheck())
             {
-                if (value != null)
-                {
-                    mat.EnableKeyword(keywordName);
-                }
-                else
-                {
-                    mat.DisableKeyword(keywordName);
-                }
                 prop.textureValue = value;
             }
         }
 
+        public override float GetPropertyHeight(MaterialProperty prop, string label, MaterialEditor editor)
+        {
+            return 0;
+        }
     }
 
 

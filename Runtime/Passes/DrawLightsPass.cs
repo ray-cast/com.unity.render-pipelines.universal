@@ -25,7 +25,7 @@ namespace UnityEngine.Rendering.Universal
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
             ConfigureTarget(_colorAttachmentHandle.Identifier(), _depthAttachmentHandle.Identifier());
-            ConfigureClear(ClearFlag.Color, new Color(0, 0, 0, 0));
+            ConfigureClear(ClearFlag.None, Color.black);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -37,8 +37,13 @@ namespace UnityEngine.Rendering.Universal
             var scaleBias = flipSign < 0.0f ? new Vector4(flipSign, 1.0f, -1.0f, 1.0f) : new Vector4(flipSign, 0.0f, 1.0f, 1.0f);
 
             cmd.Clear();
+            cmd.ClearRenderTarget(false, true, new Color(0, 0, 0, 0));
             cmd.SetGlobalVector(ShaderConstants._scaleBiasId, scaleBias);
-            cmd.DrawMesh(RenderingUtils.fullscreenMesh, Matrix4x4.identity, _material, 0, 0);
+
+            if (renderingData.lightData.mainLightIndex >= 0)
+                cmd.DrawProcedural(Matrix4x4.identity, _material, 0, MeshTopology.Triangles, 3);
+            else
+                cmd.DrawProcedural(Matrix4x4.identity, _material, 4, MeshTopology.Triangles, 3);
 
             var lights = renderingData.lightData.visibleLights;
             int maxAdditionalLightsCount = UniversalRenderPipeline.maxVisibleAdditionalLights;
@@ -59,7 +64,7 @@ namespace UnityEngine.Rendering.Universal
                     {
                         case LightType.Directional:
                             cmd.SetGlobalVector(ShaderConstants._LightParams, new Vector4(lightIter, 1, 0, 0));
-                            cmd.DrawMesh(RenderingUtils.fullscreenMesh, Matrix4x4.identity, _material, 0, 1);
+                            cmd.DrawProcedural(Matrix4x4.identity, _material, 1, MeshTopology.Triangles, 3);
                             break;
                         case LightType.Point:
                             cmd.SetGlobalVector(ShaderConstants._LightParams, new Vector4(lightIter, light.range, 0, 0));

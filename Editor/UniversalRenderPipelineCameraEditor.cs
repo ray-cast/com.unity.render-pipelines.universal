@@ -32,6 +32,7 @@ namespace UnityEngine.Rendering.Universal
             public static GUIContent backgroundType = EditorGUIUtility.TrTextContent("Background Type", "Controls how to initialize the Camera's background.\n\nSkybox initializes camera with Skybox, defaulting to a background color if no skybox is found.\n\nSolid Color initializes background with the background color.\n\nUninitialized has undefined values for the camera background. Use this only if you are rendering all pixels in the Camera's view.");
             public static GUIContent cameraType = EditorGUIUtility.TrTextContent("Render Type", "Controls which type of camera this is.");
             public static GUIContent renderingShadows = EditorGUIUtility.TrTextContent("Render Shadows", "Makes this camera render shadows.");
+            public static GUIContent requireLightData = EditorGUIUtility.TrTextContent("Require Light Data", "Makes this camera render lights.");
             public static GUIContent requireDepthTexture = EditorGUIUtility.TrTextContent("Depth Texture", "On makes this camera create a _CameraDepthTexture, which is a copy of the rendered depth values.\nOff makes the camera not create a depth texture.\nUse Pipeline Settings applies settings from the Render Pipeline Asset.");
             public static GUIContent requireOpaqueTexture = EditorGUIUtility.TrTextContent("Opaque Texture", "On makes this camera create a _CameraOpaqueTexture, which is a copy of the rendered view.\nOff makes the camera not create an opaque texture.\nUse Pipeline Settings applies settings from the Render Pipeline Asset.");
             public static GUIContent allowMSAA = EditorGUIUtility.TrTextContent("MSAA", "Use Multi Sample Anti-Aliasing to reduce aliasing.");
@@ -161,6 +162,7 @@ namespace UnityEngine.Rendering.Universal
         readonly AnimBool m_ShowTargetEyeAnim = new AnimBool();
 
         SerializedProperty m_AdditionalCameraDataRenderShadowsProp;
+        SerializedProperty m_AdditionalCameraDataRequireLightDataProp;
         SerializedProperty m_AdditionalCameraDataRenderDepthProp;
         SerializedProperty m_AdditionalCameraDataRenderOpaqueProp;
         SerializedProperty m_AdditionalCameraDataRendererProp;
@@ -438,6 +440,7 @@ namespace UnityEngine.Rendering.Universal
 
             m_AdditionalCameraDataSO = new SerializedObject(additionalCameraData);
             m_AdditionalCameraDataRenderShadowsProp = m_AdditionalCameraDataSO.FindProperty("m_RenderShadows");
+            m_AdditionalCameraDataRequireLightDataProp = m_AdditionalCameraDataSO.FindProperty("m_RequireLightData");
             m_AdditionalCameraDataRenderDepthProp = m_AdditionalCameraDataSO.FindProperty("m_RequiresDepthTextureOption");
             m_AdditionalCameraDataRenderOpaqueProp = m_AdditionalCameraDataSO.FindProperty("m_RequiresOpaqueTextureOption");
             m_AdditionalCameraDataRendererProp = m_AdditionalCameraDataSO.FindProperty("m_RendererIndex");
@@ -635,6 +638,7 @@ namespace UnityEngine.Rendering.Universal
                 }
 
                 DrawRenderShadows();
+                DrawRequireLightData();
 
                 if (camType == CameraRenderType.Base)
                 {
@@ -1162,6 +1166,27 @@ namespace UnityEngine.Rendering.Universal
                 m_AdditionalCameraDataRenderShadowsProp.boolValue = selectedValueShadows;
                 m_AdditionalCameraDataSO.ApplyModifiedProperties();
             }
+            EditorGUI.EndProperty();
+        }
+
+        void DrawRequireLightData()
+        {
+            bool selectedValueLights;
+            m_AdditionalCameraDataSO.Update();
+            selectedValueLights = m_AdditionalCameraData.requireLightData;
+
+            Rect controlRectShadows = EditorGUILayout.GetControlRect(true);
+
+            EditorGUI.BeginProperty(controlRectShadows, Styles.requireLightData, m_AdditionalCameraDataRequireLightDataProp);
+            EditorGUI.BeginChangeCheck();
+
+            selectedValueLights = EditorGUI.Toggle(controlRectShadows, Styles.requireLightData, selectedValueLights);
+            if (EditorGUI.EndChangeCheck())
+            {
+                m_AdditionalCameraDataRequireLightDataProp.boolValue = selectedValueLights;
+                m_AdditionalCameraDataSO.ApplyModifiedProperties();
+            }
+
             EditorGUI.EndProperty();
         }
 

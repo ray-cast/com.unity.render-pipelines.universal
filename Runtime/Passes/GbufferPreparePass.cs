@@ -6,9 +6,6 @@ namespace UnityEngine.Rendering.Universal
 {
     public class GbufferPreparePass : ScriptableRenderPass
     {
-        private int _width;
-        private int _height;
-
         private bool _isOpaque;
 
         private string _profilerTag;
@@ -18,10 +15,10 @@ namespace UnityEngine.Rendering.Universal
         private RenderStateBlock _renderStateBlock;
         private List<ShaderTagId> _shaderTagIdList;
 
-        private RenderTargetHandle[] bufferAttachmentHandle { get; set; }
-        private RenderTargetIdentifier[] bufferAttachments { get; set; }
-        private RenderTextureDescriptor[] bufferDescriptor { get; set; }
+        private RenderTargetIdentifier[] _colorAttachments;
+        private RenderTextureDescriptor[] _colorDescriptor;
 
+        private RenderTargetHandle[] _colorAttachmentHandle { get; set; }
         private RenderTargetHandle _depthAttachmentHandle { get; set; }
 
         public GbufferPreparePass(string profilerTag, bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState, int stencilReference)
@@ -37,8 +34,8 @@ namespace UnityEngine.Rendering.Universal
             _renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             _isOpaque = opaque;
 
-            bufferAttachments = new RenderTargetIdentifier[4];
-            bufferDescriptor = new RenderTextureDescriptor[4];
+            _colorAttachments = new RenderTargetIdentifier[4];
+            _colorDescriptor = new RenderTextureDescriptor[4];
 
             if (stencilState.enabled)
             {
@@ -62,34 +59,32 @@ namespace UnityEngine.Rendering.Universal
 
         public void Setup(RenderTextureDescriptor cameraTextureDescriptor, RenderTargetHandle[] colorAttachmentHandle, RenderTargetHandle depthAttachmentHandle)
         {
-            this._width = cameraTextureDescriptor.width;
-            this._height = cameraTextureDescriptor.height;
-            this.bufferAttachmentHandle = colorAttachmentHandle;
-            this._depthAttachmentHandle = depthAttachmentHandle;
+            var width = cameraTextureDescriptor.width;
+            var height = cameraTextureDescriptor.height;
 
-            this.bufferDescriptor = new RenderTextureDescriptor[4];
-            bufferDescriptor[0] = GetStereoCompatibleDescriptor(cameraTextureDescriptor, this._width, this._height, GraphicsFormat.R8G8B8A8_UNorm);
-            bufferDescriptor[1] = GetStereoCompatibleDescriptor(cameraTextureDescriptor, this._width, this._height, GraphicsFormat.R8G8B8A8_UNorm);
-            bufferDescriptor[2] = GetStereoCompatibleDescriptor(cameraTextureDescriptor, this._width, this._height, GraphicsFormat.A2B10G10R10_UNormPack32);
-            bufferDescriptor[3] = GetStereoCompatibleDescriptor(cameraTextureDescriptor, this._width, this._height, GraphicsFormat.R8G8B8A8_UNorm);
+            this._colorDescriptor[0] = GetStereoCompatibleDescriptor(cameraTextureDescriptor, width, height, GraphicsFormat.R8G8B8A8_UNorm);
+            this._colorDescriptor[1] = GetStereoCompatibleDescriptor(cameraTextureDescriptor, width, height, GraphicsFormat.R8G8B8A8_UNorm);
+            this._colorDescriptor[2] = GetStereoCompatibleDescriptor(cameraTextureDescriptor, width, height, GraphicsFormat.A2B10G10R10_UNormPack32);
+            this._colorDescriptor[3] = GetStereoCompatibleDescriptor(cameraTextureDescriptor, width, height, GraphicsFormat.R8G8B8A8_UNorm);
 
+            _colorAttachmentHandle = colorAttachmentHandle;
             _depthAttachmentHandle = depthAttachmentHandle;
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
-            cmd.GetTemporaryRT(bufferAttachmentHandle[0].id, bufferDescriptor[0], FilterMode.Point);
-            cmd.GetTemporaryRT(bufferAttachmentHandle[1].id, bufferDescriptor[1], FilterMode.Point);
-            cmd.GetTemporaryRT(bufferAttachmentHandle[2].id, bufferDescriptor[2], FilterMode.Point);
-            cmd.GetTemporaryRT(bufferAttachmentHandle[3].id, bufferDescriptor[3], FilterMode.Point);
+            cmd.GetTemporaryRT(_colorAttachmentHandle[0].id, _colorDescriptor[0], FilterMode.Point);
+            cmd.GetTemporaryRT(_colorAttachmentHandle[1].id, _colorDescriptor[1], FilterMode.Point);
+            cmd.GetTemporaryRT(_colorAttachmentHandle[2].id, _colorDescriptor[2], FilterMode.Point);
+            cmd.GetTemporaryRT(_colorAttachmentHandle[3].id, _colorDescriptor[3], FilterMode.Point);
 
-            this.bufferAttachments[0] = bufferAttachmentHandle[0].Identifier();
-            this.bufferAttachments[1] = bufferAttachmentHandle[1].Identifier();
-            this.bufferAttachments[2] = bufferAttachmentHandle[2].Identifier();
-            this.bufferAttachments[3] = bufferAttachmentHandle[3].Identifier();
+            this._colorAttachments[0] = _colorAttachmentHandle[0].Identifier();
+            this._colorAttachments[1] = _colorAttachmentHandle[1].Identifier();
+            this._colorAttachments[2] = _colorAttachmentHandle[2].Identifier();
+            this._colorAttachments[3] = _colorAttachmentHandle[3].Identifier();
 
-            ConfigureTarget(bufferAttachments, _depthAttachmentHandle.Identifier());
-            ConfigureClear(ClearFlag.All, new Color(0, 0, 0, 0));
+            ConfigureTarget(_colorAttachments, _depthAttachmentHandle.Identifier());
+            ConfigureClear(ClearFlag.Color, ShaderConstants.clearColor);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -98,8 +93,7 @@ namespace UnityEngine.Rendering.Universal
 
             using (new ProfilingScope(cmd, _profilingSampler))
             {
-                Vector4 drawObjectPassData = new Vector4(0.0f, 0.0f, 0.0f, (_isOpaque) ? 1.0f : 0.0f);
-                cmd.SetGlobalVector(ShaderConstants._DrawObjectPassDataPropID, drawObjectPassData);
+                cmd.SetGlobalVector(ShaderConstants._DrawObjectPassDataPropID, ShaderConstants.drawObjectPassData);
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
@@ -124,16 +118,16 @@ namespace UnityEngine.Rendering.Universal
 
         public override void FrameCleanup(CommandBuffer cmd)
         {
-            if (cmd == null)
-                throw new ArgumentNullException("cmd");
-
-            for (int i = 0; i < bufferAttachmentHandle.Length; i++)
-                cmd.ReleaseTemporaryRT(bufferAttachmentHandle[i].id);
+            for (int i = 0; i < _colorAttachmentHandle.Length; i++)
+                cmd.ReleaseTemporaryRT(_colorAttachmentHandle[i].id);
         }
 
         static class ShaderConstants
         {
             public static readonly int _DrawObjectPassDataPropID = Shader.PropertyToID("_DrawObjectPassData");
+
+            public static readonly Color clearColor = new Color(0.0f, 0.0f, 0.0f, 0.0f);
+            public static readonly Vector4 drawObjectPassData = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
         }
     }
 }

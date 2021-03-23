@@ -13,6 +13,7 @@ namespace UnityEngine.Rendering.Universal
         SerializedDataParameter _scatter;
         SerializedDataParameter _clamp;
         SerializedDataParameter _tint;
+        SerializedDataParameter _glowFiltering;
         SerializedDataParameter _highQualityFiltering;
         SerializedDataParameter _dirtTexture;
         SerializedDataParameter _dirtIntensity;
@@ -26,6 +27,7 @@ namespace UnityEngine.Rendering.Universal
             _scatter = Unpack(o.Find(x => x.scatter));
             _clamp = Unpack(o.Find(x => x.clamp));
             _tint = Unpack(o.Find(x => x.tint));
+            _glowFiltering = Unpack(o.Find(x => x.glowFiltering));
             _highQualityFiltering = Unpack(o.Find(x => x.highQualityFiltering));
             _dirtTexture = Unpack(o.Find(x => x.dirtTexture));
             _dirtIntensity = Unpack(o.Find(x => x.dirtIntensity));
@@ -46,6 +48,7 @@ namespace UnityEngine.Rendering.Universal
             PropertyField(_scatter);
             PropertyField(_tint);
             PropertyField(_clamp);
+            PropertyField(_glowFiltering);
             PropertyField(_highQualityFiltering);
 
             if (_highQualityFiltering.overrideState.boolValue && _highQualityFiltering.value.boolValue && CoreEditorUtils.buildTargets.Contains(GraphicsDeviceType.OpenGLES2))

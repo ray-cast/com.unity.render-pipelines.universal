@@ -4,7 +4,7 @@ namespace UnityEngine.Rendering.Universal
     /// Render all objects that have a 'DepthOnly' pass into the given depth buffer.
     ///
     /// You can use this pass to prime a depth buffer for subsequent rendering.
-    /// Use it as a z-prepass, or use it to generate a depth buffer.
+    /// use it to generate a depth buffer.
     /// </summary>
     public class DepthOnlyPass : ScriptableRenderPass
     {
@@ -63,7 +63,7 @@ namespace UnityEngine.Rendering.Universal
 
         static class ShaderConstants
         {
-            public const string _profilerTag = "Depth Prepass";
+            public const string _profilerTag = "Depth Only Pass";
         }
     }
 }

@@ -33,7 +33,6 @@ namespace UnityEngine.Rendering.Universal
         Matrix4x4[] _mainLightShadowMatrices;
         ShadowSliceData[] _cascadeSlices;
         Vector4[] _cascadeSplitDistances;
-        CullingResults _shadowCullResults;
 
         const string _profilerTag = "Render Main Shadowmap";
         ProfilingSampler _profilingSampler = new ProfilingSampler(_profilerTag);
@@ -63,17 +62,7 @@ namespace UnityEngine.Rendering.Universal
             _supportsBoxFilterForShadows = Application.isMobilePlatform || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Switch;
         }
 
-        public void SetupShadowCullingParameters(ref RenderingData renderingData, ref Bounds bounds, ref ScriptableCullingParameters cullingParameters)
-        {
-            cullingParameters.cullingOptions &= ~CullingOptions.NeedsReflectionProbes;
-            cullingParameters.maximumVisibleLights = UniversalRenderPipeline.maxVisibleAdditionalLights + 1;
-            cullingParameters.shadowDistance = Mathf.Min(renderingData.cameraData.maxShadowDistance, Mathf.Max(
-                Vector3.Distance(renderingData.cameraData.camera.transform.position, bounds.min),
-                Vector3.Distance(renderingData.cameraData.camera.transform.position, bounds.max)
-            ));
-        }
-
-        public bool Setup(ref ScriptableRenderContext context, ref RenderingData renderingData)
+        public bool Setup(ref RenderingData renderingData)
         {
             if (!renderingData.shadowData.supportsMainLightShadows)
                 return false;
@@ -97,28 +86,20 @@ namespace UnityEngine.Rendering.Universal
             if (!renderingData.cullResults.GetShadowCasterBounds(shadowLightIndex, out bounds))
                 return false;
 
-            var camera = renderingData.cameraData.camera;
-            if (!camera.TryGetCullingParameters(UniversalRenderPipeline.IsStereoEnabled(camera), out var cullingParameters))
-                return false;
-
-            SetupShadowCullingParameters(ref renderingData, ref bounds, ref cullingParameters);
-
             _shadowCasterCascadesCount = renderingData.shadowData.mainLightShadowCascadesCount;
-            _shadowmapWidth = renderingData.shadowData.mainLightShadowmapWidth;
-            _shadowmapHeight = (_shadowCasterCascadesCount == 2) ? renderingData.shadowData.mainLightShadowmapHeight >> 1 : renderingData.shadowData.mainLightShadowmapHeight;
-            _shadowCullResults = context.Cull(ref cullingParameters);
 
-            var shadowResolution = ShadowUtils.GetMaxTileResolutionInAtlas(renderingData.shadowData.mainLightShadowmapWidth, renderingData.shadowData.mainLightShadowmapHeight, _shadowCasterCascadesCount);
+            int shadowResolution = ShadowUtils.GetMaxTileResolutionInAtlas(renderingData.shadowData.mainLightShadowmapWidth,
+                renderingData.shadowData.mainLightShadowmapHeight, _shadowCasterCascadesCount);
+            _shadowmapWidth = renderingData.shadowData.mainLightShadowmapWidth;
+            _shadowmapHeight = (_shadowCasterCascadesCount == 2) ?
+                renderingData.shadowData.mainLightShadowmapHeight >> 1 :
+                renderingData.shadowData.mainLightShadowmapHeight;
 
             for (int cascadeIndex = 0; cascadeIndex < _shadowCasterCascadesCount; ++cascadeIndex)
             {
-                bool success = ShadowUtils.ExtractDirectionalLightMatrix(ref _shadowCullResults, ref renderingData.shadowData,
+                bool success = ShadowUtils.ExtractDirectionalLightMatrix(ref renderingData.cullResults, ref renderingData.shadowData,
                     shadowLightIndex, cascadeIndex, _shadowmapWidth, _shadowmapHeight, shadowResolution, light.shadowNearPlane,
-                    out _cascadeSplitDistances[cascadeIndex],
-                    out _cascadeSlices[cascadeIndex],
-                    out _cascadeSlices[cascadeIndex].viewMatrix,
-                    out _cascadeSlices[cascadeIndex].projectionMatrix
-                );
+                    out _cascadeSplitDistances[cascadeIndex], out _cascadeSlices[cascadeIndex], out _cascadeSlices[cascadeIndex].viewMatrix, out _cascadeSlices[cascadeIndex].projectionMatrix);
 
                 if (!success)
                     return false;
@@ -138,7 +119,7 @@ namespace UnityEngine.Rendering.Universal
         /// <inheritdoc/>
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            RenderMainLightCascadeShadowmap(ref context, ref _shadowCullResults, ref renderingData.lightData, ref renderingData.shadowData);
+            RenderMainLightCascadeShadowmap(ref context, ref renderingData.cullResults, ref renderingData.lightData, ref renderingData.shadowData);
         }
 
         /// <inheritdoc/>

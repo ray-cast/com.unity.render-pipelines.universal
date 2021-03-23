@@ -129,6 +129,10 @@ namespace UnityEngine.Rendering.Universal
         [FormerlySerializedAs("renderShadows"), SerializeField]
         bool m_RenderShadows = true;
 
+        [Tooltip("If enabled lights will render for this camera.")]
+        [FormerlySerializedAs("requireLightData"), SerializeField]
+        bool m_RequireLightData = true;
+
         [Tooltip("If enabled depth texture will render for this camera bound as _CameraDepthTexture.")]
         [SerializeField]
         CameraOverrideOption m_RequiresDepthTextureOption = CameraOverrideOption.UsePipelineSettings;
@@ -194,6 +198,15 @@ namespace UnityEngine.Rendering.Universal
 
 				return s_DefaultAdditionalCameraData;
             }
+        }
+
+        /// <summary>
+        /// Controls if this camera should render shadows.
+        /// </summary>
+        public bool requireLightData
+        {
+            get => m_RequireLightData;
+            set => m_RequireLightData = value;
         }
 
         /// <summary>

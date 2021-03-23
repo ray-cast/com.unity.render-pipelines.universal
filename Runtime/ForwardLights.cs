@@ -24,6 +24,8 @@ namespace UnityEngine.Rendering.Universal
         int _additionalLightsBufferId;
         int _additionalLightsIndicesId;
 
+        bool _useStructuredBuffer;
+
         const string k_SetupLightConstants = "Setup Light Constants";
         MixedLightingSetup _mixedLightingSetup;
 
@@ -44,7 +46,11 @@ namespace UnityEngine.Rendering.Universal
         Vector4[] _additionalLightSpotDirections;
         Vector4[] _additionalLightOcclusionProbeChannels;
 
-        bool _useStructuredBuffer;
+        public Vector4[] additionalLightPositions { get { return _additionalLightPositions; } }
+        public Vector4[] additionalLightColors { get { return _additionalLightColors; } }
+        public Vector4[] additionalLightAttenuations { get { return _additionalLightAttenuations; } }
+        public Vector4[] additionalLightSpotDirections { get { return _additionalLightSpotDirections; } }
+        public Vector4[] additionalLightOcclusionProbeChannels { get { return _additionalLightOcclusionProbeChannels; } }
 
         public ForwardLights()
         {
@@ -107,49 +113,28 @@ namespace UnityEngine.Rendering.Universal
             if (lightIndex < 0)
                 return;
 
-            VisibleLight lightData = lights[lightIndex];
+            var lightData = lights[lightIndex];
+            var lightAdditionalData = lightData.light.GetUniversalAdditionalLightData();
+            var color = lightData.finalColor * lightAdditionalData.weight;
+
             if (lightData.lightType == LightType.Directional)
             {
-                Vector4 dir = -lightData.localToWorldMatrix.GetColumn(2);
+                var dir = -lightData.localToWorldMatrix.GetColumn(2);
                 lightPos = new Vector4(dir.x, dir.y, dir.z, 0.0f);
-                // VisibleLight.finalColor already returns color in active color space
-                lightColor = new Vector4(lightData.finalColor.r, lightData.finalColor.g, lightData.finalColor.b, 0.0f);
+                lightColor = new Vector4(color.r, color.g, color.b, lightAdditionalData.softness);
             }
             else
             {
                 Vector4 pos = lightData.localToWorldMatrix.GetColumn(3);
-                lightPos = new Vector4(pos.x, pos.y, pos.z, 1.0f);
-                // VisibleLight.finalColor already returns color in active color space
-                lightColor = new Vector4(lightData.finalColor.r, lightData.finalColor.g, lightData.finalColor.b, lightData.range);
+                lightPos = new Vector4(pos.x, pos.y, pos.z, lightData.range);
+                lightColor = new Vector4(color.r, color.g, color.b, lightAdditionalData.softness);
             }
 
             // Directional Light attenuation is initialize so distance attenuation always be 1.0
             if (lightData.lightType != LightType.Directional)
             {
-                // Light attenuation in universal matches the unity vanilla one.
-                // attenuation = 1.0 / distanceToLightSqr
-                // We offer two different smoothing factors.
-                // The smoothing factors make sure that the light intensity is zero at the light range limit.
-                // The first smoothing factor is a linear fade starting at 80 % of the light range.
-                // smoothFactor = (lightRangeSqr - distanceToLightSqr) / (lightRangeSqr - fadeStartDistanceSqr)
-                // We rewrite smoothFactor to be able to pre compute the constant terms below and apply the smooth factor
-                // with one MAD instruction
-                // smoothFactor =  distanceSqr * (1.0 / (fadeDistanceSqr - lightRangeSqr)) + (-lightRangeSqr / (fadeDistanceSqr - lightRangeSqr)
-                //                 distanceSqr *           oneOverFadeRangeSqr             +              lightRangeSqrOverFadeRangeSqr
-
-                // The other smoothing factor matches the one used in the Unity lightmapper but is slower than the linear one.
-                // smoothFactor = (1.0 - saturate((distanceSqr * 1.0 / lightrangeSqr)^2))^2
-                float lightRangeSqr = lightData.range * lightData.range;
-                float fadeStartDistanceSqr = 0.8f * 0.8f * lightRangeSqr;
-                float fadeRangeSqr = (fadeStartDistanceSqr - lightRangeSqr);
-                float oneOverFadeRangeSqr = 1.0f / fadeRangeSqr;
-                float lightRangeSqrOverFadeRangeSqr = -lightRangeSqr / fadeRangeSqr;
-                float oneOverLightRangeSqr = 1.0f / Mathf.Max(0.0001f, lightData.range * lightData.range);
-
-                // On mobile and Nintendo Switch: Use the faster linear smoothing factor (SHADER_HINT_NICE_QUALITY).
-                // On other devices: Use the smoothing factor that matches the GI.
-                lightAttenuation.x = Application.isMobilePlatform || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Switch ? oneOverFadeRangeSqr : oneOverLightRangeSqr;
-                lightAttenuation.y = lightRangeSqrOverFadeRangeSqr;
+                lightAttenuation.x = lightAdditionalData.attenuationBulbSize;
+                lightAttenuation.y = 0;
             }
 
             if (lightData.lightType == LightType.Spot)

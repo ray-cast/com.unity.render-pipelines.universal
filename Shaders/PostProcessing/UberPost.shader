@@ -5,6 +5,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #pragma multi_compile_local _ _DISTORTION
         #pragma multi_compile_local _ _CHROMATIC_ABERRATION
         #pragma multi_compile_local _ _BLOOM_LQ _BLOOM_HQ _BLOOM_LQ_DIRT _BLOOM_HQ_DIRT
+        #pragma multi_compile_local _ _BLOOM_GLOW
         #pragma multi_compile_local _ _HDR_GRADING _TONEMAP_ACES _TONEMAP_NEUTRAL
         #pragma multi_compile_local _ _FILM_GRAIN
         #pragma multi_compile_local _ _DITHERING
@@ -30,6 +31,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         TEXTURE2D(_InternalLut);
         TEXTURE2D(_UserLut);
         TEXTURE2D(_BlueNoise_Texture);
+        TEXTURE2D(_CameraGlowTexture);
 
         float4 _Lut_Params;
         float4 _UserLut_Params;
@@ -147,10 +149,9 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
             #if defined(BLOOM)
             {
-                #if _BLOOM_HQ && !defined(SHADER_API_GLES)
-                half4 bloom = SampleTexture2DBicubic(TEXTURE2D_X_ARGS(_Bloom_Texture, sampler_LinearClamp), uvDistorted, _Bloom_Texture_TexelSize.zwxy, (1.0).xx, unity_StereoEyeIndex);
-                #else
                 half4 bloom = SAMPLE_TEXTURE2D_X(_Bloom_Texture, sampler_LinearClamp, uvDistorted);
+                #if _BLOOM_GLOW
+                    bloom.xyz = saturate(bloom.xyz - DecodeRGBM(SAMPLE_TEXTURE2D_X(_CameraGlowTexture, sampler_LinearClamp, uv)));
                 #endif
 
                 #if UNITY_COLORSPACE_GAMMA
