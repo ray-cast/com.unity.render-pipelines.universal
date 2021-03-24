@@ -17,6 +17,7 @@ namespace UnityEngine.Rendering.Universal
     internal enum URPProfileId
     {
         StopNaNs,
+        DrawProcedural,
         SMAA,
         GaussianDepthOfField,
         BokehDepthOfField,
@@ -24,7 +25,7 @@ namespace UnityEngine.Rendering.Universal
         PaniniProjection,
         UberPostProcess,
         Bloom,
-        KawaseBloom,
+        KawaseBloom
     }
     // TODO: TAA
     // TODO: Motion blur
@@ -964,7 +965,6 @@ namespace UnityEngine.Rendering.Universal
             var desc = GetStereoCompatibleDescriptor(tw, th, m_DefaultHDRFormat);
             cmd.GetTemporaryRT(ShaderConstants._BloomMipDown[0], desc, FilterMode.Bilinear);
             cmd.GetTemporaryRT(ShaderConstants._BloomMipUp[0], desc, FilterMode.Bilinear);
-            cmd.Blit(source, ShaderConstants._BloomMipUp[0], bloomMaterial, 0);
 
             // Determine the iteration count
             int mipCount = Mathf.Clamp(m_Bloom.iteration.value, 1, k_MaxPyramidSize);
@@ -984,13 +984,25 @@ namespace UnityEngine.Rendering.Universal
                 cmd.GetTemporaryRT(mipUp, desc, FilterMode.Bilinear);
             }
 
+            cmd.SetRenderTarget(ShaderConstants._BloomMipUp[0]);
+            cmd.SetGlobalTexture(ShaderConstants._MainTex, source);
+
+            using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.DrawProcedural)))
+                cmd.DrawProcedural(Matrix4x4.identity, bloomMaterial, 0, MeshTopology.Triangles, 3);
+
             // Downsample - kawase pyramid
             int lastDown = ShaderConstants._BloomMipUp[0];
 
             for (int i = 0; i < mipCount; ++i)
             {
                 int mipDown = ShaderConstants._BloomMipDown[i];
-                cmd.Blit(lastDown, mipDown, bloomMaterial, 1);
+
+                cmd.SetRenderTarget(mipDown);
+                cmd.SetGlobalTexture(ShaderConstants._MainTex, lastDown);
+
+                using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.DrawProcedural)))
+                    cmd.DrawProcedural(Matrix4x4.identity, bloomMaterial, 1, MeshTopology.Triangles, 3);
+
                 lastDown = mipDown;
             }
 
@@ -1000,8 +1012,12 @@ namespace UnityEngine.Rendering.Universal
                 int highMip = ShaderConstants._BloomMipDown[i];
                 int dst = ShaderConstants._BloomMipUp[i];
 
+                cmd.SetRenderTarget(BlitDstDiscardContent(cmd, dst));
+                cmd.SetGlobalTexture(ShaderConstants._MainTex, highMip);
                 cmd.SetGlobalTexture(ShaderConstants._MainTexLowMip, lowMip);
-                cmd.Blit(highMip, BlitDstDiscardContent(cmd, dst), bloomMaterial, 2);
+
+                using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.DrawProcedural)))
+                    cmd.DrawProcedural(Matrix4x4.identity, bloomMaterial, 2, MeshTopology.Triangles, 3);
             }
 
             // Cleanup
@@ -1326,6 +1342,7 @@ namespace UnityEngine.Rendering.Universal
 
             public static readonly int _ColorTexture = Shader.PropertyToID("_ColorTexture");
             public static readonly int _Params = Shader.PropertyToID("_Params");
+            public static readonly int _MainTex = Shader.PropertyToID("_MainTex");
             public static readonly int _MainTexLowMip = Shader.PropertyToID("_MainTexLowMip");
             public static readonly int _Bloom_Params = Shader.PropertyToID("_Bloom_Params");
             public static readonly int _Bloom_RGBM = Shader.PropertyToID("_Bloom_RGBM");
