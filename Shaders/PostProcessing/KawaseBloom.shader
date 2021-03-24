@@ -113,10 +113,8 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
             UNITY_SETUP_INSTANCE_ID(input);
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-            _MainTex_TexelSize *= 0.5;
-
             float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
-            float2 o =  _FilterRadius * _MainTex_TexelSize.xy;
+            float2 o =  _FilterRadius * _MainTex_TexelSize.xy * 0.5;
 
             output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
             output.uv = uv;
@@ -135,8 +133,8 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
             float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
-            float2 o =  _FilterRadius * _MainTex_TexelSize * 0.5f;
-            float2 o2 =  _FilterRadius * _MainTex_TexelSize;
+            float2 o2 = _FilterRadius * _MainTex_TexelSize;
+            float2 o = o2 * 0.5f;
 
             output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
             output.uv = uv;
@@ -192,7 +190,7 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
     {
         Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline"}
         LOD 100
-        ZTest Always ZWrite Off Cull Off
+        ZTest Off ZWrite Off Cull Off
 
         Pass
         {

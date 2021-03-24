@@ -151,7 +151,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
     {
         Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline"}
         LOD 100
-        ZTest Always ZWrite Off Cull Off
+        ZTest Off ZWrite Off Cull Off
 
         Pass
         {
