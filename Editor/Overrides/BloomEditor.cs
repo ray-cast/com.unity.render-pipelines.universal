@@ -8,7 +8,10 @@ namespace UnityEngine.Rendering.Universal
     [VolumeComponentEditor(typeof(Bloom))]
     sealed class BloomEditor : VolumeComponentEditor
     {
+        SerializedDataParameter _mode;
         SerializedDataParameter _threshold;
+        SerializedDataParameter _iteration;
+        SerializedDataParameter _radius;
         SerializedDataParameter _intensity;
         SerializedDataParameter _scatter;
         SerializedDataParameter _clamp;
@@ -22,7 +25,10 @@ namespace UnityEngine.Rendering.Universal
         {
             var o = new PropertyFetcher<Bloom>(serializedObject);
 
+            _mode = Unpack(o.Find(x => x.mode));
             _threshold = Unpack(o.Find(x => x.threshold));
+            _iteration = Unpack(o.Find(x => x.iteration));
+            _radius = Unpack(o.Find(x => x.radius));
             _intensity = Unpack(o.Find(x => x.intensity));
             _scatter = Unpack(o.Find(x => x.scatter));
             _clamp = Unpack(o.Find(x => x.clamp));
@@ -39,6 +45,16 @@ namespace UnityEngine.Rendering.Universal
             {
                 EditorGUILayout.HelpBox(UniversalRenderPipelineAssetEditor.Styles.postProcessingGlobalWarning, MessageType.Warning);
                 return;
+            }
+
+            EditorGUILayout.LabelField("Blur", EditorStyles.miniLabel);
+
+            PropertyField(_mode);
+
+            if ((target as Bloom).mode == BloomMode.Kawase)
+			{
+                PropertyField(_iteration);
+                PropertyField(_radius);
             }
 
             EditorGUILayout.LabelField("Bloom", EditorStyles.miniLabel);

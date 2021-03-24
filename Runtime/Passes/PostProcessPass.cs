@@ -50,7 +50,6 @@ namespace UnityEngine.Rendering.Universal
         MotionBlur m_MotionBlur;
         PaniniProjection m_PaniniProjection;
         Bloom m_Bloom;
-        KawaseBloom m_KawaseBloom;
         LensDistortion m_LensDistortion;
         ChromaticAberration m_ChromaticAberration;
         Vignette m_Vignette;
@@ -192,7 +191,6 @@ namespace UnityEngine.Rendering.Universal
             m_MotionBlur = stack.GetComponent<MotionBlur>();
             m_PaniniProjection = stack.GetComponent<PaniniProjection>();
             m_Bloom = stack.GetComponent<Bloom>();
-            m_KawaseBloom = stack.GetComponent<KawaseBloom>();
             m_LensDistortion = stack.GetComponent<LensDistortion>();
             m_ChromaticAberration = stack.GetComponent<ChromaticAberration>();
             m_Vignette = stack.GetComponent<Vignette>();
@@ -360,15 +358,16 @@ namespace UnityEngine.Rendering.Universal
                 bool bloomActive = m_Bloom.IsActive();
                 if (bloomActive)
                 {
-                    using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.Bloom)))
-                        SetupBloom(cmd, GetSource(), m_Materials.uber);
-                }
-
-                bool kawaseBloomActive = m_KawaseBloom.IsActive();
-                if (kawaseBloomActive)
-                {
-                    using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.KawaseBloom)))
-                        SetupKawaseBloom(cmd, GetSource(), m_Materials.uber);
+                    if (m_Bloom.mode == BloomMode.Kawase)
+					{
+                        using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.KawaseBloom)))
+                            SetupKawaseBloom(cmd, GetSource(), m_Materials.uber);
+                    }
+                    else
+					{
+                        using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.Bloom)))
+                            SetupBloom(cmd, GetSource(), m_Materials.uber);
+                    }
                 }
 
                 // Setup other effects constants
@@ -438,7 +437,7 @@ namespace UnityEngine.Rendering.Universal
                 }
 
                 // Cleanup
-                if (bloomActive || kawaseBloomActive)
+                if (bloomActive)
                     cmd.ReleaseTemporaryRT(ShaderConstants._BloomMipUp[0]);
 
                 if (tempTargetUsed)
@@ -950,15 +949,15 @@ namespace UnityEngine.Rendering.Universal
             int th = m_Descriptor.height >> 1;
 
             // Pre-filtering parameters
-            float threshold = Mathf.GammaToLinearSpace(m_KawaseBloom.threshold.value);
+            float threshold = Mathf.GammaToLinearSpace(m_Bloom.threshold.value);
             float thresholdKnee = threshold * 0.5f; // Hardcoded soft knee
 
             var bloomMaterial = m_Materials.kawaseBloom;
-            bloomMaterial.SetFloat(ShaderConstants._Bloom_FilterRadius, m_KawaseBloom.radius.value);
-            bloomMaterial.SetVector(ShaderConstants._Params, new Vector4(m_KawaseBloom.scatter.value, m_KawaseBloom.clamp.value, threshold, thresholdKnee));
+            bloomMaterial.SetFloat(ShaderConstants._Bloom_FilterRadius, m_Bloom.radius.value);
+            bloomMaterial.SetVector(ShaderConstants._Params, new Vector4(m_Bloom.scatter.value, m_Bloom.clamp.value, threshold, thresholdKnee));
 
-            CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.BloomHQ, m_KawaseBloom.highQualityFiltering.value);
-            CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.BloomGlow, m_KawaseBloom.glowFiltering.value);
+            CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.BloomHQ, m_Bloom.highQualityFiltering.value);
+            CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.BloomGlow, m_Bloom.glowFiltering.value);
             CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.UseRGBM, m_UseRGBM);
 
             // Prefilter
@@ -968,7 +967,7 @@ namespace UnityEngine.Rendering.Universal
             cmd.Blit(source, ShaderConstants._BloomMipUp[0], bloomMaterial, 0);
 
             // Determine the iteration count
-            int mipCount = Mathf.Clamp(m_KawaseBloom.iteration.value, 1, k_MaxPyramidSize);
+            int mipCount = Mathf.Clamp(m_Bloom.iteration.value, 1, k_MaxPyramidSize);
 
             for (int i = 1; i <= mipCount; ++i)
             {
@@ -1013,11 +1012,11 @@ namespace UnityEngine.Rendering.Universal
             }
 
             // Setup bloom on uber
-            var tint = m_KawaseBloom.tint.value.linear;
+            var tint = m_Bloom.tint.value.linear;
             var luma = ColorUtils.Luminance(tint);
             tint = luma > 0f ? tint * (1f / luma) : Color.white;
 
-            var bloomParams = new Vector4(m_KawaseBloom.intensity.value, tint.r, tint.g, tint.b);
+            var bloomParams = new Vector4(m_Bloom.intensity.value, tint.r, tint.g, tint.b);
             uberMaterial.SetVector(ShaderConstants._Bloom_Params, bloomParams);
             uberMaterial.SetFloat(ShaderConstants._Bloom_RGBM, m_UseRGBM ? 1f : 0f);
 
@@ -1026,11 +1025,11 @@ namespace UnityEngine.Rendering.Universal
             // Setup lens dirtiness on uber
             // Keep the aspect ratio correct & center the dirt texture, we don't want it to be
             // stretched or squashed
-            var dirtTexture = m_KawaseBloom.dirtTexture.value == null ? Texture2D.blackTexture : m_KawaseBloom.dirtTexture.value;
+            var dirtTexture = m_Bloom.dirtTexture.value == null ? Texture2D.blackTexture : m_Bloom.dirtTexture.value;
             float dirtRatio = dirtTexture.width / (float)dirtTexture.height;
             float screenRatio = m_Descriptor.width / (float)m_Descriptor.height;
             var dirtScaleOffset = new Vector4(1f, 1f, 0f, 0f);
-            float dirtIntensity = m_KawaseBloom.dirtIntensity.value;
+            float dirtIntensity = m_Bloom.dirtIntensity.value;
 
             if (dirtRatio > screenRatio)
             {
@@ -1048,12 +1047,12 @@ namespace UnityEngine.Rendering.Universal
             uberMaterial.SetTexture(ShaderConstants._LensDirt_Texture, dirtTexture);
 
             // Keyword setup - a bit convoluted as we're trying to save some variants in Uber...
-            if (m_KawaseBloom.highQualityFiltering.value)
+            if (m_Bloom.highQualityFiltering.value)
                 uberMaterial.EnableKeyword(dirtIntensity > 0f ? ShaderKeywordStrings.BloomHQDirt : ShaderKeywordStrings.BloomHQ);
             else
                 uberMaterial.EnableKeyword(dirtIntensity > 0f ? ShaderKeywordStrings.BloomLQDirt : ShaderKeywordStrings.BloomLQ);
 
-            CoreUtils.SetKeyword(uberMaterial, ShaderKeywordStrings.BloomGlow, m_KawaseBloom.glowFiltering.value);
+            CoreUtils.SetKeyword(uberMaterial, ShaderKeywordStrings.BloomGlow, m_Bloom.glowFiltering.value);
         }
 
         #endregion

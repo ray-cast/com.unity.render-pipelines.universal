@@ -2,34 +2,58 @@
 
 namespace UnityEngine.Rendering.Universal
 {
+    public enum BloomMode
+    {
+        Gaussian,
+        Kawase,
+    }
+
+    [Serializable]
+    public sealed class BloomModeParameter : VolumeParameter<BloomMode>
+    {
+        public BloomModeParameter(BloomMode value, bool overrideState = false)
+            : base(value, overrideState)
+        {
+        }
+    }
+
     [Serializable, VolumeComponentMenu("Post-processing/Bloom")]
     public sealed class Bloom : VolumeComponent, IPostProcessComponent
     {
-        [Tooltip("Filters out pixels under this level of brightness. Value is in gamma-space.")]
+        [Tooltip("设置泛光的模糊函数")]
+        public BloomModeParameter mode = new BloomModeParameter(BloomMode.Kawase);
+
+        [Tooltip("设置颜色的亮度超过一定阈值时进行泛光处理")]
         public MinFloatParameter threshold = new MinFloatParameter(0.9f, 0f);
 
-        [Tooltip("Strength of the bloom filter.")]
+        [Tooltip("设置泛光的显示强度")]
         public MinFloatParameter intensity = new MinFloatParameter(0f, 0f);
 
-        [Tooltip("Changes the extent of veiling effects.")]
-        public ClampedFloatParameter scatter = new ClampedFloatParameter(0.7f, 0f, 1f);
+        [Tooltip("设置模糊次数，设置过高时会导致性能问题")]
+        public NoInterpClampedIntParameter iteration = new NoInterpClampedIntParameter(5, 1, 10);
 
-        [Tooltip("Clamps pixels to control the bloom amount.")]
+        [Tooltip("设置模糊半径")]
+        public NoInterpClampedFloatParameter radius = new NoInterpClampedFloatParameter(3.0f, 1f, 10.0f);
+
+        [Tooltip("设置模糊后的图片与原图混合权重比")]
+        public ClampedFloatParameter scatter = new ClampedFloatParameter(0.6f, 0f, 1f);
+
+        [Tooltip("设置该参数用于抑制最大的亮度")]
         public MinFloatParameter clamp = new MinFloatParameter(65472f, 0f);
 
-        [Tooltip("Global tint of the bloom filter.")]
+        [Tooltip("设置颜色叠加")]
         public ColorParameter tint = new ColorParameter(Color.white, false, false, true);
 
-        [Tooltip("Use bicubic sampling instead of bilinear sampling for the upsampling passes. This is slightly more expensive but helps getting smoother visuals.")]
+        [Tooltip("勾选后可减少闪烁问题")]
         public BoolParameter highQualityFiltering = new BoolParameter(true);
 
-        [Tooltip("Use bicubic sampling instead of bilinear sampling for the upsampling passes. This is slightly more expensive but helps getting smoother visuals.")]
+        [Tooltip("勾选后可支持外发光效果")]
         public BoolParameter glowFiltering = new BoolParameter(true);
 
-        [Tooltip("Dirtiness texture to add smudges or dust to the bloom effect.")]
+        [Tooltip("设置遮罩纹理")]
         public TextureParameter dirtTexture = new TextureParameter(null);
 
-        [Tooltip("Amount of dirtiness.")]
+        [Tooltip("设置遮罩的亮度")]
         public MinFloatParameter dirtIntensity = new MinFloatParameter(0f, 0f);
 
         public bool IsActive() => intensity.value > 0f;
