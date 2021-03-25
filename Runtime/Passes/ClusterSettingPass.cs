@@ -58,7 +58,8 @@ namespace UnityEngine.Rendering.Universal
 
 		private int _clusterAdditionalLightsCount;
 
-		private int _maxComputeWorkGroupUV;
+		private int _maxComputeWorkGroupX;
+		private int _maxComputeWorkGroupY;
 		private int _maxComputeWorkGroupSize;
 
 		private ClusterData _clusterData;
@@ -115,13 +116,23 @@ namespace UnityEngine.Rendering.Universal
 				this._maxComputeWorkGroupSize = 128;
 
 			if (SystemInfo.maxComputeWorkGroupSize >= 1024)
-				this._maxComputeWorkGroupUV = 32;
+			{
+				this._maxComputeWorkGroupX = this._maxComputeWorkGroupY = 32;
+			}
 			else if (SystemInfo.maxComputeWorkGroupSize >= 512)
-				this._maxComputeWorkGroupUV = 16;
+			{
+				this._maxComputeWorkGroupX = 32;
+				this._maxComputeWorkGroupY = 16;
+			}
 			else if (SystemInfo.maxComputeWorkGroupSize >= 256)
-				this._maxComputeWorkGroupUV = 16;
+			{
+				this._maxComputeWorkGroupX = this._maxComputeWorkGroupY = 16;
+			}
 			else if (SystemInfo.maxComputeWorkGroupSize >= 128)
-				this._maxComputeWorkGroupUV = 8;
+			{
+				this._maxComputeWorkGroupX = 16;
+				this._maxComputeWorkGroupY = 8;
+			}
 		}
 
 		public void Setup(bool drawMainCamera = false)
@@ -335,7 +346,7 @@ namespace UnityEngine.Rendering.Universal
 			cmd.SetComputeBufferParam(_clusterCompute, _clusterFlagsKernel, ShaderConstants._RWClusterFlagBuffer, ShaderData.instance.flagBuffer);
 
 			using (new ProfilingScope(cmd, ProfilingSampler.Get(ClusterProfileId.DispatchCompute)))
-				cmd.DispatchCompute(_clusterCompute, _clusterFlagsKernel, Mathf.CeilToInt(width / (float)_maxComputeWorkGroupUV), Mathf.CeilToInt(height / (float)_maxComputeWorkGroupUV), 1);
+				cmd.DispatchCompute(_clusterCompute, _clusterFlagsKernel, Mathf.CeilToInt(width / (float)_maxComputeWorkGroupX), Mathf.CeilToInt(height / (float)_maxComputeWorkGroupY), 1);
 		}
 
 		void ComputeLightClusterIntersection(ref CommandBuffer cmd, ref RenderingData renderingData, ref Camera camera)

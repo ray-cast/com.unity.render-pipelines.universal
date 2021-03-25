@@ -12,7 +12,7 @@
 #pragma enable_d3d11_debug_symbols
 
 #ifndef MAX_WORKGROUP_UV_X
-#	define MAX_WORKGROUP_UV_X 8
+#	define MAX_WORKGROUP_UV_X 16
 #endif
 
 #ifndef MAX_WORKGROUP_UV_Y
