@@ -150,9 +150,6 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             #if defined(BLOOM)
             {
                 half4 bloom = SAMPLE_TEXTURE2D_X(_Bloom_Texture, sampler_LinearClamp, uvDistorted);
-                #if _BLOOM_GLOW
-                    bloom.xyz = saturate(bloom.xyz - DecodeRGBM(SAMPLE_TEXTURE2D_X(_CameraGlowTexture, sampler_LinearClamp, uv)));
-                #endif
 
                 #if UNITY_COLORSPACE_GAMMA
                 bloom.xyz *= bloom.xyz; // γ to linear
@@ -163,6 +160,10 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
                 {
                     bloom.xyz = DecodeRGBM(bloom);
                 }
+
+                #if _BLOOM_GLOW
+                    bloom.xyz = saturate(bloom.xyz - DecodeRGBM(SAMPLE_TEXTURE2D_X(_CameraGlowTexture, sampler_LinearClamp, uv)));
+                #endif
 
                 bloom.xyz *= BloomIntensity;
                 color += bloom.xyz * BloomTint;

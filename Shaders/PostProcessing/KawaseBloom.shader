@@ -1,10 +1,5 @@
 Shader "Hidden/Universal Render Pipeline/KawaseBloom"
 {
-    Properties
-    {
-        _MainTex("Source", 2D) = "white" {}
-    }
-
     HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Filtering.hlsl"
@@ -73,6 +68,70 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
         #endif
         }
 
+        Varyings KawasePrefilter(uint id : SV_VERTEXID)
+        {
+            Varyings output;
+            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+            output.uv = float2(id / 2, id % 2) * 2;
+            output.positionCS = float4(output.uv * 2 - 1, 0, 1);
+
+            #if UNITY_UV_STARTS_AT_TOP
+                output.uv.y = 1 - output.uv.y;
+            #endif
+
+            return output;
+        }
+
+        DownsampleVaryings KawaseDownsample(uint id : SV_VERTEXID)
+        {
+            DownsampleVaryings output;
+            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+            float2 o =  _FilterRadius * _MainTex_TexelSize.xy * 0.5;
+
+            output.uv = float2(id / 2, id % 2) * 2;
+            output.positionCS = float4(output.uv * 2 - 1, 0, 1);
+
+            #if UNITY_UV_STARTS_AT_TOP
+                output.uv.y = 1 - output.uv.y;
+            #endif
+
+            output.uv01.xy = output.uv + float2(-o.x, -o.y);
+            output.uv01.zw = output.uv + float2(-o.x,  o.y);
+            output.uv23.xy = output.uv + float2( o.x,  o.y);
+            output.uv23.zw = output.uv + float2( o.x, -o.y);
+
+            return output;
+        }
+
+        UpsampleVaryings KawaseUpsample(uint id : SV_VERTEXID)
+        {
+            UpsampleVaryings output;
+            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+            float2 o2 = _FilterRadius * _MainTex_TexelSize;
+            float2 o = o2 * 0.5f;
+
+            output.uv = float2(id / 2, id % 2) * 2;
+            output.positionCS = float4(output.uv * 2 - 1, 0, 1);
+
+            #if UNITY_UV_STARTS_AT_TOP
+                output.uv.y = 1 - output.uv.y;
+            #endif
+
+            output.uv01.xy = output.uv + float2(-o2.x, 0);
+            output.uv01.zw = output.uv + float2(-o.x, o.y);
+            output.uv23.xy = output.uv + float2(0, o2.y);
+            output.uv23.zw = output.uv + o;
+            output.uv45.xy = output.uv + float2(o2.x, 0);
+            output.uv45.zw = output.uv + float2(o.x, -o.y);
+            output.uv67.xy = output.uv + float2(0, -o2.y);
+            output.uv67.zw = output.uv - o;
+
+            return output;
+        }
+
         half4 FragPrefilter(Varyings input) : SV_Target
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
@@ -109,51 +168,6 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
             return EncodeHDR(color);
         }
 
-        DownsampleVaryings KawaseDownsample(Attributes input)
-        {
-            DownsampleVaryings output;
-            UNITY_SETUP_INSTANCE_ID(input);
-            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
-
-            _MainTex_TexelSize *= 0.5;
-
-            float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
-            float2 o =  _FilterRadius * _MainTex_TexelSize.xy;
-
-            output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
-            output.uv = uv;
-            output.uv01.xy = uv + float2(-o.x, -o.y);
-            output.uv01.zw = uv + float2(-o.x,  o.y);
-            output.uv23.xy = uv + float2( o.x,  o.y);
-            output.uv23.zw = uv + float2( o.x, -o.y);
-
-            return output;
-        }
-
-        UpsampleVaryings KawaseUpsample(Attributes input)
-        {
-            UpsampleVaryings output;
-            UNITY_SETUP_INSTANCE_ID(input);
-            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
-
-            float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
-            float2 o =  _FilterRadius * _MainTex_TexelSize.xy * 0.5f;
-            float2 o2 =  _FilterRadius * _MainTex_TexelSize.xy;
-
-            output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
-            output.uv = uv;
-            output.uv01.xy = uv + float2(-o2.x, 0);
-            output.uv01.zw = uv + float2(-o.x, o.y);
-            output.uv23.xy = uv + float2(0, o2.y);
-            output.uv23.zw = uv + o;
-            output.uv45.xy = uv + float2(o2.x, 0);
-            output.uv45.zw = uv + float2(o.x, -o.y);
-            output.uv67.xy = uv + float2(0, -o2.y);
-            output.uv67.zw = uv - o;
-
-            return output;
-        }
-
         half4 KawaseBlur(DownsampleVaryings input) : SV_Target
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
@@ -172,7 +186,7 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-            half3 highMip = DecodeHDR(SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, input.uv));
+            half3 highMip = DecodeHDR(SAMPLE_TEXTURE2D_X(_MainTex, sampler_LinearClamp, input.uv));
 
             half3 lowMip;
             lowMip = DecodeHDR(SAMPLE_TEXTURE2D(_MainTexLowMip, sampler_LinearClamp, input.uv01.xy));
@@ -194,14 +208,14 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
     {
         Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline"}
         LOD 100
-        ZTest Always ZWrite Off Cull Off
+        ZTest Off ZWrite Off Cull Off
 
         Pass
         {
             Name "Bloom Prefilter"
 
             HLSLPROGRAM
-                #pragma vertex Vert
+                #pragma vertex KawasePrefilter
                 #pragma fragment FragPrefilter
                 #pragma target 5.0
                 #pragma multi_compile_local _ _BLOOM_HQ
