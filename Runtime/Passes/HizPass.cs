@@ -53,7 +53,7 @@ namespace UnityEngine.Rendering.Universal
 
             if (_hizSize.x != cameraTextureDescriptor.width || _hizSize.y != cameraTextureDescriptor.height || _hizRenderTarget == null)
 			{
-                _hizRenderTarget = new RenderTexture(width, height, 0, GraphicsFormat.R16_SFloat, 7)
+                _hizRenderTarget = new RenderTexture(width, height, 0, GraphicsFormat.R32_SFloat, 7)
                 {
                     enableRandomWrite = true,
                     useMipMap = true,
