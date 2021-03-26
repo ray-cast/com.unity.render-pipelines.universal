@@ -18,6 +18,7 @@ namespace UnityEngine.Rendering.Universal
     {
         StopNaNs,
         DrawProcedural,
+        FinalBlit,
         SMAA,
         GaussianDepthOfField,
         BokehDepthOfField,
@@ -421,7 +422,8 @@ namespace UnityEngine.Rendering.Universal
                     if (m_Destination == RenderTargetHandle.CameraTarget)
                         cmd.SetViewport(cameraData.pixelRect);
 
-                    cmd.DrawMesh(RenderingUtils.fullscreenMesh, Matrix4x4.identity, m_Materials.uber);
+                    using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.FinalBlit)))
+                        cmd.DrawMesh(RenderingUtils.fullscreenMesh, Matrix4x4.identity, m_Materials.uber);
 
                     // TODO: We need a proper camera texture swap chain in URP.
                     // For now, when render post-processing in the middle of the camera stack (not resolving to screen)
