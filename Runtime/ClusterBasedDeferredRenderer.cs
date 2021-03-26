@@ -110,21 +110,10 @@
             _capturePass = new CapturePass(RenderPassEvent.AfterRendering);
             _finalBlitPass = new FinalBlitPass(RenderPassEvent.AfterRendering + 1, _blitMaterial);
 
-            ComputeShader clusterCompute = null;
-            if (SystemInfo.maxComputeWorkGroupSize >= 1024)
-                clusterCompute = data.shaders.clusterX1024CS;
-            else if (SystemInfo.maxComputeWorkGroupSize >= 512)
-                clusterCompute = data.shaders.clusterX512CS;
-            else if (SystemInfo.maxComputeWorkGroupSize >= 256)
-                clusterCompute = data.shaders.clusterX256CS;
-            else if (SystemInfo.maxComputeWorkGroupSize >= 128)
-                clusterCompute = data.shaders.clusterX128CS;
-
-            _supportsClusterLighting = (SystemInfo.supportsComputeShaders && clusterCompute) ? true : false;
-
+            _supportsClusterLighting = (SystemInfo.supportsComputeShaders && data.shaders.clusterCS) ? true : false;
             if (_supportsClusterLighting)
 			{
-                _clusterSettingPass = new ClusterSettingPass(RenderPassEvent.BeforeRenderingOpaques, _forwardLights, clusterCompute);
+                _clusterSettingPass = new ClusterSettingPass(RenderPassEvent.BeforeRenderingOpaques, _forwardLights, data.shaders.clusterCS);
                 _clusterOpaqueLightingPass = new ClusterLightingPass(RenderPassEvent.BeforeRenderingOpaques, _clusterLightingMaterial);
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
                 _drawClusterPass = new DrawClusterPass(RenderPassEvent.BeforeRenderingOpaques, _debugCluster);
@@ -280,7 +269,7 @@
                 EnqueuePass(_renderOpaqueGbufferPass);
 
                 bool requireClusterLighting = _supportsClusterLighting;
-                requireClusterLighting &= renderingData.lightData.visibleLights.Length > 5;
+                //requireClusterLighting &= renderingData.lightData.visibleLights.Length > 5;
                 requireClusterLighting &= cameraData.deferredLightingMode == DeferredRenderingMode.PerCluster;
 
                 if (requireClusterLighting)

@@ -43,17 +43,8 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/Utils/HIZ.compute")]
             public ComputeShader HizCS;
 
-            [Reload("Shaders/Utils/ClusterLights128.compute")]
-            public ComputeShader clusterX128CS;
-
-            [Reload("Shaders/Utils/ClusterLights256.compute")]
-            public ComputeShader clusterX256CS;
-
-            [Reload("Shaders/Utils/ClusterLights512.compute")]
-            public ComputeShader clusterX512CS;
-
-            [Reload("Shaders/Utils/ClusterLights1024.compute")]
-            public ComputeShader clusterX1024CS;
+            [Reload("Shaders/Utils/ClusterLights.compute")]
+            public ComputeShader clusterCS;
 
             [Reload("Shaders/Utils/ClusterLighting.shader")]
             public Shader clusterLightingPS;

@@ -1,3 +1,31 @@
+#pragma kernel ClearLightIndexList
+#pragma kernel ClearLightIndexCounter
+#pragma kernel ClearClusterBuffers
+#pragma kernel SetupClusterAABBs
+#pragma kernel SetupClusterFlags
+#pragma kernel ComputeClusterCount
+#pragma kernel UpdateIndirectArgumentBuffers
+#pragma kernel ComputeLightsToClusterBuffer
+#pragma kernel ComputeLightsToClusterBufferIndirect
+#pragma kernel ComputeLightsToClusterBufferIndirectArguments
+#pragma kernel ComputeLightsToDynamicClusterBufferIndirect
+#pragma enable_d3d11_debug_symbols
+
+#ifndef MAX_WORKGROUP_UV_X
+#	define MAX_WORKGROUP_UV_X 16
+#endif
+
+#ifndef MAX_WORKGROUP_UV_Y
+#	define MAX_WORKGROUP_UV_Y 8
+#endif
+
+#ifndef MAX_WORKGROUP_SIZE_X
+#	define MAX_WORKGROUP_SIZE_X 128
+#endif
+
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthAttachment.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Input.hlsl"
+
 struct AABB
 {
 	float4 Min;

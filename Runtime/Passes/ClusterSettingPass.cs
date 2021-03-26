@@ -58,9 +58,9 @@ namespace UnityEngine.Rendering.Universal
 
 		private int _clusterAdditionalLightsCount;
 
-		private int _maxComputeWorkGroupX;
-		private int _maxComputeWorkGroupY;
-		private int _maxComputeWorkGroupSize;
+		private const int _maxComputeWorkGroupX = 16;
+		private const int _maxComputeWorkGroupY = 8;
+		private const int _maxComputeWorkGroupSize = 128;
 
 		private ClusterData _clusterData;
 
@@ -105,34 +105,6 @@ namespace UnityEngine.Rendering.Universal
 			this._clusterData.width = 0;
 			this._clusterData.height = 0;
 			this._clusterData.fieldOfViewY = 0;
-
-			if (SystemInfo.maxComputeWorkGroupSize >= 1024)
-				this._maxComputeWorkGroupSize = 1024;
-			else if (SystemInfo.maxComputeWorkGroupSize >= 512)
-				this._maxComputeWorkGroupSize = 512;
-			else if (SystemInfo.maxComputeWorkGroupSize >= 256)
-				this._maxComputeWorkGroupSize = 256;
-			else if (SystemInfo.maxComputeWorkGroupSize >= 128)
-				this._maxComputeWorkGroupSize = 128;
-
-			if (SystemInfo.maxComputeWorkGroupSize >= 1024)
-			{
-				this._maxComputeWorkGroupX = this._maxComputeWorkGroupY = 32;
-			}
-			else if (SystemInfo.maxComputeWorkGroupSize >= 512)
-			{
-				this._maxComputeWorkGroupX = 32;
-				this._maxComputeWorkGroupY = 16;
-			}
-			else if (SystemInfo.maxComputeWorkGroupSize >= 256)
-			{
-				this._maxComputeWorkGroupX = this._maxComputeWorkGroupY = 16;
-			}
-			else if (SystemInfo.maxComputeWorkGroupSize >= 128)
-			{
-				this._maxComputeWorkGroupX = 16;
-				this._maxComputeWorkGroupY = 8;
-			}
 		}
 
 		public void Setup(bool drawMainCamera = false)
@@ -162,12 +134,12 @@ namespace UnityEngine.Rendering.Universal
 			_clusterData.clusterDimY = clusterDimY;
 			_clusterData.clusterDimZ = Mathf.FloorToInt(_clusterData.logDepth * _clusterData.logDimY);
 			_clusterData.clusterDimXYZ = _clusterData.clusterDimX * _clusterData.clusterDimY * _clusterData.clusterDimZ;
-			_clusterData.clusterThreadGroup = Mathf.CeilToInt(_clusterData.clusterDimXYZ / (float)this._maxComputeWorkGroupSize);
+			_clusterData.clusterThreadGroup = Mathf.CeilToInt(_clusterData.clusterDimXYZ / (float)_maxComputeWorkGroupSize);
 
-			ShaderData.instance.CreateAABBBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize);
-			ShaderData.instance.CreateFlagBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize);
-			ShaderData.instance.CreateUniqueBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize);
-			ShaderData.instance.CreateLightGridBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize);
+			ShaderData.instance.CreateAABBBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize);
+			ShaderData.instance.CreateFlagBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize);
+			ShaderData.instance.CreateUniqueBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize);
+			ShaderData.instance.CreateLightGridBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize);
 		}
 
 		void SetupClusterAABB(ref CommandBuffer cmd, ref Camera camera)
@@ -429,7 +401,7 @@ namespace UnityEngine.Rendering.Universal
 				ShaderData.instance.CreateUniqueCounterBuffer(1);
 				ShaderData.instance.CreateLightDataBuffer(UniversalRenderPipeline.maxVisibleAdditionalLights);
 				ShaderData.instance.CreateLightIndexCountBuffer(1);
-				ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterThreadGroup * this._maxComputeWorkGroupSize * renderingData.lightData.maxPerClusterAdditionalLightsCount);
+				ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize * renderingData.lightData.maxPerClusterAdditionalLightsCount);
 
 				this.ClearLightGirdIndexCounter(ref cmd, ref renderingData);
 
