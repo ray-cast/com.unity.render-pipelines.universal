@@ -20,6 +20,8 @@ half _BumpScale;
 half _DetialBumpMapScale;
 half _OcclusionStrength;
 half _specularAntiAliasingThreshold;
+half _ShadowDepthBias;
+half _ShadowNormalBias;
 CBUFFER_END
 
 TEXTURE2D(_OcclusionMap);       SAMPLER(sampler_OcclusionMap);

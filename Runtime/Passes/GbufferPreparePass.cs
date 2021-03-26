@@ -93,9 +93,10 @@ namespace UnityEngine.Rendering.Universal
 
             using (new ProfilingScope(cmd, _profilingSampler))
             {
-                cmd.SetGlobalVector(ShaderConstants._DrawObjectPassDataPropID, ShaderConstants.drawObjectPassData);
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
+
+                cmd.SetGlobalVector(ShaderConstants._DrawObjectPassDataPropID, ShaderConstants.drawObjectPassData);
 
                 var sortFlags = (_isOpaque) ? renderingData.cameraData.defaultOpaqueSortFlags : SortingCriteria.CommonTransparent;
                 var drawSettings = CreateDrawingSettings(_shaderTagIdList, ref renderingData, sortFlags);

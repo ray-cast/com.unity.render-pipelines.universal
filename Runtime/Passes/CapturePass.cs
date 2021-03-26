@@ -1,5 +1,3 @@
-using UnityEngine.Rendering;
-
 namespace UnityEngine.Rendering.Universal
 {
     class CapturePass : ScriptableRenderPass

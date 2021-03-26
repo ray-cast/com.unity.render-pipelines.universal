@@ -4,8 +4,6 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
-float _ShadowDepthBias;
-float _ShadowNormalBias;
 float3 _LightDirection;
 
 struct Attributes
@@ -46,17 +44,6 @@ Varyings ShadowPassVertex(Attributes input)
 
     output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
     output.positionCS = GetShadowPositionHClip(input, float2(1, 1));
-    return output;
-}
-
-Varyings ShadowBiasPassVertex(Attributes input)
-{
-    Varyings output;
-    UNITY_SETUP_INSTANCE_ID(input);
-    float2 shadowBias = float2(_ShadowDepthBias, _ShadowNormalBias);
-
-    output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
-    output.positionCS = GetShadowPositionHClip(input, shadowBias);
     return output;
 }
 

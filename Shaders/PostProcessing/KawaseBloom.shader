@@ -1,6 +1,9 @@
 Shader "Hidden/Universal Render Pipeline/KawaseBloom"
 {
     HLSLINCLUDE
+
+        #pragma multi_compile_local _ _USE_RGBM
+
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Filtering.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -110,7 +113,7 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
             UpsampleVaryings output;
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-            float2 o2 = _FilterRadius * _MainTex_TexelSize;
+            float2 o2 = _FilterRadius * _MainTex_TexelSize.xy;
             float2 o = o2 * 0.5f;
 
             output.uv = float2(id / 2, id % 2) * 2;
@@ -137,18 +140,13 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
             float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
+            half3 color = SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv).xyz;
 
         #if _BLOOM_HQ
-            half4 red = GATHER_RED_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv);
-            half4 green = GATHER_GREEN_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv);
-            half4 blue = GATHER_BLUE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv);
-            half3 c1 = half3(red.x, green.x, blue.x);
-            half3 c2 = half3(red.y, green.y, blue.y);
-            half3 c3 = half3(red.z, green.z, blue.z);
-            half3 c4 = half3(red.w, green.w, blue.w);
-            half3 color = min(c1, min(c2, min(c3, c4)));
-        #else
-            half3 color = SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv).xyz;
+            float2 texelSize = _MainTex_TexelSize.xy;
+            color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(texelSize.x, 0)).xyz);
+            color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(texelSize.x, texelSize.y)).xyz);
+            color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(0, texelSize.y)).xyz);
         #endif
 
             // User controlled clamp to limit crazy high broken spec
@@ -215,12 +213,11 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
             Name "Bloom Prefilter"
 
             HLSLPROGRAM
+                #pragma target 5.0
                 #pragma vertex KawasePrefilter
                 #pragma fragment FragPrefilter
-                #pragma target 5.0
                 #pragma multi_compile_local _ _BLOOM_HQ
                 #pragma multi_compile_local _ _BLOOM_GLOW
-                #pragma multi_compile_local _ _USE_RGBM
             ENDHLSL
         }
 
@@ -229,9 +226,9 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
             Name "Bloom Kawase Blur"
 
             HLSLPROGRAM
+                #pragma target 5.0
                 #pragma vertex KawaseDownsample
                 #pragma fragment KawaseBlur
-                #pragma multi_compile_local _ _USE_RGBM
             ENDHLSL
         }
 
@@ -240,9 +237,9 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
             Name "Bloom Upsample"
 
             HLSLPROGRAM
+                #pragma target 5.0
                 #pragma vertex KawaseUpsample
                 #pragma fragment FragUpsample
-                #pragma multi_compile_local _ _USE_RGBM
             ENDHLSL
         }
     }

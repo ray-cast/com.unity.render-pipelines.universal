@@ -7,6 +7,7 @@
 
         DepthOnlyPass _depthOnlyPass;
         DepthPrePass _depthPrePass;
+        HizPass _hizPass;
         MainLightShadowCasterPass _mainLightShadowCasterPass;
         AdditionalLightsShadowCasterPass _additionalLightsShadowCasterPass;
         GbufferDepthPass _renderGbufferDepthPass;
@@ -60,8 +61,6 @@
         Material _debugCluster;
         Material _heatMapCluster;
 
-        ComputeShader _clusterCompute;
-
         bool _supportsClusterLighting;
 
         public ClusterBasedDeferredRenderer(ClusterBasedDeferredRendererData data) : base(data)
@@ -92,7 +91,6 @@
             _mainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
             _additionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
             _depthOnlyPass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, RenderQueueRange.opaque, data.opaqueLayerMask);
-            _colorGradingLutPass = new ColorGradingLutPass(RenderPassEvent.BeforeRenderingPrepasses, data.postProcessData);
             _depthPrePass = new DepthPrePass(RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask);
             _renderGbufferDepthPass = new GbufferDepthPass("G-Buffer Depth", RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
             _renderOpaqueGbufferPass = new GbufferPreparePass("G-Buffer Prepare", true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
@@ -101,29 +99,32 @@
             _renderOpaqueForwardPass = new DrawObjectsPass("Render Opaques", true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
             _drawSkyboxPass = new DrawSkyboxPass(RenderPassEvent.BeforeRenderingSkybox);
             _copyDepthPass = new CopyDepthPass(RenderPassEvent.BeforeRenderingSkybox, _copyDepthMaterial);
+            _hizPass = new HizPass(RenderPassEvent.BeforeRenderingSkybox, data.shaders.HizCS);
             _copyColorPass = new CopyColorPass(RenderPassEvent.AfterRenderingSkybox, _samplingMaterial);
             _transparentSettingsPass = new TransparentSettingsPass(RenderPassEvent.BeforeRenderingTransparents, data.shadowTransparentReceive);
             _renderTransparentForwardPass = new DrawObjectsPass("Render Transparents", false, RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask, _defaultStencilState, stencilData.stencilReference);
             _onRenderObjectCallbackPass = new InvokeOnRenderObjectCallbackPass(RenderPassEvent.BeforeRenderingPostProcessing);
+            _colorGradingLutPass = new ColorGradingLutPass(RenderPassEvent.BeforeRenderingPrepasses, data.postProcessData);
             _postProcessPass = new PostProcessPass(RenderPassEvent.BeforeRenderingPostProcessing, data.postProcessData, _blitMaterial);
             _finalPostProcessPass = new PostProcessPass(RenderPassEvent.AfterRendering + 1, data.postProcessData, _blitMaterial);
             _capturePass = new CapturePass(RenderPassEvent.AfterRendering);
             _finalBlitPass = new FinalBlitPass(RenderPassEvent.AfterRendering + 1, _blitMaterial);
 
+            ComputeShader clusterCompute = null;
             if (SystemInfo.maxComputeWorkGroupSize >= 1024)
-                _clusterCompute = data.shaders.clusterX1024CS;
+                clusterCompute = data.shaders.clusterX1024CS;
             else if (SystemInfo.maxComputeWorkGroupSize >= 512)
-                _clusterCompute = data.shaders.clusterX512CS;
+                clusterCompute = data.shaders.clusterX512CS;
             else if (SystemInfo.maxComputeWorkGroupSize >= 256)
-                _clusterCompute = data.shaders.clusterX256CS;
+                clusterCompute = data.shaders.clusterX256CS;
             else if (SystemInfo.maxComputeWorkGroupSize >= 128)
-                _clusterCompute = data.shaders.clusterX128CS;
+                clusterCompute = data.shaders.clusterX128CS;
 
-            _supportsClusterLighting = (SystemInfo.supportsComputeShaders && _clusterCompute) ? true : false;
+            _supportsClusterLighting = (SystemInfo.supportsComputeShaders && clusterCompute) ? true : false;
 
             if (_supportsClusterLighting)
 			{
-                _clusterSettingPass = new ClusterSettingPass(RenderPassEvent.BeforeRenderingOpaques, _forwardLights, _clusterCompute);
+                _clusterSettingPass = new ClusterSettingPass(RenderPassEvent.BeforeRenderingOpaques, _forwardLights, clusterCompute);
                 _clusterOpaqueLightingPass = new ClusterLightingPass(RenderPassEvent.BeforeRenderingOpaques, _clusterLightingMaterial);
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
                 _drawClusterPass = new DrawClusterPass(RenderPassEvent.BeforeRenderingOpaques, _debugCluster);
@@ -366,6 +367,12 @@
             {
                 _copyDepthPass.Setup(_activeCameraDepthAttachment, _cameraDepthTexture);
                 EnqueuePass(_copyDepthPass);
+            }
+			
+            if (requiresDepthOnlyPass || createDepthTexture)
+			{
+                _hizPass.Setup(_cameraDepthTexture);
+                EnqueuePass(_hizPass);
             }
 
             if (renderingData.cameraData.requiresOpaqueTexture)

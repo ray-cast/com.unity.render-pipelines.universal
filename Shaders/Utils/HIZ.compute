@@ -1,0 +1,31 @@
+#pragma kernel CSMain
+
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
+
+uint _MipScale;
+float2 _DepthTex_TexelSize;
+
+Texture2D<float> _DepthTexture;
+RWTexture2D<float> _RWHizTexture;
+
+[numthreads(16, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+#if defined(PLATFORM_SUPPORT_GATHER)
+	float4 depth = GATHER_TEXTURE2D(_DepthTexture, sampler_PointClamp, id.xy * _DepthTex_TexelSize.xy + float2(0.5, 0.5) * _DepthTex_TexelSize.xy);
+#else
+    uint2 uv = id.xy * _MipScale;
+	float4 depth;
+	depth.x = _DepthTexture[uv];
+	depth.y = _DepthTexture[uv + uint2(1, 0)];
+	depth.z = _DepthTexture[uv + uint2(0, 1)];
+	depth.w = _DepthTexture[uv + uint2(1, 1)];
+#endif
+
+#if defined(UNITY_REVERSED_Z)
+	_RWHizTexture[id.xy] = max(depth.x, max(depth.y, max(depth.z, depth.w)));
+#else
+	_RWHizTexture[id.xy] = min(depth.x, min(depth.y, min(depth.z, depth.w)));
+#endif
+}

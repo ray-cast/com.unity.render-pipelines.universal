@@ -155,6 +155,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
 
             ZWrite On
             ZTest LEqual
+            ColorMask 0
             Cull[_Cull]
 
             HLSLPROGRAM
@@ -176,7 +177,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma fragment ShadowPassFragment
 
             #include "DeferredLitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/ShadowCasterPass.hlsl"
+            #include "DeferredLitGbufferPass.hlsl"
             ENDHLSL
         }
 

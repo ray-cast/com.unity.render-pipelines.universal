@@ -64,7 +64,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             half3 color = SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv).xyz;
 
         #if _BLOOM_HQ
-            float2 texelSize = _MainTex_TexelSize;
+            float2 texelSize = _MainTex_TexelSize.xy;
             color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(texelSize.x, 0)).xyz);
             color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(texelSize.x, texelSize.y)).xyz);
             color = min(color, SAMPLE_TEXTURE2D_X(_MainTex, sampler_PointClamp, uv + float2(0, texelSize.y)).xyz);
@@ -158,6 +158,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             Name "Bloom Prefilter"
 
             HLSLPROGRAM
+                #pragma target 5.0
                 #pragma vertex Vert
                 #pragma fragment FragPrefilter
                 #pragma multi_compile_local _ _BLOOM_HQ
@@ -170,6 +171,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             Name "Bloom Blur Horizontal"
 
             HLSLPROGRAM
+                #pragma target 5.0
                 #pragma vertex Vert
                 #pragma fragment FragBlurH
             ENDHLSL
@@ -180,6 +182,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             Name "Bloom Blur Vertical"
 
             HLSLPROGRAM
+                #pragma target 5.0
                 #pragma vertex Vert
                 #pragma fragment FragBlurV
             ENDHLSL
@@ -190,6 +193,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             Name "Bloom Upsample"
 
             HLSLPROGRAM
+                #pragma target 5.0
                 #pragma vertex Vert
                 #pragma fragment FragUpsample
             ENDHLSL

@@ -40,6 +40,9 @@ namespace UnityEngine.Rendering.Universal
             public Shader heatMapPS;
 #endif
 
+            [Reload("Shaders/Utils/HIZ.compute")]
+            public ComputeShader HizCS;
+
             [Reload("Shaders/Utils/ClusterLights128.compute")]
             public ComputeShader clusterX128CS;
 

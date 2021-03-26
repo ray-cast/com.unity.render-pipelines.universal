@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -13,6 +13,14 @@ namespace UnityEngine.Rendering.Universal
         private FilteringSettings _filteringSettings;
         private RenderStateBlock _renderStateBlock;
         private List<ShaderTagId> _shaderTagIdList = new List<ShaderTagId>();
+
+        public delegate void RefAction(ref ScriptableRenderContext context, ref RenderingData renderingData);
+
+        public static event RefAction ConfigureOpaqueAction;
+        public static event RefAction ConfigureTransparentAction;
+
+        public static event RefAction DrawOpaqueAction;
+        public static event RefAction DrawTransparentAction;
 
         static List<ShaderTagId> _LegacyShaderPassNames = new List<ShaderTagId>()
         {
@@ -65,6 +73,17 @@ namespace UnityEngine.Rendering.Universal
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
+            if (_isOpaque)
+            {
+                if (ConfigureOpaqueAction != null)
+                    ConfigureOpaqueAction(ref context, ref renderingData);
+            }
+            else
+            {
+                if (ConfigureTransparentAction != null)
+                    ConfigureTransparentAction(ref context, ref renderingData);
+            }
+
             CommandBuffer cmd = CommandBufferPool.Get(_profilerTag);
 
             using (new ProfilingScope(cmd, _profilingSampler))
@@ -111,6 +130,17 @@ namespace UnityEngine.Rendering.Universal
 
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
+
+            if (_isOpaque)
+			{
+                if (DrawOpaqueAction != null)
+                    DrawOpaqueAction(ref context, ref renderingData);
+            }
+            else
+			{
+                if (DrawTransparentAction != null)
+                    DrawTransparentAction(ref context, ref renderingData);
+            }
         }
 
         static class ShaderConstants
