@@ -65,7 +65,11 @@
 			VertexShaderOutput output = (VertexShaderOutput)0;
 			output.Min = aabb.Min + (aabb.Max - aabb.Min - factor) * 0.5;
 			output.Max = output.Min + factor;
-			output.Color = float4(lerp(float3(1,1,1), HeatMap(saturate(count / GetPerClusterLightsLimit())), saturate(count)), 1);
+			
+			if (count <= GetPerClusterLightsLimit())
+				output.Color = float4(lerp(float3(1,1,1), HeatMap(saturate(count / GetPerClusterLightsLimit())), saturate(count)), 1);
+			else
+				output.Color = float4(1, 0, 1, 1);
 
 			return output;
 		}

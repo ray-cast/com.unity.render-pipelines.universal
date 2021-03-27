@@ -57,7 +57,10 @@ Shader "Hidden/Universal Render Pipeline/HeatMap"
 			uint2 cullingLightIndex = GetCullingLightIndex(ComputeClusterClipSpacePosition(input.uv.xy), linearDepth);
 			float weight = lerp(0.05, 1.0, saturate(half(cullingLightIndex.y) / GetPerClusterLightsLimit()));
 
-			return float4(HeatMap(weight), 0.5);
+			if (cullingLightIndex.y  <= GetPerClusterLightsLimit())
+				return float4(HeatMap(weight), 0.5);
+			else
+				return float4(1, 0, 1, 0.5);
 		}
 	ENDHLSL
 

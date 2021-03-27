@@ -133,7 +133,7 @@ void ComputeLightsClusterIntersection(uint clusterID)
 
 	AABB aabb = _ClusterBoxBuffer[clusterID];
 
-	for (uint i = 0, count = 0; i < uint(_ClusterLightParams.x) && lightCount < uint(_ClusterLightParams.y); i++)
+	for (uint i = 0; i < uint(_ClusterLightParams.x) && lightCount < 32; i++)
 	{
 		float4 lightPositionWS = _ClusterLightBuffer[i].position;
 		if (lightPositionWS.w > 0)
