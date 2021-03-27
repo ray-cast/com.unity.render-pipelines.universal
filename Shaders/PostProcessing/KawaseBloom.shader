@@ -168,6 +168,7 @@ Shader "Hidden/Universal Render Pipeline/KawaseBloom"
 
         half4 KawaseBlur(DownsampleVaryings input) : SV_Target
         {
+            // Multi pass blur using the dual filtering kawase method described in GDC2015
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
             half3 s;
