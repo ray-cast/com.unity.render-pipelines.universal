@@ -13,7 +13,7 @@ namespace UnityEngine.Rendering.Universal
     {
         class Styles
         {
-            public static readonly GUIContent RenderFeatures = new GUIContent("Renderer Features", "Features to include in this renderer.\nTo add or remove features, use the plus and minus at the bottom of this box.");
+            public static readonly GUIContent RenderFeatures = new GUIContent("渲染特性", "Features to include in this renderer.\nTo add or remove features, use the plus and minus at the bottom of this box.");
             public static readonly GUIContent PassNameField = new GUIContent("Name", "Render pass name. This name is the name displayed in Frame Debugger.");
             public static readonly GUIContent MissingFeature = new GUIContent("Missing RendererFeature", "Missing reference, due to compilation issues or missing files. you can attempt auto fix or choose to remove the feature.");
 
@@ -64,7 +64,7 @@ namespace UnityEngine.Rendering.Universal
 
             if (_rendererFeatures.arraySize == 0)
             {
-                EditorGUILayout.HelpBox("No Renderer Features added", MessageType.Info);
+                EditorGUILayout.HelpBox("没有额外的渲染特性启用", MessageType.Info);
             }
             else
             {
@@ -80,7 +80,7 @@ namespace UnityEngine.Rendering.Universal
             EditorGUILayout.Space();
 
             //Add renderer
-            if (GUILayout.Button("Add Renderer Feature", EditorStyles.miniButton))
+            if (GUILayout.Button("添加渲染特性", EditorStyles.miniButton))
             {
                 AddPassMenu();
             }

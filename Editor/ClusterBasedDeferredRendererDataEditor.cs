@@ -26,13 +26,13 @@ namespace UnityEngine.Rendering.Universal
 
         private static class Styles
         {
-            public static readonly GUIContent rendererTitle = new GUIContent("ºó´¦Àí", "Custom Forward Renderer for Universal RP.");
-            public static readonly GUIContent postProcessLabel = new GUIContent("ºó´¦ÀíÊı¾İ", "The asset containing references to shaders and Textures that the Renderer uses for post-processing.");
-            public static readonly GUIContent filteringLabel = new GUIContent("Îï¼ş¹ıÂË", "Controls filter rendering settings for this renderer.");
-            public static readonly GUIContent opaqueMask = new GUIContent("²»Í¸Ã÷²ãÕÚÕÖ", "Controls which opaque layers this renderer draws.");
-            public static readonly GUIContent transparentMask = new GUIContent("Í¸Ã÷²ãÕÚÕÖ", "Controls which transparent layers this renderer draws.");
-            public static readonly GUIContent defaultStencilStateLabel = EditorGUIUtility.TrTextContent("Ä¬ÈÏÄ£°åÉèÖÃ", "Configure stencil state for the opaque and transparent render passes.");
-            public static readonly GUIContent shadowTransparentReceiveLabel = EditorGUIUtility.TrTextContent("Í¸Ã÷Îï¼ş²úÉúÒõÓ°", "When disabled, none of the transparent objects will receive shadows.");
+            public static readonly GUIContent rendererTitle = new GUIContent("åå¤„ç†", "Custom Forward Renderer for Universal RP.");
+            public static readonly GUIContent postProcessLabel = new GUIContent("åå¤„ç†æ•°æ®", "The asset containing references to shaders and Textures that the Renderer uses for post-processing.");
+            public static readonly GUIContent filteringLabel = new GUIContent("ç‰©ä»¶è¿‡æ»¤", "Controls filter rendering settings for this renderer.");
+            public static readonly GUIContent opaqueMask = new GUIContent("ä¸é€æ˜å±‚é®ç½©", "Controls which opaque layers this renderer draws.");
+            public static readonly GUIContent transparentMask = new GUIContent("é€æ˜å±‚é®ç½©", "Controls which transparent layers this renderer draws.");
+            public static readonly GUIContent defaultStencilStateLabel = EditorGUIUtility.TrTextContent("é»˜è®¤æ¨¡æ¿è®¾ç½®", "Configure stencil state for the opaque and transparent render passes.");
+            public static readonly GUIContent shadowTransparentReceiveLabel = EditorGUIUtility.TrTextContent("é€æ˜ç‰©ä»¶äº§ç”Ÿé˜´å½±", "When disabled, none of the transparent objects will receive shadows.");
         }
 
         SerializedProperty _opaqueLayerMask;
@@ -70,13 +70,13 @@ namespace UnityEngine.Rendering.Universal
             EditorGUI.indentLevel--;
             EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("ÒõÓ°", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("é˜´å½±", EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
             EditorGUILayout.PropertyField(_shadowTransparentReceiveProp, Styles.shadowTransparentReceiveLabel);
             EditorGUI.indentLevel--;
             EditorGUILayout.Space();
 
-            EditorGUILayout.LabelField("Ä£°å²âÊÔ", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("æ¨¡æ¿æµ‹è¯•", EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
             EditorGUILayout.PropertyField(_defaultStencilState, Styles.defaultStencilStateLabel, true);
             EditorGUI.indentLevel--;
@@ -91,7 +91,7 @@ namespace UnityEngine.Rendering.Universal
                 EditorGUILayout.Space();
                 EditorGUILayout.PropertyField(_shaders, true);
 
-                if (GUILayout.Button("ÖØĞÂ¼ÓÔØ"))
+                if (GUILayout.Button("é‡æ–°åŠ è½½"))
                 {
                     var resources = target as ForwardRendererData;
                     resources.shaders = null;
