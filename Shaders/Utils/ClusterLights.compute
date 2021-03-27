@@ -129,8 +129,7 @@ void ComputeLightsClusterIntersection(uint clusterID)
 {
 	uint lightCount = 0;
 	uint lightStartOffset = 0;
-
-	InterlockedAdd(_RWClusterLightIndexCounterBuffer[0], _ClusterLightParams.y, lightStartOffset);
+	uint lightList[32];
 
 	AABB aabb = _ClusterBoxBuffer[clusterID];
 
@@ -152,7 +151,7 @@ void ComputeLightsClusterIntersection(uint clusterID)
 
 				if (ComputeConeBoxIntersection(cone, aabb))
 				{
-					_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
+					lightList[lightCount] = i;
 					lightCount++;
 				}
 			}
@@ -162,16 +161,23 @@ void ComputeLightsClusterIntersection(uint clusterID)
 
 				if (ComputeSphereBoxIntersection(sphere, aabb))
 				{
-					_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
+					lightList[lightCount] = i;
 					lightCount++;
 				}
 			}
 		}
 		else
 		{
-			_RWClusterLightIndexListBuffer[lightStartOffset + lightCount] = i;
+			lightList[lightCount] = i;
 			lightCount++;
 		}
+	}
+
+	InterlockedAdd(_RWClusterLightIndexCounterBuffer[0], lightCount, lightStartOffset);
+
+	for (uint i = 0; i < lightCount; i++)
+	{
+		_RWClusterLightIndexListBuffer[lightStartOffset + i] = lightList[i];
 	}
 
 	_RWClusterLightGridBuffer[clusterID] = uint2(lightStartOffset, lightCount);

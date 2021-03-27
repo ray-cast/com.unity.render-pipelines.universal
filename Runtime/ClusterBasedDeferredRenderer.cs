@@ -277,7 +277,7 @@
                     _clusterSettingPass.Setup(cameraData.requireDrawCluster);
                     EnqueuePass(_clusterSettingPass);
 
-                    _clusterOpaqueLightingPass.Setup(cameraTargetDescriptor, _activeCameraColorAttachment);
+                    _clusterOpaqueLightingPass.Setup(_activeCameraColorAttachment);
                     EnqueuePass(_clusterOpaqueLightingPass);
                 }
 				else

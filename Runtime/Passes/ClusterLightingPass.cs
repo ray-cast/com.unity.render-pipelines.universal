@@ -6,17 +6,14 @@ namespace UnityEngine.Rendering.Universal
 
         private RenderTargetHandle _colorAttachmentHandle { get; set; }
 
-        private RenderTextureDescriptor _descriptor { get; set; }
-
         public ClusterLightingPass(RenderPassEvent evt, Material lightingMaterial)
         {
             this.renderPassEvent = evt;
             this._lightingMaterial = lightingMaterial;
         }
 
-        public void Setup(RenderTextureDescriptor cameraTextureDescriptor, RenderTargetHandle colorAttachmentHandle)
+        public void Setup(RenderTargetHandle colorAttachmentHandle)
         {
-            this._descriptor = cameraTextureDescriptor;
             this._colorAttachmentHandle = colorAttachmentHandle;
         }
 
