@@ -41,6 +41,9 @@ namespace UnityEngine.Rendering.Universal
         private int _computeFrustumCulling;
         private int _computeOcclusionCulling;
 
+        [Reload("Resources/CullingCompute.compute")]
+        private ComputeShader _cullingComputeShader;
+
         private ComputeBuffer _allInstancesPosWSBuffer;
         private ComputeBuffer _allInstancesIndexBuffer;
         private ComputeBuffer _allColorsBuffer;
@@ -72,8 +75,9 @@ namespace UnityEngine.Rendering.Universal
             _allScales = new Vector4[GrassGroup.maxScaleLimits];
             _allColors = new Vector4[GrassGroup.maxColorLimits * 2];
 
-            _computeFrustumCulling = grassGroup.cullingComputeShader.FindKernel("ComputeFrustumCulling");
-            _computeOcclusionCulling = grassGroup.cullingComputeShader.FindKernel("ComputeOcclusionCulling");
+            _cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
+            _computeFrustumCulling = _cullingComputeShader.FindKernel("ComputeFrustumCulling");
+            _computeOcclusionCulling = _cullingComputeShader.FindKernel("ComputeOcclusionCulling");
 
             DrawObjectsPass.DrawOpaqueAction += Render;
             DrawObjectsPass.ConfigureOpaqueAction += Configure;
@@ -271,7 +275,7 @@ namespace UnityEngine.Rendering.Universal
             if (renderingData.cameraData.renderType == CameraRenderType.Overlay)
                 return;
 
-            if (grassGroup.instanceMaterial == null || grassGroup.cullingComputeShader == null || grassGroup.grasses.Count == 0)
+            if (grassGroup.instanceMaterial == null || _cullingComputeShader == null || grassGroup.grasses.Count == 0)
                 return;
 
 #if UNITY_EDITOR
@@ -318,16 +322,16 @@ namespace UnityEngine.Rendering.Universal
                 _allVisibleInstancesIndexBuffer.SetCounterValue(0);
 
                 var occlusionKernel = HizPass._hizRenderTarget ? this._computeOcclusionCulling : this._computeFrustumCulling;
-                cmd.SetComputeMatrixParam(grassGroup.cullingComputeShader, ShaderConstants._VPMatrix, cam.projectionMatrix * cam.worldToCameraMatrix);
-                cmd.SetComputeFloatParam(grassGroup.cullingComputeShader, ShaderConstants._MaxDrawDistance, grassGroup.maxDrawDistance);
-                cmd.SetComputeFloatParam(grassGroup.cullingComputeShader, ShaderConstants._CameraFov, Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad));
-                cmd.SetComputeBufferParam(grassGroup.cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
-                cmd.SetComputeBufferParam(grassGroup.cullingComputeShader, occlusionKernel, ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._VPMatrix, cam.projectionMatrix * cam.worldToCameraMatrix);
+                cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._MaxDrawDistance, grassGroup.maxDrawDistance);
+                cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraFov, Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad));
+                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
+                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
 
                 if (HizPass._hizRenderTarget)
                 {
-                    cmd.SetComputeTextureParam(grassGroup.cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, HizPass._hizRenderTarget);
-                    cmd.SetComputeVectorParam(grassGroup.cullingComputeShader, ShaderConstants._HizSize, new Vector4(HizPass._hizRenderTarget.width, HizPass._hizRenderTarget.height, 0, 0));
+                    cmd.SetComputeTextureParam(_cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, HizPass._hizRenderTarget);
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizSize, new Vector4(HizPass._hizRenderTarget.width, HizPass._hizRenderTarget.height, 0, 0));
                 }
 
                 for (int i = 0; i < _visibleCellIDList.Count; i++)
@@ -352,9 +356,9 @@ namespace UnityEngine.Rendering.Universal
 
                         using (new ProfilingScope(cmd, ProfilingSampler.Get(GrassProfileId.Dispatch)))
                         {
-                            cmd.SetComputeIntParam(grassGroup.cullingComputeShader, ShaderConstants._StartOffset, memoryOffset);
-                            cmd.SetComputeIntParam(grassGroup.cullingComputeShader, ShaderConstants._EndOffset, memoryOffset + jobLength);
-                            cmd.DispatchCompute(grassGroup.cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / 64f), 1, 1);
+                            cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._StartOffset, memoryOffset);
+                            cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._EndOffset, memoryOffset + jobLength);
+                            cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / 64f), 1, 1);
                         }
                     }
                 }

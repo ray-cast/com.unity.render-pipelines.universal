@@ -20,9 +20,6 @@ namespace UnityEngine.Rendering.Universal
 
         public Material instanceMaterial;
 
-        [Reload("Shaders/Utils/CullingCompute.compute")]
-        public ComputeShader cullingComputeShader;
-
         [Range(1, 10000)]
         public int instanceCount = k_DefaultCount;
 
@@ -394,8 +391,6 @@ namespace UnityEngine.Rendering.Universal
                 _windScatter = instanceMaterial.GetVector("_WindScatter");
                 _windDirection = instanceMaterial.GetVector("_WindDirection");
             }
-
-            cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
 
             for (int i = 0; i < grasses.Count; i++)
                 grasses[i].renderer = _renderer;

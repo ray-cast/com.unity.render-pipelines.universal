@@ -46,9 +46,6 @@ namespace UnityEngine.Rendering.Universal
 
         public Material instanceMaterial;
 
-        [Reload("Shaders/Utils/CullingCompute.compute")]
-        public ComputeShader cullingComputeShader;
-
         public bool isCpuCulling = true;
         public bool isGpuCulling = true;
         public int sensity = 2;
@@ -295,7 +292,7 @@ namespace UnityEngine.Rendering.Universal
 
         public event GrassGroupChange onChange;
 
-        InstancedIndirectFlowerRenderer _renderer;
+        public InstancedIndirectFlowerRenderer _renderer;
 
 
         public void Init(InstancedIndirectFlowerRenderer renderer)
@@ -317,8 +314,6 @@ namespace UnityEngine.Rendering.Universal
                 _windScatter = instanceMaterial.GetVector("_WindScatter");
                 _windDirection = instanceMaterial.GetVector("_WindDirection");
             }
-
-            cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
 
             //if (allScales.Count == 0)
             //    allScales.Add(new Vector3(1, 1.5f, 1));
