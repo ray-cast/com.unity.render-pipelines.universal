@@ -1,0 +1,69 @@
+﻿#pragma kernel ComputeFrustumCulling
+#pragma kernel ComputeOcclusionCulling
+
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
+
+float4x4 _VPMatrix;
+float _MaxDrawDistance;
+uint _StartOffset;
+uint _EndOffset;
+uint _IsCulling;
+float _CameraFov;
+float4 _HizSize;
+Texture2D<float> _HizTexture;
+StructuredBuffer<float3> _AllInstancesPosWSBuffer; //will not change until instance count change
+AppendStructuredBuffer<uint> _AllVisibleInstancesIndexBuffer; //will set counter to 0 per frame, then fill in by this compute shader
+
+[numthreads(64, 1, 1)]
+void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
+{
+	uint instanceIndex = id.x + _StartOffset;
+	if (instanceIndex < _EndOffset)
+	{
+		float4 posCS = mul(_VPMatrix, float4(_AllInstancesPosWSBuffer[instanceIndex], 1.0));
+		posCS /= posCS.w;
+		posCS.xy = posCS.xy * 0.5f + 0.5f;
+
+		float4 absPosCS = abs(posCS);
+		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _MaxDrawDistance)
+		{
+			_AllVisibleInstancesIndexBuffer.Append(instanceIndex);
+		}
+	}
+}
+
+[numthreads(64, 1, 1)]
+void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
+{
+	uint instanceIndex = id.x + _StartOffset;
+	if (instanceIndex < _EndOffset)
+	{
+		float4 posCS = mul(_VPMatrix, float4(_AllInstancesPosWSBuffer[instanceIndex], 1.0));
+		posCS.xy /= posCS.w;
+		posCS.xy = posCS.xy * 0.5f + 0.5f;
+
+		float4 absPosCS = abs(posCS);
+		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _MaxDrawDistance)
+		{
+			uint mips = clamp(log2(posCS.z * posCS.z * _CameraFov / _HizSize.x), 0, 7);
+			uint scale = 1 << mips;
+			uint2 uv = _HizSize.xy / scale * posCS.xy;
+
+			float4 depth;
+			depth.x = _HizTexture.mips[mips][uv];
+			depth.y = _HizTexture.mips[mips][uv + uint2(1, 0)];
+			depth.z = _HizTexture.mips[mips][uv + uint2(1, 1)];
+			depth.w = _HizTexture.mips[mips][uv + uint2(0, 1)];
+
+#if defined(UNITY_REVERSED_Z)
+			float farDepth = 1 - min(depth.x, min(depth.y, min(depth.z, depth.w)));
+#else
+			float farDepth = max(depth.x, max(depth.y, max(depth.z, depth.w)));
+#endif
+
+			if (posCS.z / posCS.w < farDepth)
+				_AllVisibleInstancesIndexBuffer.Append(instanceIndex);
+		}
+	}
+}

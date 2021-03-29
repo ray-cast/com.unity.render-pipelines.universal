@@ -68,7 +68,7 @@ namespace UnityEngine.Rendering.Universal
 
             cmd.SetGlobalVector(_scaleBiasId, scaleBias);
             cmd.SetGlobalTexture("_CameraDepthAttachment", source.Identifier());
-            cmd.DrawMesh(RenderingUtils.fullscreenMesh, Matrix4x4.identity, _copyDepthMaterial);
+            cmd.DrawProcedural(Matrix4x4.identity, _copyDepthMaterial, 0, MeshTopology.Triangles, 3);
 
             context.ExecuteCommandBuffer(cmd);
 

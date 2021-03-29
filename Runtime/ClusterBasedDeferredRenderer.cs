@@ -269,7 +269,7 @@
                 EnqueuePass(_renderOpaqueGbufferPass);
 
                 bool requireClusterLighting = _supportsClusterLighting;
-                //requireClusterLighting &= renderingData.lightData.visibleLights.Length > 5;
+                requireClusterLighting &= renderingData.lightData.visibleLights.Length > 5;
                 requireClusterLighting &= cameraData.deferredLightingMode == DeferredRenderingMode.PerCluster;
 
                 if (requireClusterLighting)
