@@ -68,9 +68,9 @@ namespace UnityEngine.Rendering.Universal
 
             _transform = transform;
             _cacheTransformPos = _transform.position;
-            _shouldUpdateInstanceData = true;
             _profilingSampler = new ProfilingSampler(ShaderConstants._renderTag);
             _shouldBatchDispatch = true;
+            _shouldUpdateInstanceData = true;
 
             _allScales = new Vector4[GrassGroup.maxScaleLimits];
             _allColors = new Vector4[GrassGroup.maxColorLimits * 2];
@@ -78,6 +78,20 @@ namespace UnityEngine.Rendering.Universal
             _cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
             _computeFrustumCulling = _cullingComputeShader.FindKernel("ComputeFrustumCulling");
             _computeOcclusionCulling = _cullingComputeShader.FindKernel("ComputeOcclusionCulling");
+
+            Debug.LogFormat("{0} UpdateAllInstanceTransformBuffer (Slow) " +
+                "\nsupportsComputeShaders={1}" +
+                "\ngraphicsShaderLevel={2}" +
+                "\nmaxComputeBufferInputsVertex={3}" +
+                "\nmaxComputeBufferInputsFragment={4}" +
+                "\nmaxComputeBufferInputsCompute={5}",
+                _transform.name,
+                SystemInfo.supportsComputeShaders,
+                SystemInfo.graphicsShaderLevel,
+                SystemInfo.maxComputeBufferInputsVertex,
+                SystemInfo.maxComputeBufferInputsFragment,
+                SystemInfo.maxComputeBufferInputsCompute
+                );
 
             DrawObjectsPass.DrawOpaqueAction += Render;
             DrawObjectsPass.ConfigureOpaqueAction += Configure;
@@ -321,7 +335,7 @@ namespace UnityEngine.Rendering.Universal
 
                 _allVisibleInstancesIndexBuffer.SetCounterValue(0);
 
-                var occlusionKernel = HizPass._hizRenderTarget ? this._computeOcclusionCulling : this._computeFrustumCulling;
+                var occlusionKernel = HizPass._hizRenderTarget && grassGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
                 cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._VPMatrix, cam.projectionMatrix * cam.worldToCameraMatrix);
                 cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._MaxDrawDistance, grassGroup.maxDrawDistance);
                 cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraFov, Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad));

@@ -27,9 +27,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 	depth.w = _DepthTexture[uv + uint2(1, 1)];
 #endif
 
-#if defined(UNITY_REVERSED_Z)
-	_RWHizTexture[id.xy] = min(depth.x, min(depth.y, min(depth.z, depth.w)));
-#else
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
 	_RWHizTexture[id.xy] = max(depth.x, max(depth.y, max(depth.z, depth.w)));
+#else
+	_RWHizTexture[id.xy] = min(depth.x, min(depth.y, min(depth.z, depth.w)));
 #endif
 }

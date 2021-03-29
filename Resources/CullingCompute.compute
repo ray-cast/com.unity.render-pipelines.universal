@@ -56,10 +56,10 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 			depth.z = _HizTexture.mips[mips][uv + uint2(1, 1)];
 			depth.w = _HizTexture.mips[mips][uv + uint2(0, 1)];
 
-#if defined(UNITY_REVERSED_Z)
-			float farDepth = 1 - min(depth.x, min(depth.y, min(depth.z, depth.w)));
-#else
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
 			float farDepth = max(depth.x, max(depth.y, max(depth.z, depth.w)));
+#else
+			float farDepth = 1 - min(depth.x, min(depth.y, min(depth.z, depth.w)));
 #endif
 
 			if (posCS.z / posCS.w < farDepth)

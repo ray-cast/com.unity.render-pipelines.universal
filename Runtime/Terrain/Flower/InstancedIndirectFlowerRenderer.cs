@@ -242,7 +242,7 @@ namespace UnityEngine.Rendering.Universal
 
                 _allVisibleInstancesOnlyPosWSIDBuffer.SetCounterValue(0);
 
-                var occlusionKernel = HizPass._hizRenderTarget ? this._computeOcclusionCulling : this._computeFrustumCulling;
+                var occlusionKernel = HizPass._hizRenderTarget && flowerGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
                 cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._VPMatrix, cam.projectionMatrix * cam.worldToCameraMatrix);
                 cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._MaxDrawDistance, flowerGroup.drawDistance);
                 cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraFov, Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad));
