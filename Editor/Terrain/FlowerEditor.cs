@@ -61,7 +61,6 @@ namespace UnityEngine.Rendering.Universal
             _flowerGroup.isCpuCulling = EditorGUILayout.Toggle("IsCpuCulling", _flowerGroup.isCpuCulling);
             _flowerGroup.isGpuCulling = EditorGUILayout.Toggle("IsGpuCulling", _flowerGroup.isGpuCulling);
             _flowerGroup.instanceMaterial = EditorGUILayout.ObjectField("材质", _flowerGroup.instanceMaterial, typeof(Material), true) as Material;
-            _flowerGroup.cullingComputeShader = EditorGUILayout.ObjectField("CullingComputeShader", _flowerGroup.cullingComputeShader, typeof(ComputeShader), true) as ComputeShader;
 
             EditorGUILayout.EndVertical();
             if (GUI.changed)

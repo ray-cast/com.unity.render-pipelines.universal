@@ -115,7 +115,6 @@ namespace UnityEngine.Rendering.Universal
             _grassGroup.isCpuCulling = EditorGUILayout.Toggle("IsCpuCulling", _grassGroup.isCpuCulling);
             _grassGroup.isGpuCulling = EditorGUILayout.Toggle("IsGpuCulling", _grassGroup.isGpuCulling);
             _grassGroup.instanceMaterial = (Material)EditorGUILayout.ObjectField("InstanceMaterial", _grassGroup.instanceMaterial, typeof(Material), true);
-            _grassGroup.cullingComputeShader = EditorGUILayout.ObjectField("CullingComputeShader", _grassGroup.cullingComputeShader, typeof(ComputeShader), true) as ComputeShader;
 
             EditorGUILayout.EndVertical();
             if (GUI.changed)
