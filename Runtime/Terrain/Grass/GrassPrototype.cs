@@ -2,19 +2,32 @@
 
 namespace UnityEngine.Rendering.Universal
 {
+    public struct UInt3
+    {
+        uint x;
+        uint y;
+        uint z;
+        public UInt3(uint x, uint y, uint z)
+        {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+    }
+
     [Serializable]
     public class GrassPrototype
     {
         public Vector3 worldPos;//单棵草的位置，基于世界坐标
 
         [SerializeField]
-        uint dryColorIndex=0;//项部颜色的数组索引
+        uint dryColorIndex = 0;//项部颜色的数组索引
 
         [SerializeField]
-        uint healthyColorIndex=1;//底部颜色的数组索引
+        uint healthyColorIndex = 1;//底部颜色的数组索引
 
         [SerializeField]
-        public uint scaleIndex=0;//缩放的数组索引
+        public uint scaleIndex = 0;//缩放的数组索引
 
         public uint colorIndex
         {

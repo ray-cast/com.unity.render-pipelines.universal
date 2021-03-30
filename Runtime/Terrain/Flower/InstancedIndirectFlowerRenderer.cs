@@ -72,7 +72,7 @@ namespace UnityEngine.Rendering.Universal
             DrawObjectsPass.ConfigureOpaqueAction += Configure;
         }
 
-        public void OnDestroy()
+        public void OnDisable()
         {
             flowerGroup.onChange -= OnGrassGroupChange;
 
@@ -225,9 +225,6 @@ namespace UnityEngine.Rendering.Universal
 
                 if (flowerGroup.isCpuCulling)
                 {
-                    //slow loop
-                    //TODO: (A)replace this forloop by a quadtree test?
-                    //TODO: (B)convert this forloop to job+burst? (UnityException: TestPlanesAABB can only be called from the main thread.)
                     for (int i = 0; i < cellPosWSsList.Length; i++)
                     {
                         Bounds cellBound = cellPosWSsList[i].cellBound;
