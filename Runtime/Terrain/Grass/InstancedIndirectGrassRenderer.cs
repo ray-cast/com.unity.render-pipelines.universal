@@ -5,7 +5,6 @@ namespace UnityEngine.Rendering.Universal
 {
     internal enum GrassProfileId
     {
-        FrustumCulling,
         Dispatch,
         DrawGrass
     }
@@ -38,6 +37,7 @@ namespace UnityEngine.Rendering.Universal
         private List<int> _visibleCellIDList = new List<int>();
         private Plane[] _cameraFrustumPlanes = new Plane[6];
 
+        private int _clearUniqueCounter;
         private int _computeFrustumCulling;
         private int _computeOcclusionCulling;
 
@@ -76,6 +76,7 @@ namespace UnityEngine.Rendering.Universal
             _allColors = new Vector4[GrassGroup.maxColorLimits * 2];
 
             _cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
+            _clearUniqueCounter = _cullingComputeShader.FindKernel("ClearIndirectArgument");
             _computeFrustumCulling = _cullingComputeShader.FindKernel("ComputeFrustumCulling");
             _computeOcclusionCulling = _cullingComputeShader.FindKernel("ComputeOcclusionCulling");
 
@@ -99,6 +100,8 @@ namespace UnityEngine.Rendering.Universal
 
         public void OnDisable()
         {
+            grassGroup.onChange -= OnGrassGroupChange;
+
             DrawObjectsPass.DrawOpaqueAction -= Render;
             DrawObjectsPass.ConfigureOpaqueAction -= Configure;
 
@@ -115,8 +118,7 @@ namespace UnityEngine.Rendering.Universal
             _allScalesBuffer = null;
             _allVisibleInstancesIndexBuffer = null;
             _argsBuffer = null;
-
-            grassGroup.onChange -= OnGrassGroupChange;
+            _shouldUpdateInstanceData = false;
         }
 
         void OnGrassGroupChange()
@@ -218,7 +220,7 @@ namespace UnityEngine.Rendering.Universal
             _allInstancesIndexBuffer.SetData(allGrassIndexSortedByCell);
 
             _allVisibleInstancesIndexBuffer?.Release();
-            _allVisibleInstancesIndexBuffer = new ComputeBuffer(allGrassPos.Count, sizeof(uint), ComputeBufferType.Append); //uint only, per visible grass
+            _allVisibleInstancesIndexBuffer = new ComputeBuffer(allGrassPos.Count, sizeof(uint)); //uint only, per visible grass
 
             uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
             args[0] = (uint)grassGroup.cachedGrassMesh.GetIndexCount(0);
@@ -228,7 +230,7 @@ namespace UnityEngine.Rendering.Universal
             args[4] = 0;
 
             _argsBuffer?.Release();
-            _argsBuffer = new ComputeBuffer(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
+            _argsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
             _argsBuffer.SetData(args);
         }
 
@@ -307,40 +309,42 @@ namespace UnityEngine.Rendering.Universal
                 if (!GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, boundingBox))
                     return;
 
-                using (new ProfilingScope(cmd, ProfilingSampler.Get(GrassProfileId.FrustumCulling)))
-                {
-                    _visibleCellIDList.Clear();
+                _visibleCellIDList.Clear();
 
-                    if (grassGroup.isCpuCulling)
+                if (grassGroup.isCpuCulling)
+                {
+                    //slow loop
+                    //TODO: (A)replace this forloop by a quadtree test?
+                    //TODO: (B)convert this forloop to job+burst? (UnityException: TestPlanesAABB can only be called from the main thread.)
+                    for (int i = 0; i < cellPosWSsList.Length; i++)
                     {
-                        //slow loop
-                        //TODO: (A)replace this forloop by a quadtree test?
-                        //TODO: (B)convert this forloop to job+burst? (UnityException: TestPlanesAABB can only be called from the main thread.)
-                        for (int i = 0; i < cellPosWSsList.Length; i++)
-                        {
-                            Bounds cellBound = cellPosWSsList[i].cellBound;
-                            if (GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, cellBound))
-                                _visibleCellIDList.Add(i);
-                        }
-                    }
-                    else
-                    {
-                        for (int i = 0; i < cellPosWSsList.Length; i++)
+                        Bounds cellBound = cellPosWSsList[i].cellBound;
+                        if (GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, cellBound))
                             _visibleCellIDList.Add(i);
                     }
-
-                    if (_visibleCellIDList.Count == 0)
-                        return;
+                }
+                else
+                {
+                    for (int i = 0; i < cellPosWSsList.Length; i++)
+                        _visibleCellIDList.Add(i);
                 }
 
-                _allVisibleInstancesIndexBuffer.SetCounterValue(0);
+                if (_visibleCellIDList.Count == 0)
+                    return;
+
+                using (new ProfilingScope(cmd, ProfilingSampler.Get(GrassProfileId.Dispatch)))
+                {
+                    cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounter, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+                    cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounter, 1, 1, 1);
+                }
 
                 var occlusionKernel = HizPass._hizRenderTarget && grassGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
                 cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._VPMatrix, cam.projectionMatrix * cam.worldToCameraMatrix);
                 cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._MaxDrawDistance, grassGroup.maxDrawDistance);
                 cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraFov, Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad));
                 cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
-                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
+                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
+                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
 
                 if (HizPass._hizRenderTarget)
                 {
@@ -376,8 +380,6 @@ namespace UnityEngine.Rendering.Universal
                         }
                     }
                 }
-
-                cmd.CopyCounterValue(_allVisibleInstancesIndexBuffer, _argsBuffer, 4);
             }
         }
 
@@ -437,6 +439,9 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _AllInstancesTransformBuffer = Shader.PropertyToID("_AllInstancesTransformBuffer");
             public static readonly int _AllInstancesIndexBuffer = Shader.PropertyToID("_AllInstancesIndexBuffer");
             public static readonly int _AllVisibleInstancesIndexBuffer = Shader.PropertyToID("_AllVisibleInstancesIndexBuffer");
+
+            public static readonly int _RWVisibleInstancesIndexBuffer = Shader.PropertyToID("_RWVisibleInstancesIndexBuffer");
+            public static readonly int _RWVisibleIndirectArgumentBuffer = Shader.PropertyToID("_RWVisibleIndirectArgumentBuffer");
         }
     }
 }

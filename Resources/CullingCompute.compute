@@ -1,4 +1,5 @@
-﻿#pragma kernel ComputeFrustumCulling
+﻿#pragma kernel ClearIndirectArgument
+#pragma kernel ComputeFrustumCulling
 #pragma kernel ComputeOcclusionCulling
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -12,8 +13,17 @@ uint _IsCulling;
 float _CameraFov;
 float4 _HizSize;
 Texture2D<float> _HizTexture;
-StructuredBuffer<float3> _AllInstancesPosWSBuffer; //will not change until instance count change
-AppendStructuredBuffer<uint> _AllVisibleInstancesIndexBuffer; //will set counter to 0 per frame, then fill in by this compute shader
+
+StructuredBuffer<float3> _AllInstancesPosWSBuffer;
+
+RWStructuredBuffer<uint> _RWVisibleInstancesIndexBuffer;
+RWStructuredBuffer<uint> _RWVisibleIndirectArgumentBuffer;
+
+[numthreads(1, 1, 1)]
+void ClearIndirectArgument(uint3 id : SV_DispatchThreadID)
+{
+	_RWVisibleIndirectArgumentBuffer[1] = 0;
+}
 
 [numthreads(64, 1, 1)]
 void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
@@ -28,7 +38,9 @@ void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
 		float4 absPosCS = abs(posCS);
 		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _MaxDrawDistance)
 		{
-			_AllVisibleInstancesIndexBuffer.Append(instanceIndex);
+			uint index = 0;
+			InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
+			_RWVisibleInstancesIndexBuffer[index] = instanceIndex;
 		}
 	}
 }
@@ -63,7 +75,11 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 #endif
 
 			if (posCS.z / posCS.w < farDepth)
-				_AllVisibleInstancesIndexBuffer.Append(instanceIndex);
+			{
+				uint index = 0;
+				InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
+				_RWVisibleInstancesIndexBuffer[index] = instanceIndex;
+			}
 		}
 	}
 }
