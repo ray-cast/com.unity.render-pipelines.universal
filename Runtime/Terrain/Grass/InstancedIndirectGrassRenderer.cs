@@ -168,7 +168,10 @@ namespace UnityEngine.Rendering.Universal
             ref var allGrassPos = ref grassGroup.grasses;
 
             for (int i = 0; i < allGrassPos.Count; i++)
-                boundingBox.Encapsulate(allGrassPos[i].finalWorldPos);
+			{
+                Vector3 finalWorldPos = Vector3.Scale(allGrassPos[i].worldPos, transform.lossyScale);
+                boundingBox.Encapsulate(finalWorldPos);
+            }
 
             var max = boundingBox.max;
             var min = boundingBox.min;
@@ -189,7 +192,7 @@ namespace UnityEngine.Rendering.Universal
             for (int i = 0; i < allGrassPos.Count; i++)
             {
                 GrassPrototype gp = allGrassPos[i];
-                Vector3 pos = gp.finalWorldPos;
+                Vector3 pos = Vector3.Scale(gp.worldPos, transform.localScale);
 
                 int xID = Mathf.Min(cellCountX - 1, Mathf.FloorToInt(Mathf.InverseLerp(min.x, max.x, pos.x) * cellCountX)); //use min to force within 0~[cellCountX-1]  
                 int zID = Mathf.Min(cellCountZ - 1, Mathf.FloorToInt(Mathf.InverseLerp(min.z, max.z, pos.z) * cellCountZ)); //use min to force within 0~[cellCountZ-1]
@@ -205,7 +208,7 @@ namespace UnityEngine.Rendering.Universal
                 for (int j = 0; j < cellPosWSsList[i].grasses.Count; j++)
                 {
                     ref var grassCell = ref cellPosWSsList[i];
-                    allGrassPosWSSortedByCell[offset] = grassCell.grasses[j].finalWorldPos;
+                    allGrassPosWSSortedByCell[offset] = Vector3.Scale(grassCell.grasses[j].worldPos, transform.localScale);
                     allGrassIndexSortedByCell[offset] = grassCell.grasses[j].allIndexes;
                     offset++;
                 }
@@ -422,6 +425,9 @@ namespace UnityEngine.Rendering.Universal
 
             public static ProfilingSampler _profilingSampler = new ProfilingSampler(_renderTag);
 
+            public static readonly int _PivotPosWS = Shader.PropertyToID("_PivotPosWS");
+            public static readonly int _BoundSize = Shader.PropertyToID("_BoundSize");
+
             public static readonly int _VPMatrix = Shader.PropertyToID("_VPMatrix");
             public static readonly int _MaxDrawDistance = Shader.PropertyToID("_MaxDrawDistance");
             public static readonly int _CameraFov = Shader.PropertyToID("_CameraFov");
@@ -429,9 +435,6 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _HizSize = Shader.PropertyToID("_HizSize");
             public static readonly int _StartOffset = Shader.PropertyToID("_StartOffset");
             public static readonly int _EndOffset = Shader.PropertyToID("_EndOffset");
-
-            public static readonly int _PivotPosWS = Shader.PropertyToID("_PivotPosWS");
-            public static readonly int _BoundSize = Shader.PropertyToID("_BoundSize");            
 
             public static readonly int _AllColorsBuffer = Shader.PropertyToID("_AllColorsBuffer");
             public static readonly int _AllScalesBuffer = Shader.PropertyToID("_AllScalesBuffer");

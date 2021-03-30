@@ -314,11 +314,6 @@ namespace UnityEngine.Rendering.Universal
                 _windScatter = instanceMaterial.GetVector("_WindScatter");
                 _windDirection = instanceMaterial.GetVector("_WindDirection");
             }
-
-            //if (allScales.Count == 0)
-            //    allScales.Add(new Vector3(1, 1.5f, 1));
-            for (int i = 0; i < floweres.Count; i++)
-                floweres[i].renderer = renderer;
         }
 
         public void AddFlower(Vector3 worldPos)
@@ -329,7 +324,7 @@ namespace UnityEngine.Rendering.Universal
             bool isAlreadyExist = false;
             for (int i = 0; i < floweres.Count; i++)
             {
-                if (Vector3.Distance(floweres[i].finalWorldPos, worldPos) * 100 < sensity)
+                if (Vector3.Distance(floweres[i].worldPos, worldPos) * 100 < sensity)
                 {
                     isAlreadyExist = true;
                     break;
@@ -337,7 +332,7 @@ namespace UnityEngine.Rendering.Universal
             }
             if (!isAlreadyExist)
             {
-                FlowerPrototype fp = new FlowerPrototype(_renderer) {finalWorldPos = worldPos};
+                FlowerPrototype fp = new FlowerPrototype() { worldPos = worldPos};
                 floweres.Add(fp);
                 if (onChange != null)
                     onChange();
@@ -348,7 +343,7 @@ namespace UnityEngine.Rendering.Universal
         {
             for (int i = floweres.Count - 1; i >= 0; i--)
             {
-                if (Vector3.Distance(floweres[i].finalWorldPos, center) < radius)
+                if (Vector3.Distance(floweres[i].worldPos, center) < radius)
                 {
                     floweres.RemoveAt(i);
                 }
@@ -388,7 +383,7 @@ namespace UnityEngine.Rendering.Universal
                 //transform to posWS in C#
                 pos += transform.position;
 
-                floweres.Add(new FlowerPrototype(_renderer) {finalWorldPos = new Vector3(pos.x, pos.y, pos.z)});
+                floweres.Add(new FlowerPrototype() { worldPos = new Vector3(pos.x, pos.y, pos.z)});
             }
             if (onChange != null)
                 onChange();
@@ -408,7 +403,7 @@ namespace UnityEngine.Rendering.Universal
                 {
                     Vector3 pos = new Vector3(j* ss, 0, i* ss);
                     pos += offset;
-                    floweres.Add(new FlowerPrototype(_renderer) { finalWorldPos = new Vector3(pos.x, pos.y, pos.z) });
+                    floweres.Add(new FlowerPrototype() { worldPos = new Vector3(pos.x, pos.y, pos.z) });
                     count++;
                 }
             }

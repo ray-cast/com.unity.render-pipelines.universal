@@ -15,10 +15,10 @@ namespace UnityEngine.Rendering.Universal
         }
         public void AddGrass(GrassPrototype gp)
         {
-            Assert.IsTrue(gp.finalWorldPos.x >= cellBound.min.x && gp.finalWorldPos.x <= cellBound.max.x);
-            Assert.IsTrue(gp.finalWorldPos.z >= cellBound.min.z && gp.finalWorldPos.z <= cellBound.max.z);
+            Assert.IsTrue(gp.worldPos.x >= cellBound.min.x && gp.worldPos.x <= cellBound.max.x);
+            Assert.IsTrue(gp.worldPos.z >= cellBound.min.z && gp.worldPos.z <= cellBound.max.z);
 
-            cellBound.Encapsulate(gp.finalWorldPos);
+            cellBound.Encapsulate(gp.worldPos);
             grasses.Add(gp);
         }
     }

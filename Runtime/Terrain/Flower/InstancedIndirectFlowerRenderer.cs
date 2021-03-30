@@ -21,7 +21,7 @@ namespace UnityEngine.Rendering.Universal
         private Bounds boundingBox = new Bounds();
 
         public FlowerGroup flowerGroup;//草丛数据结构
-        public List<FlowerPrototype> allGrassPos;//所有草数据的数组
+        public List<FlowerPrototype> allFlowerPos;//所有草数据的数组
 
         //所有格子组成一个二维数组，每个格子关联了位置归属于此格子范围内的所有草
         //将二组数据按[xId,zId]=>xId+zId*cellCountX映射到一维数组就成了cellPosWSsList
@@ -60,7 +60,7 @@ namespace UnityEngine.Rendering.Universal
             _shouldUpdateInstanceData = true;
 
             flowerGroup.Init(this);
-            allGrassPos = flowerGroup.floweres;
+            allFlowerPos = flowerGroup.floweres;
             flowerGroup.onChange += OnGrassGroupChange;
 
             _cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
@@ -106,8 +106,11 @@ namespace UnityEngine.Rendering.Universal
         void InitializeInstanceGridConstants()
         {
             boundingBox.SetMinMax(Vector3.positiveInfinity, Vector3.negativeInfinity);
-            for (int i = 0; i < allGrassPos.Count; i++)
-                boundingBox.Encapsulate(allGrassPos[i].finalWorldPos);
+            for (int i = 0; i < allFlowerPos.Count; i++)
+            {
+                Vector3 finalWorldPos = Vector3.Scale(allFlowerPos[i].worldPos, transform.lossyScale);
+                boundingBox.Encapsulate(finalWorldPos);
+            }
 
             var max = boundingBox.max;
             var min = boundingBox.min;
@@ -125,10 +128,10 @@ namespace UnityEngine.Rendering.Universal
             }
 
             //binning, put each posWS into the correct cell
-            for (int i = 0; i < allGrassPos.Count; i++)
+            for (int i = 0; i < allFlowerPos.Count; i++)
             {
-                FlowerPrototype gp = allGrassPos[i];
-                Vector3 pos = gp.finalWorldPos;
+                FlowerPrototype gp = allFlowerPos[i];
+                Vector3 pos = Vector3.Scale(gp.worldPos, transform.localScale);
 
                 int xID = Mathf.Min(cellCountX - 1, Mathf.FloorToInt(Mathf.InverseLerp(min.x, max.x, pos.x) * cellCountX)); //use min to force within 0~[cellCountX-1]  
                 int zID = Mathf.Min(cellCountZ - 1, Mathf.FloorToInt(Mathf.InverseLerp(min.z, max.z, pos.z) * cellCountZ)); //use min to force within 0~[cellCountZ-1]
@@ -137,27 +140,27 @@ namespace UnityEngine.Rendering.Universal
             }
 
             //combine to a flatten array for compute buffer
-            Vector3[] allGrassPosWSSortedByCell = new Vector3[allGrassPos.Count];
+            Vector3[] allGrassPosWSSortedByCell = new Vector3[allFlowerPos.Count];
 
             for (int i = 0, offset = 0; i < cellPosWSsList.Length; i++)
             {
                 for (int j = 0; j < cellPosWSsList[i].flowers.Count; j++)
                 {
-                    allGrassPosWSSortedByCell[offset] = cellPosWSsList[i].flowers[j].finalWorldPos;
+                    allGrassPosWSSortedByCell[offset] = Vector3.Scale(cellPosWSsList[i].flowers[j].worldPos, transform.localScale);
                     offset++;
                 }
             }
 
             _allInstancesPosWSBuffer?.Release();
-            _allInstancesPosWSBuffer = new ComputeBuffer(allGrassPos.Count, sizeof(float) * 3); //float3 posWS only, per grass
+            _allInstancesPosWSBuffer = new ComputeBuffer(allFlowerPos.Count, sizeof(float) * 3); //float3 posWS only, per grass
             _allInstancesPosWSBuffer.SetData(allGrassPosWSSortedByCell);
 
             _allVisibleInstancesIndexBuffer?.Release();
-            _allVisibleInstancesIndexBuffer = new ComputeBuffer(allGrassPos.Count, sizeof(uint)); //uint only, per visible grass
+            _allVisibleInstancesIndexBuffer = new ComputeBuffer(allFlowerPos.Count, sizeof(uint)); //uint only, per visible grass
 
             uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
             args[0] = (uint)flowerGroup.cachedGrassMesh.GetIndexCount(0);
-            args[1] = (uint)allGrassPos.Count;
+            args[1] = (uint)allFlowerPos.Count;
             args[2] = (uint)flowerGroup.cachedGrassMesh.GetIndexStart(0);
             args[3] = (uint)flowerGroup.cachedGrassMesh.GetBaseVertex(0);
             args[4] = 0;
@@ -169,7 +172,7 @@ namespace UnityEngine.Rendering.Universal
 
         void SetupAllInstanceDataConstants()
         {
-            if (allGrassPos.Count > 0)
+            if (allFlowerPos.Count > 0)
             {
                 this.InitializeInstanceGridConstants();
 
@@ -177,13 +180,13 @@ namespace UnityEngine.Rendering.Universal
                 flowerGroup.instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
             }
 
-            _cacheInstanceCount = allGrassPos.Count;
+            _cacheInstanceCount = allFlowerPos.Count;
         }
 
         void UpdateAllInstanceTransformBufferIfNeeded()
         {
             if (!_shouldUpdateInstanceData &&
-                _cacheInstanceCount == allGrassPos.Count &&
+                _cacheInstanceCount == allFlowerPos.Count &&
                 _argsBuffer != null &&
                 _allInstancesPosWSBuffer != null &&
                 _allVisibleInstancesIndexBuffer != null)
@@ -200,7 +203,7 @@ namespace UnityEngine.Rendering.Universal
             if (renderingData.cameraData.renderType == CameraRenderType.Overlay)
                 return;
 
-            if (flowerGroup.instanceMaterial == null || _cullingComputeShader == null || allGrassPos.Count == 0)
+            if (flowerGroup.instanceMaterial == null || _cullingComputeShader == null || allFlowerPos.Count == 0)
                 return;
 
 #if UNITY_EDITOR
@@ -297,7 +300,7 @@ namespace UnityEngine.Rendering.Universal
             if (renderingData.cameraData.renderType == CameraRenderType.Overlay)
                 return;
 
-            if (flowerGroup.instanceMaterial == null || _argsBuffer == null || allGrassPos.Count == 0)
+            if (flowerGroup.instanceMaterial == null || _argsBuffer == null || allFlowerPos.Count == 0)
                 return;
 
 #if UNITY_EDITOR

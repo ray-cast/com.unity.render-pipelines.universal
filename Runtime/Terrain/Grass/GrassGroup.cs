@@ -357,7 +357,7 @@ namespace UnityEngine.Rendering.Universal
         Dictionary<long, List<GrassPrototype>> _gridDic;
         void AddGrass2Grid(GrassPrototype grass)
         {
-            long key = GetGridKey(grass.finalWorldPos.x, grass.finalWorldPos.z);
+            long key = GetGridKey(grass.worldPos.x, grass.worldPos.z);
             List<GrassPrototype> list;
             if (!_gridDic.TryGetValue(key, out list))
                 list = _gridDic[key] = new List<GrassPrototype>();
@@ -392,10 +392,9 @@ namespace UnityEngine.Rendering.Universal
                 _windDirection = instanceMaterial.GetVector("_WindDirection");
             }
 
-            for (int i = 0; i < grasses.Count; i++)
-                grasses[i].renderer = _renderer;
             if (allColors.Count == 0)
                 allColors.Add(new GrassColor());
+
             int usingIndex = -1;
             for (int i = 0; i < allColors.Count; i++)
                 if (allColors[i].isUsing)
@@ -429,7 +428,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 for (int i = 0; i < gridGrasses.Count; i++)
                 {
-                    if (Vector3.Distance(gridGrasses[i].finalWorldPos, pos) < sensity)
+                    if (Vector3.Distance(gridGrasses[i].worldPos, pos) < sensity)
                     {
                         isAlreadyExist = true;
                         break;
@@ -438,8 +437,8 @@ namespace UnityEngine.Rendering.Universal
             }
             if (!isAlreadyExist)
             {
-                GrassPrototype gp = new GrassPrototype(_renderer) {
-                    finalWorldPos = pos,
+                GrassPrototype gp = new GrassPrototype() {
+                    worldPos = pos,
                     colorIndex = usingColorIndex,
                     scaleIndex = usingScaleIndex
                 };
@@ -454,7 +453,7 @@ namespace UnityEngine.Rendering.Universal
         {
             for (int i = grasses.Count - 1; i >= 0; i--)
             {
-                if (Vector3.Distance(grasses[i].finalWorldPos, center) < radius)
+                if (Vector3.Distance(grasses[i].worldPos, center) < radius)
                 {
                     grasses.RemoveAt(i);
                 }
@@ -489,9 +488,9 @@ namespace UnityEngine.Rendering.Universal
                 //transform to posWS in C#
                 pos += transform.position;
 
-                GrassPrototype gp = new GrassPrototype(_renderer)
+                GrassPrototype gp = new GrassPrototype()
                 {
-                    finalWorldPos = new Vector3(pos.x, pos.y, pos.z),
+                    worldPos = new Vector3(pos.x, pos.y, pos.z),
                     colorIndex = usingColorIndex,
                     scaleIndex = usingScaleIndex
                 };
@@ -515,9 +514,9 @@ namespace UnityEngine.Rendering.Universal
                 {
                     Vector3 pos = new Vector3(j * sensity, 0, i * sensity);
                     pos += offset;
-                    GrassPrototype gp = new GrassPrototype(_renderer)
+                    GrassPrototype gp = new GrassPrototype()
                     {
-                        finalWorldPos = new Vector3(pos.x, pos.y, pos.z),
+                        worldPos = new Vector3(pos.x, pos.y, pos.z),
                         colorIndex = usingColorIndex,
                         scaleIndex = usingScaleIndex
                     };
