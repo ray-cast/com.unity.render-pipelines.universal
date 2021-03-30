@@ -251,7 +251,7 @@ namespace UnityEngine.Rendering.Universal
             var size = this.flowerGroup.cachedGrassMesh.bounds.size;
 
             var occlusionKernel = HizPass._hizRenderTarget && flowerGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
-            cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, cam.projectionMatrix * cam.worldToCameraMatrix);
+            cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * cam.worldToCameraMatrix);
             cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraFov, Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad));
             cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraDrawDistance, flowerGroup.drawDistance);
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));

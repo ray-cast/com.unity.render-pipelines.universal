@@ -6,6 +6,8 @@ namespace UnityEngine.Rendering.Universal
     {
         const int k_MaxPyramidSize = 8;
 
+        public static Matrix4x4 _hizLastCameraView = Matrix4x4.identity;
+        public static Matrix4x4 _hizLastCameraProjection = Matrix4x4.identity;
         public static RenderTexture _hizRenderTarget = null;
 
         public Vector2Int _hizSize = Vector2Int.zero;
@@ -79,6 +81,9 @@ namespace UnityEngine.Rendering.Universal
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
+
+            _hizLastCameraView = renderingData.cameraData.camera.worldToCameraMatrix;
+            _hizLastCameraProjection = renderingData.cameraData.camera.projectionMatrix;
 
             using (new ProfilingScope(cmd, _profilingSampler))
             {
