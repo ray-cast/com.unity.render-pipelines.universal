@@ -5,13 +5,15 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
 
-float4x4 _VPMatrix;
-float _MaxDrawDistance;
+float _CameraFov;
+float _CameraDrawDistance;
+float4x4 _CameraViewProjection;
+
 uint _StartOffset;
 uint _EndOffset;
-uint _IsCulling;
-float _CameraFov;
-float4 _HizSize;
+float3 _Offset;
+
+float4 _HizTexture_TexelSize;
 Texture2D<float> _HizTexture;
 
 StructuredBuffer<float3> _AllInstancesPosWSBuffer;
@@ -31,12 +33,12 @@ void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
 	uint instanceIndex = id.x + _StartOffset;
 	if (instanceIndex < _EndOffset)
 	{
-		float4 posCS = mul(_VPMatrix, float4(_AllInstancesPosWSBuffer[instanceIndex], 1.0));
+		float4 posCS = mul(_CameraViewProjection, float4(_AllInstancesPosWSBuffer[instanceIndex], 1.0));
 		posCS /= posCS.w;
 		posCS.xy = posCS.xy * 0.5f + 0.5f;
 
 		float4 absPosCS = abs(posCS);
-		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _MaxDrawDistance)
+		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _CameraDrawDistance)
 		{
 			uint index = 0;
 			InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
@@ -51,16 +53,16 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 	uint instanceIndex = id.x + _StartOffset;
 	if (instanceIndex < _EndOffset)
 	{
-		float4 posCS = mul(_VPMatrix, float4(_AllInstancesPosWSBuffer[instanceIndex], 1.0));
+		float4 posCS = mul(_CameraViewProjection, float4(_AllInstancesPosWSBuffer[instanceIndex] + _Offset, 1.0));
 		posCS.xy /= posCS.w;
 		posCS.xy = posCS.xy * 0.5f + 0.5f;
 
 		float4 absPosCS = abs(posCS);
-		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _MaxDrawDistance)
+		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _CameraDrawDistance)
 		{
-			uint mips = clamp(log2(posCS.z * posCS.z * _CameraFov / _HizSize.x), 0, 7);
+			uint mips = clamp(log2(posCS.z * posCS.z * _CameraFov / 1024), 0, 6);
 			uint scale = 1 << mips;
-			uint2 uv = _HizSize.xy / scale * posCS.xy;
+			uint2 uv = _HizTexture_TexelSize.xy / scale * posCS.xy;
 
 			float4 depth;
 			depth.x = _HizTexture.mips[mips][uv];

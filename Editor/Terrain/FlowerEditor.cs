@@ -9,8 +9,6 @@ namespace UnityEngine.Rendering.Universal
         float _eraseRadius = 0.3f;
         InstancedIndirectFlowerRenderer _flowerRender { get { return target as InstancedIndirectFlowerRenderer; } }
         FlowerGroup _flowerGroup;
-        int flowerBrushSize = 16;
-        float flowerSensity = 0.5f;
         int randomCount = 1024;
 
         public override void OnInspectorGUI()
@@ -78,7 +76,7 @@ namespace UnityEngine.Rendering.Universal
             if (UnityEditorInternal.InternalEditorUtility.isApplicationActive)//unity激活下才repaint
                 SceneView.RepaintAll();
         }
-        float areaOfEffect = 5;
+
         void Painter()
         {
             Event e = Event.current;
