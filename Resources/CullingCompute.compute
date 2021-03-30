@@ -33,7 +33,7 @@ void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
 	uint instanceIndex = id.x + _StartOffset;
 	if (instanceIndex < _EndOffset)
 	{
-		float4 posCS = mul(_CameraViewProjection, float4(_AllInstancesPosWSBuffer[instanceIndex], 1.0));
+		float4 posCS = mul(_CameraViewProjection, float4(_AllInstancesPosWSBuffer[instanceIndex] + _Offset, 1.0));
 		posCS /= posCS.w;
 		posCS.xy = posCS.xy * 0.5f + 0.5f;
 
