@@ -6,7 +6,7 @@ namespace UnityEngine.Rendering.Universal
     {
         const int k_MaxPyramidSize = 8;
 
-        public static Matrix4x4 _hizLastCameraView = Matrix4x4.identity;
+        public static Camera _hizLastCamera = null;
         public static Matrix4x4 _hizLastCameraProjection = Matrix4x4.identity;
         public static RenderTexture _hizRenderTarget = null;
 
@@ -57,17 +57,17 @@ namespace UnityEngine.Rendering.Universal
 			{
                 if (_hizRenderTarget)
 				{
-                    _hizRenderTarget.Release();
+                    RenderTexture.ReleaseTemporary(_hizRenderTarget);
                     _hizRenderTarget = null;
                 }
 
-                _hizRenderTarget = new RenderTexture(width, height, 0, GraphicsFormat.R32_SFloat, 7)
-                {
-                    enableRandomWrite = true,
-                    useMipMap = true,
-                    autoGenerateMips = false,
-                };
+                var hizDesc = GetStereoCompatibleDescriptor(cameraTextureDescriptor, width, height, GraphicsFormat.R32_SFloat);
+                hizDesc.mipCount = k_MaxPyramidSize - 1;
+                hizDesc.enableRandomWrite = true;
+                hizDesc.useMipMap = true;
+                hizDesc.autoGenerateMips = false;
 
+                _hizRenderTarget = RenderTexture.GetTemporary(hizDesc);
                 _hizSize.Set(cameraTextureDescriptor.width, cameraTextureDescriptor.height);
 
                 cmd.SetGlobalTexture("_CameraHizTexture", _hizRenderTarget);
@@ -88,7 +88,7 @@ namespace UnityEngine.Rendering.Universal
         {
             CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
 
-            _hizLastCameraView = renderingData.cameraData.camera.worldToCameraMatrix;
+            _hizLastCamera = renderingData.cameraData.camera;
             _hizLastCameraProjection = renderingData.cameraData.camera.projectionMatrix;
 
             using (new ProfilingScope(cmd, _profilingSampler))

@@ -240,18 +240,23 @@ namespace UnityEngine.Rendering.Universal
             var tanFov = Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad);
             var size = this.flowerGroup.cachedGrassMesh.bounds.size;
 
-            var occlusionKernel = HizPass._hizRenderTarget && flowerGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
-            cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * cam.worldToCameraMatrix);
+            int occlusionKernel = HizPass._hizLastCamera == renderingData.cameraData.camera && HizPass._hizRenderTarget && flowerGroup.isGpuCulling ? _computeOcclusionCulling : _computeFrustumCulling;
+
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, flowerGroup.maxDrawDistance, flowerGroup.sensity, flowerGroup.distanceCulling));
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
 
-            if (HizPass._hizRenderTarget)
+            if (occlusionKernel == _computeOcclusionCulling)
             {
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * cam.worldToCameraMatrix);
                 cmd.SetComputeTextureParam(_cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, HizPass._hizRenderTarget);
                 cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_TexelSize, new Vector4(HizPass._hizRenderTarget.width, HizPass._hizRenderTarget.height, 0, 0));
+            }
+            else
+            {
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, cam.projectionMatrix * cam.worldToCameraMatrix);
             }
 
             for (int i = 0; i < _visibleCellIDList.Count; i++)
