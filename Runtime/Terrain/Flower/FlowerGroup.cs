@@ -48,9 +48,21 @@ namespace UnityEngine.Rendering.Universal
 
         public bool isCpuCulling = true;
         public bool isGpuCulling = true;
-        public int sensity = 2;
+        public int brushSensity = 2;
+
+        public float sensity = 1.0f;
+        public float maxDrawDistance = 100;//this setting will affect performance a lot!
 
         float _cutoff = 0.5f;
+
+        public List<FlowerPrototype> floweres = new List<FlowerPrototype>();
+
+        [Range(1, 10000)]
+        public int instanceCount = DEFAULT_COUNT;
+
+        public event GrassGroupChange onChange;
+
+        public InstancedIndirectFlowerRenderer _renderer;
 
         public Texture texture
         {
@@ -284,16 +296,6 @@ namespace UnityEngine.Rendering.Universal
                 }
             }
         }
-        public List<FlowerPrototype> floweres = new List<FlowerPrototype>();
-        //public List<Vector3> allScales = new List<Vector3>();
-        public float drawDistance = 125;//this setting will affect performance a lot!
-        [Range(1, 10000)]
-        public int instanceCount = DEFAULT_COUNT;
-
-        public event GrassGroupChange onChange;
-
-        public InstancedIndirectFlowerRenderer _renderer;
-
 
         public void Init(InstancedIndirectFlowerRenderer renderer)
         {
@@ -324,7 +326,7 @@ namespace UnityEngine.Rendering.Universal
             bool isAlreadyExist = false;
             for (int i = 0; i < floweres.Count; i++)
             {
-                if (Vector3.Distance(floweres[i].worldPos, worldPos) * 100 < sensity)
+                if (Vector3.Distance(floweres[i].worldPos, worldPos) * 100 < brushSensity)
                 {
                     isAlreadyExist = true;
                     break;
@@ -395,7 +397,7 @@ namespace UnityEngine.Rendering.Universal
             //auto keep density the same
             int wide = Mathf.RoundToInt(Mathf.Sqrt(instanceCount));
             int count = 0;
-            float ss = sensity / 100f;
+            float ss = brushSensity / 100f;
             Vector3 offset = transform.position + new Vector3(-wide / 2f * ss, 0, -wide / 2f * ss);
             for (int i = 0; i < wide && count < instanceCount; i++)
             {

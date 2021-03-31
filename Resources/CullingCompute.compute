@@ -3,10 +3,8 @@
 #pragma kernel ComputeOcclusionCulling
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-#include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
 
-float _CameraFov;
-float _CameraDrawDistance;
+float4 _CameraDrawParams;
 float4x4 _CameraViewProjection;
 
 uint _StartOffset;
@@ -21,6 +19,10 @@ StructuredBuffer<float3> _AllInstancesPosWSBuffer;
 RWStructuredBuffer<uint> _RWVisibleInstancesIndexBuffer;
 RWStructuredBuffer<uint> _RWVisibleIndirectArgumentBuffer;
 
+#define _CameraFov _CameraDrawParams.x
+#define _CameraDrawDistance _CameraDrawParams.y
+#define _CameraDrawSensity _CameraDrawParams.z
+
 [numthreads(1, 1, 1)]
 void ClearIndirectArgument(uint3 id : SV_DispatchThreadID)
 {
@@ -33,12 +35,14 @@ void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
 	uint instanceIndex = id.x + _StartOffset;
 	if (instanceIndex < _EndOffset)
 	{
-		float4 posCS = mul(_CameraViewProjection, float4(_AllInstancesPosWSBuffer[instanceIndex] + _Offset, 1.0));
-		posCS /= posCS.w;
-		posCS.xy = posCS.xy * 0.5f + 0.5f;
+		float3 worldPosition = _AllInstancesPosWSBuffer[instanceIndex] + _Offset;
+		float4 positionCS = mul(_CameraViewProjection, float4(worldPosition, 1.0));
+		positionCS.xyz = positionCS.xyz / positionCS.w;
 
-		float4 absPosCS = abs(posCS);
-		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _CameraDrawDistance)
+		float hash = GenerateHashedRandomFloat(worldPosition * 100);
+		float3 frustum = float3(abs(positionCS.xy), 1 - saturate(positionCS.w / _CameraDrawDistance));
+
+		if (frustum.x < 1.0f && frustum.y < 1.0f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
 		{
 			uint index = 0;
 			InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
@@ -53,16 +57,18 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 	uint instanceIndex = id.x + _StartOffset;
 	if (instanceIndex < _EndOffset)
 	{
-		float4 posCS = mul(_CameraViewProjection, float4(_AllInstancesPosWSBuffer[instanceIndex] + _Offset, 1.0));
-		posCS.xy /= posCS.w;
-		posCS.xy = posCS.xy * 0.5f + 0.5f;
+		float3 worldPosition = _AllInstancesPosWSBuffer[instanceIndex] + _Offset;
+		float4 positionCS = mul(_CameraViewProjection, float4(worldPosition, 1.0));
+		positionCS.xyz = positionCS.xyz / positionCS.w;
 
-		float4 absPosCS = abs(posCS);
-		if (absPosCS.x <= 1.0f && absPosCS.y <= 1.0f && absPosCS.w <= _CameraDrawDistance)
+		float hash = GenerateHashedRandomFloat(worldPosition * 100);
+		float3 frustum = float3(abs(positionCS.xy), 1 - saturate(positionCS.w / _CameraDrawDistance));
+
+		if (frustum.x < 1.0f && frustum.y < 1.0f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
 		{
-			uint mips = clamp(log2(posCS.z * posCS.z * _CameraFov / 1024), 0, 6);
+			uint mips = clamp(log2(positionCS.w * positionCS.w * _CameraFov / 1024), 0, 6);
 			uint scale = 1 << mips;
-			uint2 uv = _HizTexture_TexelSize.xy / scale * posCS.xy;
+			uint2 uv = (positionCS.xy * 0.5f + 0.5f) * _HizTexture_TexelSize.xy / scale;
 
 			float4 depth;
 			depth.x = _HizTexture.mips[mips][uv];
@@ -76,7 +82,7 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 			float farDepth = 1 - min(depth.x, min(depth.y, min(depth.z, depth.w)));
 #endif
 
-			if (posCS.z / posCS.w < farDepth)
+			if (positionCS.z < farDepth)
 			{
 				uint index = 0;
 				InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);

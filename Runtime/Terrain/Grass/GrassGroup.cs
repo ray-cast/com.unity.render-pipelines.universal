@@ -15,7 +15,9 @@ namespace UnityEngine.Rendering.Universal
         public bool isCpuCulling = true;
         public bool isGpuCulling = true;
 
-        public float sensity = 0.5f;
+        public float brushSensity = 0.5f;
+
+        public float sensity = 1.0f;
         public float maxDrawDistance = 125;//this setting will affect performance a lot!
 
         public Material instanceMaterial;
@@ -428,7 +430,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 for (int i = 0; i < gridGrasses.Count; i++)
                 {
-                    if (Vector3.Distance(gridGrasses[i].worldPos, pos) < sensity)
+                    if (Vector3.Distance(gridGrasses[i].worldPos, pos) < brushSensity)
                     {
                         isAlreadyExist = true;
                         break;
@@ -507,12 +509,12 @@ namespace UnityEngine.Rendering.Universal
             //auto keep density the same
             int wide = Mathf.RoundToInt(Mathf.Sqrt(instanceCount));
             int count = 0;
-            Vector3 offset = transform.position + new Vector3(-wide / 2f * sensity, 0, -wide / 2f * sensity);
+            Vector3 offset = transform.position + new Vector3(-wide / 2f * brushSensity, 0, -wide / 2f * brushSensity);
             for (int i = 0; i < wide && count < instanceCount; i++)
             {
                 for (int j = 0; j < wide && count < instanceCount; j++)
                 {
-                    Vector3 pos = new Vector3(j * sensity, 0, i * sensity);
+                    Vector3 pos = new Vector3(j * brushSensity, 0, i * brushSensity);
                     pos += offset;
                     GrassPrototype gp = new GrassPrototype()
                     {

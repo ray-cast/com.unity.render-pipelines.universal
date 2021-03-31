@@ -5,21 +5,38 @@ namespace UnityEngine.Rendering.Universal
     [CustomEditor(typeof(InstancedIndirectGrassRenderer))]
     public class GrassEditor : Editor
     {
+        public class Styles
+        {
+            public static GUIContent drawSettingsText = EditorGUIUtility.TrTextContent("画刷设置");
+            public static GUIContent windSettingsText = EditorGUIUtility.TrTextContent("风场设置");
+            public static GUIContent grassSettingsText = EditorGUIUtility.TrTextContent("草地设置");
+            public static GUIContent cullingSettingsText = EditorGUIUtility.TrTextContent("剔除设置");
+        }
+
+        SavedBool _drawSettingsFoldout;
+        SavedBool _grassSettingsFoldout;
+        SavedBool _windSettingsFoldout;
+        SavedBool _cullingSettingsFoldout;
+
         int layerMask = int.MaxValue;
-        InstancedIndirectGrassRenderer _grassRender { get { return target as InstancedIndirectGrassRenderer; } }
         GrassGroup _grassGroup;
-        Texture[] TexBrush;
         float _eraseRadius = 0.3f;
         float _brushRadius = 0.3f;
         int _randomCount = 1024;
+        bool _isEnableBrush = false;
         bool _isUsingCicleBrush = false;
 
-        public override void OnInspectorGUI()
-        {
-            //base.OnInspectorGUI();
-            GrassSetting();
+        InstancedIndirectGrassRenderer _grassRender { get { return target as InstancedIndirectGrassRenderer; } }
+
+        public void OnEnable()
+		{
+            _drawSettingsFoldout = new SavedBool($"{target.GetType()}.DrawSettingsFoldout", false);
+            _grassSettingsFoldout = new SavedBool($"{target.GetType()}.GrassSettingsFoldout", false);
+            _windSettingsFoldout = new SavedBool($"{target.GetType()}.WindSettingsFoldout", false);
+            _cullingSettingsFoldout = new SavedBool($"{target.GetType()}.CullingSettingsFoldout", false);
         }
-        void GrassSetting()
+
+		public override void OnInspectorGUI()
         {
             _grassGroup = _grassRender.grassGroup;
 
@@ -27,94 +44,12 @@ namespace UnityEngine.Rendering.Universal
             GUILayout.Label(string.Format("草数量:{0}", _grassGroup.grasses.Count));
             GUILayout.Label(string.Format("草绘制数量:{0}", _grassRender.drawInstancedCount));
 
-            /*bool isUpdateGrass = GUILayout.Button("手动刷新草");
-            if (isUpdateGrass)
-                _grassGroup.UpdateGrass();*/
+            EditorGUILayout.Space();
 
-            _isUsingCicleBrush = EditorGUILayout.Toggle("使用圆形画刷", _isUsingCicleBrush);
-            if (_isUsingCicleBrush)
-                _brushRadius = EditorGUILayout.Slider("圆形画刷半径", _brushRadius, 0.1f, 5f);
-            _grassGroup.sensity = EditorGUILayout.Slider("密度", _grassGroup.sensity, 0.01f, 0.5f);
-            _eraseRadius = EditorGUILayout.Slider("清除半径", _eraseRadius, 0.1f, 5f);
-            _grassGroup.maxDrawDistance = EditorGUILayout.Slider("最大可视距离", _grassGroup.maxDrawDistance, 1.0f, 150f);
-            //_grassGroup.baseColor = EditorGUILayout.ColorField("BaseColor", _grassGroup.baseColor);
-            //_grassGroup.groundColor = EditorGUILayout.ColorField("GroundColor", _grassGroup.groundColor);
-            _grassGroup.windDirection = EditorGUILayout.Vector3Field("风的朝向", _grassGroup.windDirection);
-            _grassGroup.windIntensity = EditorGUILayout.FloatField("风的强度", _grassGroup.windIntensity);
-            _grassGroup.windFrequency = EditorGUILayout.FloatField("风的频率", _grassGroup.windFrequency);
-            _grassGroup.windTiling = EditorGUILayout.Vector2Field("风的持续", _grassGroup.windTiling);
-            _grassGroup.windWrap = EditorGUILayout.Vector2Field("风带来的弯曲", _grassGroup.windWrap);
-            _grassGroup.windHightlightSpeed = EditorGUILayout.FloatField("风场高光速率", _grassGroup.windHightlightSpeed);
-            _grassGroup.windScatter = EditorGUILayout.Vector2Field("风场的纹理缩放", _grassGroup.windScatter);
-            _grassGroup.windNoise = (Texture)EditorGUILayout.ObjectField("风场遮罩图 （示例：gradient_beam_007）", _grassGroup.windNoise, typeof(Texture), true);
-            _grassGroup.bendStrength = EditorGUILayout.Slider("挤压带来的弯曲", _grassGroup.bendStrength, 0, 1);
-            _grassGroup.cachedGrassMesh = (Mesh)EditorGUILayout.ObjectField("草的网格", _grassGroup.cachedGrassMesh, typeof(Mesh), true);
-
-            EditorGUILayout.HelpBox("草颜色列表", MessageType.None);
-            for (int i = 0; i < _grassGroup.allColors.Count; i++)
-            {
-                GrassColor gc = _grassGroup.allColors[i];
-                EditorGUILayout.BeginHorizontal();
-                bool isUsing = EditorGUILayout.Toggle(gc.isUsing, new[] { GUILayout.Width(30) });
-                if (isUsing)
-                    _grassGroup.usingColorIndex = (uint)i;
-                GUILayout.FlexibleSpace();
-                Color c = EditorGUILayout.ColorField(gc.dryColor, new[] { GUILayout.Width(100) });
-                _grassGroup.SetDryColor(c, i);
-                GUILayout.FlexibleSpace();
-                c = EditorGUILayout.ColorField(gc.healthyColor, new[] { GUILayout.Width(100) });
-                _grassGroup.SetHealthyColor(c, i);
-                GUILayout.FlexibleSpace();
-                bool isRemoveColor = GUILayout.Button("删除", new[] { GUILayout.Width(50) });
-                if (isRemoveColor)
-                    _grassGroup.RemoveColor(i);
-                EditorGUILayout.EndHorizontal();
-            }
-            bool isAddColor = GUILayout.Button("添加颜色");
-            if (isAddColor)
-            {
-                if (!_grassGroup.AddColor())
-                    Debug.LogError("已达到最大添加上限 : " + GrassGroup.maxColorLimits);
-            }
-
-            EditorGUILayout.HelpBox("草缩放列表", MessageType.None);
-            for (int i = 0; i < _grassGroup.allScales.Count; i++)
-            {
-                Vector3 scale = _grassGroup.allScales[i];
-                EditorGUILayout.BeginHorizontal();
-                bool isUsing = EditorGUILayout.Toggle(i == _grassGroup.usingScaleIndex, new[] { GUILayout.Width(30) });
-                if (isUsing)
-                    _grassGroup.usingScaleIndex = (uint)i;
-                GUILayout.FlexibleSpace();
-                _grassGroup.SetScale(EditorGUILayout.Vector3Field("", scale), i);
-                GUILayout.FlexibleSpace();
-                bool isRemoveScale = GUILayout.Button("删除", new[] { GUILayout.Width(50) });
-                if (isRemoveScale)
-                    _grassGroup.RemoveScale(i);
-                EditorGUILayout.EndHorizontal();
-            }
-
-            bool isAddScale = GUILayout.Button("添加缩放");
-            if (isAddScale)
-            {
-                if (!_grassGroup.AddScale())
-                    Debug.LogError("已达到最大添加上限 : " + GrassGroup.maxScaleLimits);
-            }
-
-            EditorGUILayout.HelpBox("调试", MessageType.None);
-            bool clearAllGrass = GUILayout.Button("清除所有草");
-            if (clearAllGrass)
-                _grassGroup.ClearAllGrass();
-            EditorGUILayout.BeginHorizontal();
-            bool randomGrass = GUILayout.Button("随机草");
-            _randomCount = EditorGUILayout.IntField("随机数量", _randomCount);
-            if (randomGrass)
-                _grassGroup.RandomGroupBySensity(_grassRender.transform, _randomCount);
-            EditorGUILayout.EndHorizontal();
-
-            _grassGroup.isCpuCulling = EditorGUILayout.Toggle("IsCpuCulling", _grassGroup.isCpuCulling);
-            _grassGroup.isGpuCulling = EditorGUILayout.Toggle("IsGpuCulling", _grassGroup.isGpuCulling);
-            _grassGroup.instanceMaterial = (Material)EditorGUILayout.ObjectField("InstanceMaterial", _grassGroup.instanceMaterial, typeof(Material), true);
+            this.DrawPaintSettings();
+            this.DrawGrassSettings();
+            this.DrawWindSettings();
+            this.DrawCullingSettings();
 
             EditorGUILayout.EndVertical();
             if (GUI.changed)
@@ -123,11 +58,149 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        void DrawPaintSettings()
+		{
+            _drawSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_drawSettingsFoldout.value, Styles.drawSettingsText);
+            if (_drawSettingsFoldout.value)
+            {
+                _isEnableBrush = EditorGUILayout.Toggle("启用绘制", _isEnableBrush);
+                _isUsingCicleBrush = EditorGUILayout.Toggle("使用圆形画刷", _isUsingCicleBrush);
+                if (_isUsingCicleBrush)
+                    _brushRadius = EditorGUILayout.Slider("圆形画刷半径", _brushRadius, 0.1f, 5f);
+                _grassGroup.brushSensity = EditorGUILayout.Slider("密度", _grassGroup.brushSensity, 0.01f, 0.5f);
+                _eraseRadius = EditorGUILayout.Slider("清除半径", _eraseRadius, 0.1f, 5f);
+
+                EditorGUILayout.Space();
+                EditorGUILayout.HelpBox("草颜色列表", MessageType.None);
+
+                for (int i = 0; i < _grassGroup.allColors.Count; i++)
+                {
+                    GrassColor gc = _grassGroup.allColors[i];
+                    EditorGUILayout.BeginHorizontal();
+                    bool isUsing = EditorGUILayout.Toggle(gc.isUsing, new[] { GUILayout.Width(30) });
+                    if (isUsing)
+                        _grassGroup.usingColorIndex = (uint)i;
+                    GUILayout.FlexibleSpace();
+                    Color c = EditorGUILayout.ColorField(gc.dryColor, new[] { GUILayout.Width(100) });
+                    _grassGroup.SetDryColor(c, i);
+                    GUILayout.FlexibleSpace();
+                    c = EditorGUILayout.ColorField(gc.healthyColor, new[] { GUILayout.Width(100) });
+                    _grassGroup.SetHealthyColor(c, i);
+                    GUILayout.FlexibleSpace();
+                    bool isRemoveColor = GUILayout.Button("删除", new[] { GUILayout.Width(50) });
+                    if (isRemoveColor)
+                        _grassGroup.RemoveColor(i);
+                    EditorGUILayout.EndHorizontal();
+                }
+
+                if (GUILayout.Button("添加颜色", EditorStyles.miniButton))
+                {
+                    if (!_grassGroup.AddColor())
+                        Debug.LogError("已达到最大添加上限 : " + GrassGroup.maxColorLimits);
+                }
+
+                EditorGUILayout.Space();
+                EditorGUILayout.HelpBox("草缩放列表", MessageType.None);
+
+                for (int i = 0; i < _grassGroup.allScales.Count; i++)
+                {
+                    Vector3 scale = _grassGroup.allScales[i];
+                    EditorGUILayout.BeginHorizontal();
+                    bool isUsing = EditorGUILayout.Toggle(i == _grassGroup.usingScaleIndex, new[] { GUILayout.Width(30) });
+                    if (isUsing)
+                        _grassGroup.usingScaleIndex = (uint)i;
+                    GUILayout.FlexibleSpace();
+                    _grassGroup.SetScale(EditorGUILayout.Vector3Field("", scale), i);
+                    GUILayout.FlexibleSpace();
+                    bool isRemoveScale = GUILayout.Button("删除", new[] { GUILayout.Width(50) });
+                    if (isRemoveScale)
+                        _grassGroup.RemoveScale(i);
+                    EditorGUILayout.EndHorizontal();
+                }
+
+                if (GUILayout.Button("添加缩放", EditorStyles.miniButton))
+                {
+                    if (!_grassGroup.AddScale())
+                        Debug.LogError("已达到最大添加上限 : " + GrassGroup.maxScaleLimits);
+                }
+
+                EditorGUILayout.Space();
+
+                EditorGUILayout.BeginHorizontal();
+                _randomCount = EditorGUILayout.IntField("随机数量", _randomCount);
+                if (GUILayout.Button("随机草", EditorStyles.miniButton))
+                    _grassGroup.RandomGroupBySensity(_grassRender.transform, _randomCount);
+                EditorGUILayout.EndHorizontal();
+
+                if (GUILayout.Button("清除所有草", EditorStyles.miniButton))
+                    _grassGroup.ClearAllGrass();
+
+                EditorGUILayout.Space();
+                EditorGUILayout.Space();
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        void DrawGrassSettings()
+        {
+            _grassSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_grassSettingsFoldout.value, Styles.grassSettingsText);
+            if (_grassSettingsFoldout.value)
+            {
+                _grassGroup.cachedGrassMesh = (Mesh)EditorGUILayout.ObjectField("草的网格", _grassGroup.cachedGrassMesh, typeof(Mesh), true);
+                _grassGroup.instanceMaterial = (Material)EditorGUILayout.ObjectField("草的材质", _grassGroup.instanceMaterial, typeof(Material), true);
+                _grassGroup.bendStrength = EditorGUILayout.Slider("挤压带来的弯曲", _grassGroup.bendStrength, 0, 1);
+
+                EditorGUILayout.Space();
+                EditorGUILayout.Space();
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        void DrawWindSettings()
+		{
+            _windSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_windSettingsFoldout.value, Styles.windSettingsText);
+            if (_windSettingsFoldout.value)
+            {
+                _grassGroup.windDirection = EditorGUILayout.Vector3Field("风的朝向", _grassGroup.windDirection);
+                _grassGroup.windIntensity = EditorGUILayout.FloatField("风的强度", _grassGroup.windIntensity);
+                _grassGroup.windFrequency = EditorGUILayout.FloatField("风的频率", _grassGroup.windFrequency);
+                _grassGroup.windTiling = EditorGUILayout.Vector2Field("风的持续", _grassGroup.windTiling);
+                _grassGroup.windWrap = EditorGUILayout.Vector2Field("风带来的弯曲", _grassGroup.windWrap);
+                _grassGroup.windHightlightSpeed = EditorGUILayout.FloatField("风场高光速率", _grassGroup.windHightlightSpeed);
+                _grassGroup.windScatter = EditorGUILayout.Vector2Field("风场的纹理缩放", _grassGroup.windScatter);
+                _grassGroup.windNoise = (Texture)EditorGUILayout.ObjectField("风场遮罩图 （示例：gradient_beam_007）", _grassGroup.windNoise, typeof(Texture), true);
+
+                EditorGUILayout.Space();
+                EditorGUILayout.Space();
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        void DrawCullingSettings()
+        {
+            _cullingSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_cullingSettingsFoldout.value, Styles.cullingSettingsText);
+            if (_cullingSettingsFoldout.value)
+            {
+                _grassGroup.sensity = EditorGUILayout.Slider("密度", _grassGroup.sensity, 0.0f, 1.0f);
+                _grassGroup.maxDrawDistance = EditorGUILayout.Slider("最大可视距离", _grassGroup.maxDrawDistance, 1.0f, 150f);
+                _grassGroup.isCpuCulling = EditorGUILayout.Toggle("启用区域剔除（CPU）", _grassGroup.isCpuCulling);
+                _grassGroup.isGpuCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driver）", _grassGroup.isGpuCulling);
+
+                EditorGUILayout.Space();
+                EditorGUILayout.Space();
+            }
+
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
         void OnSceneGUI()
         {
-            if (EditorApplication.isPlaying)
-                return;
-            Painter();
+            if (!EditorApplication.isPlaying && _isEnableBrush)
+                Painter();
+
             if (UnityEditorInternal.InternalEditorUtility.isApplicationActive)//unity激活下才repaint
                 SceneView.RepaintAll();
         }
@@ -178,7 +251,7 @@ namespace UnityEngine.Rendering.Universal
                     {
                         if (_isUsingCicleBrush)
                         {
-                            int needPaintCount = Mathf.RoundToInt(_brushRadius * _brushRadius / (_grassGroup.sensity * _grassGroup.sensity));
+                            int needPaintCount = Mathf.RoundToInt(_brushRadius * _brushRadius / (_grassGroup.brushSensity * _grassGroup.brushSensity));
                             for (int i = 0; i < needPaintCount; i++)
                             {
                                 float len = Random.Range(0, _brushRadius);

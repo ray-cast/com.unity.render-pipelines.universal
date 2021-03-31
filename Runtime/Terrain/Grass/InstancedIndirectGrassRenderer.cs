@@ -339,12 +339,12 @@ namespace UnityEngine.Rendering.Universal
                 cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounter, 1, 1, 1);
             }
 
+            var tanFov = Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad);
             var size = this.grassGroup.cachedGrassMesh.bounds.size;
 
             var occlusionKernel = HizPass._hizRenderTarget && grassGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
             cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * cam.worldToCameraMatrix);
-            cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraFov, Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad));
-            cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraDrawDistance, grassGroup.maxDrawDistance);
+            cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, grassGroup.maxDrawDistance, grassGroup.sensity, 0));
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
@@ -428,8 +428,7 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _PivotPosWS = Shader.PropertyToID("_PivotPosWS");
             public static readonly int _BoundSize = Shader.PropertyToID("_BoundSize");
 
-            public static readonly int _CameraFov = Shader.PropertyToID("_CameraFov");
-            public static readonly int _CameraDrawDistance = Shader.PropertyToID("_CameraDrawDistance");
+            public static readonly int _CameraDrawParams = Shader.PropertyToID("_CameraDrawParams");
             public static readonly int _CameraViewProjection = Shader.PropertyToID("_CameraViewProjection");
             
             public static readonly int _HizTexture = Shader.PropertyToID("_HizTexture");

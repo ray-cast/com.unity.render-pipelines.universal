@@ -215,7 +215,7 @@ namespace UnityEngine.Rendering.Universal
 
             Camera cam = renderingData.cameraData.camera;
             float cameraOriginalFarPlane = cam.farClipPlane;
-            cam.farClipPlane = flowerGroup.drawDistance;
+            cam.farClipPlane = flowerGroup.maxDrawDistance;
             GeometryUtility.CalculateFrustumPlanes(cam, _cameraFrustumPlanes);
             cam.farClipPlane = cameraOriginalFarPlane;
 
@@ -248,12 +248,12 @@ namespace UnityEngine.Rendering.Universal
                 cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounter, 1, 1, 1);
             }
 
+            var tanFov = Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad);
             var size = this.flowerGroup.cachedGrassMesh.bounds.size;
 
             var occlusionKernel = HizPass._hizRenderTarget && flowerGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
             cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * cam.worldToCameraMatrix);
-            cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraFov, Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad));
-            cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._CameraDrawDistance, flowerGroup.drawDistance);
+            cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, flowerGroup.maxDrawDistance, flowerGroup.sensity, 0));
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
@@ -329,8 +329,7 @@ namespace UnityEngine.Rendering.Universal
 
             public static ProfilingSampler _profilingSampler = new ProfilingSampler(_renderTag);
 
-            public static readonly int _CameraFov = Shader.PropertyToID("_CameraFov");
-            public static readonly int _CameraDrawDistance = Shader.PropertyToID("_CameraDrawDistance");
+            public static readonly int _CameraDrawParams = Shader.PropertyToID("_CameraDrawParams");
             public static readonly int _CameraViewProjection = Shader.PropertyToID("_CameraViewProjection");
 
             public static readonly int _HizTexture = Shader.PropertyToID("_HizTexture");
