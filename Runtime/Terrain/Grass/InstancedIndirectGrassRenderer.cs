@@ -94,16 +94,14 @@ namespace UnityEngine.Rendering.Universal
                 SystemInfo.maxComputeBufferInputsCompute
                 );
 
-            DrawObjectsPass.DrawOpaqueAction += Render;
-            DrawObjectsPass.ConfigureOpaqueAction += Configure;
+            GbufferPreparePass.ConfigureOpaqueAction += Configure;
         }
 
         public void OnDisable()
         {
             grassGroup.onChange -= OnGrassGroupChange;
 
-            DrawObjectsPass.DrawOpaqueAction -= Render;
-            DrawObjectsPass.ConfigureOpaqueAction -= Configure;
+            GbufferPreparePass.ConfigureOpaqueAction -= Configure;
 
             _allInstancesPosWSBuffer?.Release();
             _allInstancesIndexBuffer?.Release();
@@ -124,15 +122,6 @@ namespace UnityEngine.Rendering.Universal
         void OnGrassGroupChange()
         {
             _shouldUpdateInstanceData = true;
-        }
-
-        public void Update()
-        {
-            if (_cacheTransformPos != _transform.position)
-			{
-                _shouldUpdateInstanceData = true;
-                _cacheTransformPos = _transform.position;
-            }
         }
 
         void InitializeColorConstants()
@@ -344,7 +333,7 @@ namespace UnityEngine.Rendering.Universal
 
             var occlusionKernel = HizPass._hizRenderTarget && grassGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
             cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * cam.worldToCameraMatrix);
-            cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, grassGroup.maxDrawDistance, grassGroup.sensity, 0));
+            cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, grassGroup.maxDrawDistance, grassGroup.sensity, grassGroup.distanceCulling));
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
@@ -384,38 +373,39 @@ namespace UnityEngine.Rendering.Universal
                     }
                 }
             }
-        }
-
-        void Render(ref CommandBuffer cmd, ref RenderingData renderingData)
-        {
-            if (renderingData.cameraData.renderType == CameraRenderType.Overlay)
-                return;
-
-            if (grassGroup.instanceMaterial == null || _argsBuffer == null || grassGroup.grasses.Count == 0)
-                return;
 
 #if UNITY_EDITOR
             uint[] counter = new uint[5];
             _argsBuffer.GetData(counter);
             drawInstancedCount = (int)counter[1];
 #endif
+        }
 
-            using (new ProfilingScope(cmd, ShaderConstants._profilingSampler))
+
+        public void Update()
+        {
+            if (_cacheTransformPos != _transform.position)
             {
-                grassGroup.instanceMaterial.SetVector(ShaderConstants._PivotPosWS, _transform.position);
-                grassGroup.instanceMaterial.SetVector(ShaderConstants._BoundSize, _transform.localScale);
+                _shouldUpdateInstanceData = true;
+                _cacheTransformPos = _transform.position;
+            }
+
+            if (grassGroup.instanceMaterial == null || _argsBuffer == null || grassGroup.grasses.Count == 0)
+                return;
+
+            grassGroup.instanceMaterial.SetVector(ShaderConstants._PivotPosWS, _transform.position);
+            grassGroup.instanceMaterial.SetVector(ShaderConstants._BoundSize, _transform.localScale);
 
 #if UNITY_EDITOR
-                grassGroup.instanceMaterial.SetVectorArray(ShaderConstants._AllColorsBuffer, _allColors);
-                grassGroup.instanceMaterial.SetVectorArray(ShaderConstants._AllScalesBuffer, _allScales);
+            grassGroup.instanceMaterial.SetVectorArray(ShaderConstants._AllColorsBuffer, _allColors);
+            grassGroup.instanceMaterial.SetVectorArray(ShaderConstants._AllScalesBuffer, _allScales);
 
-                grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allInstancesPosWSBuffer);
-                grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllInstancesIndexBuffer, _allInstancesIndexBuffer);
-                grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
+            grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allInstancesPosWSBuffer);
+            grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllInstancesIndexBuffer, _allInstancesIndexBuffer);
+            grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
 #endif
 
-                cmd.DrawMeshInstancedIndirect(grassGroup.cachedGrassMesh, 0, grassGroup.instanceMaterial, 0, _argsBuffer);
-            }
+            Graphics.DrawMeshInstancedIndirect(grassGroup.cachedGrassMesh, 0, grassGroup.instanceMaterial, boundingBox, _argsBuffer);
         }
 
         static class ShaderConstants

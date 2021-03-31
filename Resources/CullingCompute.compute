@@ -22,6 +22,7 @@ RWStructuredBuffer<uint> _RWVisibleIndirectArgumentBuffer;
 #define _CameraFov _CameraDrawParams.x
 #define _CameraDrawDistance _CameraDrawParams.y
 #define _CameraDrawSensity _CameraDrawParams.z
+#define _CameraDrawDistanceSensity _CameraDrawParams.w
 
 [numthreads(1, 1, 1)]
 void ClearIndirectArgument(uint3 id : SV_DispatchThreadID)
@@ -40,7 +41,7 @@ void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
 		positionCS.xyz = positionCS.xyz / positionCS.w;
 
 		float hash = GenerateHashedRandomFloat(worldPosition * 100);
-		float3 frustum = float3(abs(positionCS.xy), 1 - saturate(positionCS.w / _CameraDrawDistance));
+		float3 frustum = float3(abs(positionCS.xy), pow(1 - saturate(positionCS.w / _CameraDrawDistance), _CameraDrawDistanceSensity));
 
 		if (frustum.x < 1.0f && frustum.y < 1.0f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
 		{
@@ -62,7 +63,7 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 		positionCS.xyz = positionCS.xyz / positionCS.w;
 
 		float hash = GenerateHashedRandomFloat(worldPosition * 100);
-		float3 frustum = float3(abs(positionCS.xy), 1 - saturate(positionCS.w / _CameraDrawDistance));
+		float3 frustum = float3(abs(positionCS.xy), pow(1 - saturate(positionCS.w / _CameraDrawDistance), _CameraDrawDistanceSensity));
 
 		if (frustum.x < 1.0f && frustum.y < 1.0f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
 		{

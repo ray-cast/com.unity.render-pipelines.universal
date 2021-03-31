@@ -68,16 +68,14 @@ namespace UnityEngine.Rendering.Universal
             _computeFrustumCulling = _cullingComputeShader.FindKernel("ComputeFrustumCulling");
             _computeOcclusionCulling = _cullingComputeShader.FindKernel("ComputeOcclusionCulling");
 
-            DrawObjectsPass.DrawOpaqueAction += Render;
-            DrawObjectsPass.ConfigureOpaqueAction += Configure;
+            GbufferPreparePass.ConfigureOpaqueAction += Configure;
         }
 
         public void OnDisable()
         {
             flowerGroup.onChange -= OnGrassGroupChange;
 
-            DrawObjectsPass.DrawOpaqueAction -= Render;
-            DrawObjectsPass.ConfigureOpaqueAction -= Configure;
+            GbufferPreparePass.ConfigureOpaqueAction -= Configure;
 
             _allInstancesPosWSBuffer?.Release();
             _allVisibleInstancesIndexBuffer?.Release();
@@ -92,15 +90,6 @@ namespace UnityEngine.Rendering.Universal
         void OnGrassGroupChange()
         {
             _shouldUpdateInstanceData = true;
-        }
-
-        public void Update()
-        {
-            if (_cacheTransformPos != _transform.position)
-			{
-                _shouldUpdateInstanceData = true;
-                _cacheTransformPos = _transform.position;
-            }
         }
 
         void InitializeInstanceGridConstants()
@@ -253,7 +242,7 @@ namespace UnityEngine.Rendering.Universal
 
             var occlusionKernel = HizPass._hizRenderTarget && flowerGroup.isGpuCulling ? this._computeOcclusionCulling : this._computeFrustumCulling;
             cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * cam.worldToCameraMatrix);
-            cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, flowerGroup.maxDrawDistance, flowerGroup.sensity, 0));
+            cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, flowerGroup.maxDrawDistance, flowerGroup.sensity, flowerGroup.distanceCulling));
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
@@ -293,33 +282,33 @@ namespace UnityEngine.Rendering.Universal
                     }
                 }
             }
-        }
-
-        void Render(ref CommandBuffer cmd, ref RenderingData renderingData)
-        {
-            if (renderingData.cameraData.renderType == CameraRenderType.Overlay)
-                return;
-
-            if (flowerGroup.instanceMaterial == null || _argsBuffer == null || allFlowerPos.Count == 0)
-                return;
 
 #if UNITY_EDITOR
             uint[] counter = new uint[5];
             _argsBuffer.GetData(counter);
             drawInstancedCount = (int)counter[1];
 #endif
+        }
 
-            using (new ProfilingScope(cmd, ShaderConstants._profilingSampler))
+        public void Update()
+        {
+            if (_cacheTransformPos != _transform.position)
             {
-                flowerGroup.instanceMaterial.SetVector(ShaderConstants._PivotPosWS, _transform.position);
-                flowerGroup.instanceMaterial.SetVector(ShaderConstants._BoundSize, new Vector2(_transform.localScale.x, _transform.localScale.z));
+                _shouldUpdateInstanceData = true;
+                _cacheTransformPos = _transform.position;
+            }
+
+            if (flowerGroup.instanceMaterial == null || _argsBuffer == null || allFlowerPos.Count == 0)
+                return;
+
+            flowerGroup.instanceMaterial.SetVector(ShaderConstants._PivotPosWS, _transform.position);
+            flowerGroup.instanceMaterial.SetVector(ShaderConstants._BoundSize, new Vector2(_transform.localScale.x, _transform.localScale.z));
 #if UNITY_EDITOR
-                flowerGroup.instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allInstancesPosWSBuffer);
-                flowerGroup.instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
+            flowerGroup.instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allInstancesPosWSBuffer);
+            flowerGroup.instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
 #endif
 
-                cmd.DrawMeshInstancedIndirect(flowerGroup.cachedGrassMesh, 0, flowerGroup.instanceMaterial, 0, _argsBuffer);
-            }
+            Graphics.DrawMeshInstancedIndirect(flowerGroup.cachedGrassMesh, 0, flowerGroup.instanceMaterial, boundingBox, _argsBuffer);
         }
 
         static class ShaderConstants

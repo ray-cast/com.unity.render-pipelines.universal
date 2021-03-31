@@ -134,7 +134,8 @@ namespace UnityEngine.Rendering.Universal
             _cullingSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_cullingSettingsFoldout.value, Styles.cullingSettingsText);
             if (_cullingSettingsFoldout.value)
             {
-                _flowerGroup.sensity = EditorGUILayout.Slider("密度", _flowerGroup.sensity, 0.0f, 1.0f);
+                _flowerGroup.sensity = EditorGUILayout.Slider("全局密度", _flowerGroup.sensity, 0.0f, 1.0f);
+                _flowerGroup.distanceCulling = EditorGUILayout.Slider("距离剔除", _flowerGroup.distanceCulling, 0.001f, 5.0f);
                 _flowerGroup.maxDrawDistance = EditorGUILayout.Slider("最大可视距离", _flowerGroup.maxDrawDistance, 1.0f, 150f);
                 _flowerGroup.isCpuCulling = EditorGUILayout.Toggle("启用区域剔除（CPU）", _flowerGroup.isCpuCulling);
                 _flowerGroup.isGpuCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driver）", _flowerGroup.isGpuCulling);

@@ -18,6 +18,7 @@ namespace UnityEngine.Rendering.Universal
         public float brushSensity = 0.5f;
 
         public float sensity = 1.0f;
+        public float distanceCulling = 1.0f;
         public float maxDrawDistance = 125;//this setting will affect performance a lot!
 
         public Material instanceMaterial;
