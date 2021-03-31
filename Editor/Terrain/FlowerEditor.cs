@@ -18,6 +18,7 @@ namespace UnityEngine.Rendering.Universal
         SavedBool _windSettingsFoldout;
         SavedBool _cullingSettingsFoldout;
 
+        bool _isEnableBrush = false;
         int layerMask = int.MaxValue;
         float _eraseRadius = 0.3f;
         InstancedIndirectFlowerRenderer _flowerRender { get { return target as InstancedIndirectFlowerRenderer; } }
@@ -60,6 +61,7 @@ namespace UnityEngine.Rendering.Universal
             _drawSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_drawSettingsFoldout.value, Styles.drawSettingsText);
             if (_drawSettingsFoldout.value)
             {
+                _isEnableBrush = EditorGUILayout.Toggle("启用绘制", _isEnableBrush);
                 _flowerGroup.brushSensity = EditorGUILayout.IntSlider("密度(厘米)", _flowerGroup.brushSensity, 1, 50);
                 _eraseRadius = EditorGUILayout.Slider("清除半径(厘米)", _eraseRadius, 0.1f, 5f);
                 
@@ -146,13 +148,13 @@ namespace UnityEngine.Rendering.Universal
 
         void OnSceneGUI()
         {
-            if (EditorApplication.isPlaying)
-                return;
+            if (!EditorApplication.isPlaying && _isEnableBrush)
+			{
+                Painter();
 
-            Painter();
-
-            if (UnityEditorInternal.InternalEditorUtility.isApplicationActive)//unity激活下才repaint
-                SceneView.RepaintAll();
+                if (UnityEditorInternal.InternalEditorUtility.isApplicationActive)
+                    SceneView.RepaintAll();
+            }
         }
 
         void Painter()

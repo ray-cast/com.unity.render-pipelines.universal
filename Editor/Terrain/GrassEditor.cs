@@ -199,10 +199,12 @@ namespace UnityEngine.Rendering.Universal
         void OnSceneGUI()
         {
             if (!EditorApplication.isPlaying && _isEnableBrush)
+			{
                 Painter();
 
-            if (UnityEditorInternal.InternalEditorUtility.isApplicationActive)//unity激活下才repaint
-                SceneView.RepaintAll();
+                if (UnityEditorInternal.InternalEditorUtility.isApplicationActive)
+                    SceneView.RepaintAll();
+            }
         }
 
         void Painter()
