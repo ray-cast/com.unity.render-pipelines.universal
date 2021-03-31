@@ -35,6 +35,9 @@ namespace UnityEngine.Rendering.Universal
         float _windFrequency;
 
         [SerializeField]
+        float _windRange = 20;
+
+        [SerializeField]
         Vector2 _windTiling;
 
         [SerializeField]
@@ -105,6 +108,22 @@ namespace UnityEngine.Rendering.Universal
 #endif
                     _windFrequency = value;
                     instanceMaterial.SetFloat("_WindAFrequency", _windFrequency);
+                }
+            }
+        }
+
+        public float windRange
+        {
+            get { return _windRange; }
+            set
+            {
+                if (_windRange != value)
+                {
+#if UNITY_EDITOR
+                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
+#endif
+                    _windRange = value;
+                    instanceMaterial.SetFloat("_WindRange", _windRange);
                 }
             }
         }

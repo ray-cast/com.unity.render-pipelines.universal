@@ -165,6 +165,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 _grassGroup.windDirection = EditorGUILayout.Vector3Field("风的朝向", _grassGroup.windDirection);
                 _grassGroup.windIntensity = EditorGUILayout.FloatField("风的强度", _grassGroup.windIntensity);
+                _grassGroup.windRange = EditorGUILayout.FloatField("风的运动范围", _grassGroup.windRange);
                 _grassGroup.windFrequency = EditorGUILayout.FloatField("风的频率", _grassGroup.windFrequency);
                 _grassGroup.windTiling = EditorGUILayout.Vector2Field("风的持续", _grassGroup.windTiling);
                 _grassGroup.windWrap = EditorGUILayout.Vector2Field("风带来的弯曲", _grassGroup.windWrap);

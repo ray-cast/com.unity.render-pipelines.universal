@@ -55,6 +55,12 @@ namespace UnityEngine.Rendering.Universal
 
             if (_hizSize.x != cameraTextureDescriptor.width || _hizSize.y != cameraTextureDescriptor.height || _hizRenderTarget == null)
 			{
+                if (_hizRenderTarget)
+				{
+                    _hizRenderTarget.Release();
+                    _hizRenderTarget = null;
+                }
+
                 _hizRenderTarget = new RenderTexture(width, height, 0, GraphicsFormat.R32_SFloat, 7)
                 {
                     enableRandomWrite = true,
