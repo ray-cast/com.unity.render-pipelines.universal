@@ -46,8 +46,6 @@ namespace UnityEngine.Rendering.Universal
 
         private ComputeBuffer _allInstancesPosWSBuffer;
         private ComputeBuffer _allInstancesIndexBuffer;
-        private ComputeBuffer _allColorsBuffer;
-        private ComputeBuffer _allScalesBuffer;
         private ComputeBuffer _allVisibleInstancesIndexBuffer;
         private ComputeBuffer _argsBuffer;
 
@@ -65,6 +63,8 @@ namespace UnityEngine.Rendering.Universal
 
             grassGroup.Init(this);
             grassGroup.onChange += OnGrassGroupChange;
+            grassGroup.onColorChange += OnColorChange;
+            grassGroup.onScaleChange += OnScaleChange;
 
             _transform = transform;
             _cacheTransformPos = _transform.position;
@@ -100,20 +100,18 @@ namespace UnityEngine.Rendering.Universal
         public void OnDisable()
         {
             grassGroup.onChange -= OnGrassGroupChange;
+            grassGroup.onColorChange -= OnColorChange;
+            grassGroup.onScaleChange -= OnScaleChange;
 
             GbufferPreparePass.ConfigureOpaqueAction -= Configure;
 
             _allInstancesPosWSBuffer?.Release();
             _allInstancesIndexBuffer?.Release();
-            _allColorsBuffer?.Release();
-            _allScalesBuffer?.Release();
             _allVisibleInstancesIndexBuffer?.Release();
             _argsBuffer?.Release();
 
             _allInstancesPosWSBuffer = null;
             _allInstancesIndexBuffer = null;
-            _allColorsBuffer = null;
-            _allScalesBuffer = null;
             _allVisibleInstancesIndexBuffer = null;
             _argsBuffer = null;
             _shouldUpdateInstanceData = false;
@@ -124,6 +122,16 @@ namespace UnityEngine.Rendering.Universal
             _shouldUpdateInstanceData = true;
         }
 
+        void OnColorChange()
+		{
+            this.InitializeColorConstants();
+		}
+
+        void OnScaleChange()
+        {
+            this.InitializeScaleConstants();
+        }
+
         void InitializeColorConstants()
         {
             for (int i = 0; i < grassGroup.allColors.Count && i < GrassGroup.maxColorLimits; i++)
@@ -132,9 +140,8 @@ namespace UnityEngine.Rendering.Universal
                 _allColors[i * 2 + 1] = grassGroup.allColors[i].healthyColorFinal;
             }
 
-            _allColorsBuffer?.Release();
-            _allColorsBuffer = new ComputeBuffer(_allColors.Length, sizeof(float) * 4);
-            _allColorsBuffer.SetData(_allColors);
+            if (grassGroup.instanceMaterial)
+                grassGroup.instanceMaterial.SetVectorArray(ShaderConstants._AllColorsBuffer, _allColors);
         }
 
         void InitializeScaleConstants()
@@ -145,9 +152,8 @@ namespace UnityEngine.Rendering.Universal
                 _allScales[i] = new Vector4(scale.x, scale.y, scale.z, 1.0f);
             }
 
-            _allScalesBuffer?.Release();
-            _allScalesBuffer = new ComputeBuffer(_allScales.Length, sizeof(float) * 4);
-            _allScalesBuffer.SetData(_allScales);
+            if (grassGroup.instanceMaterial)
+                grassGroup.instanceMaterial.SetVectorArray(ShaderConstants._AllScalesBuffer, _allScales);
         }
 
         void InitializeInstanceGridConstants()
@@ -236,8 +242,6 @@ namespace UnityEngine.Rendering.Universal
                 this.InitializeScaleConstants();
                 this.InitializeInstanceGridConstants();
 
-                grassGroup.instanceMaterial.SetVectorArray(ShaderConstants._AllColorsBuffer, _allColors);
-                grassGroup.instanceMaterial.SetVectorArray(ShaderConstants._AllScalesBuffer, _allScales);
                 grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allInstancesPosWSBuffer);
                 grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllInstancesIndexBuffer, _allInstancesIndexBuffer);
                 grassGroup.instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
@@ -253,8 +257,6 @@ namespace UnityEngine.Rendering.Universal
                 _argsBuffer != null &&
                 _allInstancesPosWSBuffer != null &&
                 _allInstancesIndexBuffer != null &&
-                _allColorsBuffer != null &&
-                _allScalesBuffer != null &&
                 _allVisibleInstancesIndexBuffer != null)
             {
                 return;

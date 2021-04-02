@@ -10,6 +10,7 @@ struct Attributes
 {
     float4 positionOS   : POSITION;
     float2 uv           : TEXCOORD0;
+    uint   id           : SV_VERTEXID;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 

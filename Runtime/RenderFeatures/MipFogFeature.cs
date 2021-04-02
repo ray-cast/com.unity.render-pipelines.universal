@@ -59,15 +59,38 @@
             {
                 var cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
 
+                _fogMaterial.shaderKeywords = null;
+
                 if (_mipFog != null && _mipFog.IsActive())
 				{
-                    CoreUtils.SetKeyword(_fogMaterial, "_MIPFOG_MAP", _mipFog.skybox.value);
+                    if (_mipFog.mode.value == MipFogMode.Linear)
+                        _fogMaterial.EnableKeyword("_FOG_LINEAR");
+                    else if (_mipFog.mode.value == MipFogMode.Exponential)
+                        _fogMaterial.EnableKeyword("_FOG_EXP");
+                    else if (_mipFog.mode.value == MipFogMode.ExponentialSquared)
+                        _fogMaterial.EnableKeyword("_FOG_EXP2");
+
+                    if (_mipFog.skybox.value)
+                        _fogMaterial.EnableKeyword("_MIPFOG_MAP");
 
                     var color = _mipFog.color.value.linear;
                     _fogMaterial.EnableKeyword("_MIPFOG");
                     _fogMaterial.SetTexture(ShaderConstants._MipFogMap, _mipFog.skybox.value);
-                    _fogMaterial.SetVector(ShaderConstants._MipFogParams, new Vector4(color.r, color.g, color.b, _mipFog.density.value));
-                    _fogMaterial.SetVector(ShaderConstants._MipFogParams2, new Vector2(_mipFog.rotation.value * Mathf.Deg2Rad, 1 - _mipFog.skyDensity.value));
+                    _fogMaterial.SetVector(ShaderConstants._MipFogParams, new Vector4(color.r, color.g, color.b, _mipFog.rotation.value * Mathf.Deg2Rad));
+
+                    if (_mipFog.mode.value == MipFogMode.Linear)
+					{
+                        var end = _mipFog.end.value;
+                        var start = _mipFog.start.value;
+                        var z = (-1 / (end - start));
+                        var w = (end / (end - start));
+
+                        _fogMaterial.SetVector(ShaderConstants._MipFogFactorParams, new Vector4(_mipFog.density.value, 1 - _mipFog.skyDensity.value, z, w));
+                    }
+					else
+					{
+                        _fogMaterial.SetVector(ShaderConstants._MipFogFactorParams, new Vector4(_mipFog.density.value, 1 - _mipFog.skyDensity.value, 0, 0));
+                    }
                 }
                 else
 				{
@@ -100,7 +123,7 @@
 
                 public static readonly int _MipFogMap = Shader.PropertyToID("_MipFogMap");
                 public static readonly int _MipFogParams = Shader.PropertyToID("_MipFogParams");
-                public static readonly int _MipFogParams2 = Shader.PropertyToID("_MipFogParams2");
+                public static readonly int _MipFogFactorParams = Shader.PropertyToID("_MipFogFactorParams");
 
                 public static readonly int _HeightFogParams = Shader.PropertyToID("_HeightFogParams");
                 public static readonly int _HeightFogDeepColor = Shader.PropertyToID("_HeightFogDeepColor");

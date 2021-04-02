@@ -67,9 +67,6 @@ namespace UnityEngine.Rendering.Universal
             PropertyField(_glowFiltering);
             PropertyField(_highQualityFiltering);
 
-            if (_highQualityFiltering.overrideState.boolValue && _highQualityFiltering.value.boolValue && CoreEditorUtils.buildTargets.Contains(GraphicsDeviceType.OpenGLES2))
-                EditorGUILayout.HelpBox("High Quality Bloom isn't supported on GLES2 platforms.", MessageType.Warning);
-
             EditorGUILayout.LabelField("Lens Dirt", EditorStyles.miniLabel);
 
             PropertyField(_dirtTexture);

@@ -3,8 +3,8 @@
 	Properties
 	{
 		_MipFogMap("Texture", 2D) = "white" {}
-		_MipFogParams("MipFogParams", Vector) = (1, 1, 1, 0.01)
-		_MipFogParams2("MipFogParams2", Vector) = (0, 0, 0, 0)
+		_MipFogParams("MipFogParams", Vector) = (1, 1, 1, 0)
+		_MipFogFactorParams("MipFogFactorParams", Vector) = (0, 0, 0, 0)
 	}
 
 	HLSLINCLUDE
@@ -26,7 +26,7 @@
 #endif
 
 		half4 _MipFogParams;
-		half2 _MipFogParams2;
+		half4 _MipFogFactorParams;
 		half4 _HeightFogDeepColor;
 		half4 _HeightFogShallowColor;
 		half3 _HeightFogParams;
@@ -49,6 +49,36 @@
 			normal = clamp(normal, -1.0, 1.0);
 			float2 coord = float2((atan2(normal.x, normal.z) * InvPIE * 0.5f + 0.5f), 1.0f - acos(normal.y) * InvPIE);
 			return coord;
+		}
+
+		real ComputeMipFogFactor(float z)
+		{
+		#if defined(_FOG_LINEAR)
+		    // factor = (end-z)/(end-start) = z * (-1/(end-start)) + (end/(end-start))
+		    float fogFactor = saturate(z * _MipFogFactorParams.z + _MipFogFactorParams.w);
+		    return real(fogFactor);
+		#elif defined(_FOG_EXP) || defined(_FOG_EXP2)
+		    // factor = exp(-(density*z)^2)
+		    // -density * z computed at vertex
+		    return real(z * _MipFogFactorParams.x);
+		#else
+		    return 0.0h;
+		#endif
+		}
+
+		real ComputeMipFogIntensity(real fogFactor)
+		{
+		    real fogIntensity = 0.0h;
+		#if defined(_FOG_LINEAR) || defined(_FOG_EXP) || defined(_FOG_EXP2)
+		#if defined(_FOG_EXP)
+		    fogIntensity = saturate(exp2(-fogFactor));
+		#elif defined(_FOG_EXP2)
+		    fogIntensity = saturate(exp2(-fogFactor * fogFactor));
+		#elif defined(_FOG_LINEAR)
+		    fogIntensity = fogFactor;
+		#endif
+		#endif
+		    return fogIntensity;
 		}
 
 		Varyings FogVertex(uint id : SV_VERTEXID)
@@ -79,11 +109,15 @@
 
 #if _MIPFOG
 			half mipLevel = (1 - saturate((linearDepth - _ProjectionParams.y) / (_ProjectionParams.z - _ProjectionParams.y))) * 6;
-			half mipFogFactor = 1.0h - lerp(saturate(exp2(-linearDepth * _MipFogParams.w)), 1, step(mipLevel, 0.1h) * _MipFogParams2.y);
+
+			real fogFactor = ComputeMipFogFactor(linearDepth);
+			real fogIntensity = ComputeMipFogIntensity(fogFactor);
+
+			half mipFogFactor = 1.0h - lerp(fogIntensity, 1, step(mipLevel, 0.1h) * _MipFogFactorParams.y);
 			half3 mipFogColor = _MipFogParams.xyz;
 
 #	if _MIPFOG_MAP
-			half3 normal = rotate(normalize(worldPosition), _MipFogParams2.x);
+			half3 normal = rotate(normalize(worldPosition), _MipFogParams.w);
 			mipFogColor *= pow(SAMPLE_TEXTURE2D_LOD(_MipFogMap, sampler_MipFogMap, SampleLatlong(normal), mipLevel).xyz, 1.0f / 2.2f);
 #	endif
 #endif
@@ -117,14 +151,15 @@
 
 		Pass
 		{
-			ZTest Off
-			ZWrite Off
+			ZTest Off ZWrite Off
 			Cull Off
 			Blend SrcAlpha OneMinusSrcAlpha
 
 			HLSLPROGRAM
 				#pragma vertex FogVertex
 				#pragma fragment MipFogFragment
+
+				#pragma multi_compile_local _ _FOG_LINEAR _FOG_EXP _FOG_EXP2
 				#pragma multi_compile_local _ _MIPFOG
 				#pragma multi_compile_local _ _MIPFOG_MAP
 				#pragma multi_compile_local _ _HEIGHTFOG

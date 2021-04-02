@@ -289,8 +289,8 @@ namespace UnityEngine.Rendering.Universal
             if (allColors[index].dryColor != c)
             {
                 allColors[index].dryColor = c;
-                if (onChange != null)
-                    onChange();
+                if (onColorChange != null)
+                    onColorChange();
             }
         }
         public void SetHealthyColor(Color c, int index)
@@ -298,8 +298,8 @@ namespace UnityEngine.Rendering.Universal
             if (allColors[index].healthyColor != c)
             {
                 allColors[index].healthyColor = c;
-                if (onChange != null)
-                    onChange();
+                if (onColorChange != null)
+                    onColorChange();
             }
         }
 
@@ -339,8 +339,8 @@ namespace UnityEngine.Rendering.Universal
             if (scale != newScale)
             {
                 allScales[index] = newScale;
-                if (onChange != null)
-                    onChange();
+                if (onScaleChange != null)
+                    onScaleChange();
             }
         }
 
@@ -375,6 +375,9 @@ namespace UnityEngine.Rendering.Universal
         }
 
         public event GrassGroupChange onChange;
+        public event GrassGroupChange onColorChange;
+        public event GrassGroupChange onScaleChange;
+
 #if UNITY_EDITOR//空间划分，提高刷草性能，刷草时会检测密度，划分了空间可以减少检测的草数量
         Dictionary<long, List<GrassPrototype>> _gridDic;
         void AddGrass2Grid(GrassPrototype grass)

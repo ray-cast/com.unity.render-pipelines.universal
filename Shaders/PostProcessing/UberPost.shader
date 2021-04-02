@@ -111,6 +111,17 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             return uv;
         }
 
+        Varyings UberVert(Attributes input)
+        {
+            Varyings output = (Varyings)0;
+            UNITY_SETUP_INSTANCE_ID(input);
+            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+            output.uv = float2(input.id / 2, input.id % 2) * 2;
+            output.positionCS = float4(output.uv.xy * 2 - 1, 0, 1);
+            return output;
+        }
+
         half4 Frag(Varyings input) : SV_Target
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
@@ -232,7 +243,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             Name "UberPost"
 
             HLSLPROGRAM
-                #pragma vertex Vert
+                #pragma vertex UberVert
                 #pragma fragment Frag
             ENDHLSL
         }
