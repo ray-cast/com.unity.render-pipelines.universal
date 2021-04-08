@@ -156,7 +156,9 @@ namespace UnityEngine.Rendering.Universal
         // General settings
         [SerializeField] bool m_RequireDepthTexture = false;
         [SerializeField] bool m_RequireOpaqueTexture = false;
+        [SerializeField] bool m_RequireTransparentTexture = false;
         [SerializeField] Downsampling m_OpaqueDownsampling = Downsampling._2xBilinear;
+        [SerializeField] Downsampling m_TransparentDownsampling = Downsampling._2xBilinear;
         [SerializeField] bool m_SupportsTerrainHoles = true;
 
         // Quality settings
@@ -542,9 +544,20 @@ namespace UnityEngine.Rendering.Universal
             set { m_RequireOpaqueTexture = value; }
         }
 
+        public bool supportsCameraTransparentTexture
+        {
+            get { return m_RequireTransparentTexture; }
+            set { m_RequireTransparentTexture = value; }
+        }
+
         public Downsampling opaqueDownsampling
         {
             get { return m_OpaqueDownsampling; }
+        }
+
+        public Downsampling transparentDownsampling
+        {
+            get { return m_TransparentDownsampling; }
         }
 
         public bool supportsTerrainHoles

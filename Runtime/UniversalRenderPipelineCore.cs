@@ -70,6 +70,7 @@ namespace UnityEngine.Rendering.Universal
         public bool isHdrEnabled;
         public bool requiresDepthTexture;
         public bool requiresOpaqueTexture;
+        public bool requiresTransparentTexture;
         public bool requiresLightData;
 
         public DeferredRenderingMode deferredLightingMode;

@@ -105,8 +105,7 @@ namespace UnityEngine.Rendering.Universal
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
-                context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings,
-                    ref _renderStateBlock);
+                context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings, ref _renderStateBlock);
 
                 if (_cameraSettings.overrideCamera && _cameraSettings.restoreCamera && !cameraData.isStereoEnabled)
                 {

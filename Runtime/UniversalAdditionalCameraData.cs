@@ -141,6 +141,10 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField]
         CameraOverrideOption m_RequiresOpaqueTextureOption = CameraOverrideOption.UsePipelineSettings;
 
+        [Tooltip("If enabled transparent color texture will render for this camera and bound as _CameraTransparentTexture.")]
+        [SerializeField]
+        CameraOverrideOption m_RequiresTransparentTextureOption = CameraOverrideOption.UsePipelineSettings;
+
         [Tooltip("If enabled deferred lighting will render for this camera bound as Cluster Based Deferred Lighting.")]
         [SerializeField]
         CameraDeferredLightingOption m_DeferredLightingModeOption = CameraDeferredLightingOption.UsePipelineSettings;
@@ -171,6 +175,9 @@ namespace UnityEngine.Rendering.Universal
 
         [FormerlySerializedAs("requiresColorTexture"), SerializeField]
         bool m_RequiresColorTexture = false;
+
+        [FormerlySerializedAs("requiresTransparentTexture"), SerializeField]
+        bool m_RequiresTransparentTexture = false;
 
         [FormerlySerializedAs("requiresHeatMap"), SerializeField]
         bool m_RequiresHeatMap = false;
@@ -238,6 +245,12 @@ namespace UnityEngine.Rendering.Universal
             get => m_RequiresOpaqueTextureOption;
             set => m_RequiresOpaqueTextureOption = value;
         }
+
+        public CameraOverrideOption requiresTransparentOption
+        {
+            get => m_RequiresTransparentTextureOption;
+            set => m_RequiresTransparentTextureOption = value;
+        }       
 
         public CameraDeferredLightingOption requiresDeferredLightingOption
         {
@@ -393,6 +406,22 @@ namespace UnityEngine.Rendering.Universal
             set { m_RequiresOpaqueTextureOption = (value) ? CameraOverrideOption.On : CameraOverrideOption.Off; }
         }
 
+        public bool requiresTransparentTexture
+        {
+            get
+            {
+                if (m_RequiresTransparentTextureOption == CameraOverrideOption.UsePipelineSettings)
+                {
+                    return UniversalRenderPipeline.asset.supportsCameraTransparentTexture;
+                }
+                else
+                {
+                    return m_RequiresTransparentTextureOption == CameraOverrideOption.On;
+                }
+            }
+            set { m_RequiresTransparentTextureOption = (value) ? CameraOverrideOption.On : CameraOverrideOption.Off; }
+        }
+
         public DeferredRenderingMode deferredLightingMode
         {
             get
@@ -534,6 +563,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 m_RequiresDepthTextureOption = (m_RequiresDepthTexture) ? CameraOverrideOption.On : CameraOverrideOption.Off;
                 m_RequiresOpaqueTextureOption = (m_RequiresColorTexture) ? CameraOverrideOption.On : CameraOverrideOption.Off;
+                m_RequiresTransparentTextureOption = (m_RequiresTransparentTexture) ? CameraOverrideOption.On : CameraOverrideOption.Off;
                 m_RequiresHeatMapOption = (m_RequiresHeatMap) ? CameraOverrideOption.On : CameraOverrideOption.Off;
                 m_RequiresDrawClusterOption = (m_RequiresDrawCluster) ? CameraOverrideOption.On : CameraOverrideOption.Off;
 

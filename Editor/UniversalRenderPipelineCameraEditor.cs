@@ -35,6 +35,7 @@ namespace UnityEngine.Rendering.Universal
             public static GUIContent requireLightData = EditorGUIUtility.TrTextContent("Require Light Data", "Makes this camera render lights.");
             public static GUIContent requireDepthTexture = EditorGUIUtility.TrTextContent("Depth Texture", "On makes this camera create a _CameraDepthTexture, which is a copy of the rendered depth values.\nOff makes the camera not create a depth texture.\nUse Pipeline Settings applies settings from the Render Pipeline Asset.");
             public static GUIContent requireOpaqueTexture = EditorGUIUtility.TrTextContent("Opaque Texture", "On makes this camera create a _CameraOpaqueTexture, which is a copy of the rendered view.\nOff makes the camera not create an opaque texture.\nUse Pipeline Settings applies settings from the Render Pipeline Asset.");
+            public static GUIContent requireTransparentTexture = EditorGUIUtility.TrTextContent("Transparent Texture", "On makes this camera create a _CameraTransparentTexture, which is a copy of the rendered view.\nOff makes the camera not create an transparent texture.\nUse Pipeline Settings applies settings from the Render Pipeline Asset.");
             public static GUIContent allowMSAA = EditorGUIUtility.TrTextContent("MSAA", "Use Multi Sample Anti-Aliasing to reduce aliasing.");
             public static GUIContent allowHDR = EditorGUIUtility.TrTextContent("HDR", "High Dynamic Range gives you a wider range of light intensities, so your lighting looks more realistic. With it, you can still see details and experience less saturation even with bright light.", (Texture)null);
             public static GUIContent priority = EditorGUIUtility.TrTextContent("Priority", "A camera with a higher priority is drawn on top of a camera with a lower priority [ -100, 100 ].");
@@ -165,6 +166,7 @@ namespace UnityEngine.Rendering.Universal
         SerializedProperty m_AdditionalCameraDataRequireLightDataProp;
         SerializedProperty m_AdditionalCameraDataRenderDepthProp;
         SerializedProperty m_AdditionalCameraDataRenderOpaqueProp;
+        SerializedProperty m_AdditionalCameraDataRenderTransparentProp;
         SerializedProperty m_AdditionalCameraDataRendererProp;
         SerializedProperty m_AdditionalCameraDataCameraTypeProp;
         SerializedProperty m_AdditionalCameraDataCameras;
@@ -443,6 +445,7 @@ namespace UnityEngine.Rendering.Universal
             m_AdditionalCameraDataRequireLightDataProp = m_AdditionalCameraDataSO.FindProperty("m_RequireLightData");
             m_AdditionalCameraDataRenderDepthProp = m_AdditionalCameraDataSO.FindProperty("m_RequiresDepthTextureOption");
             m_AdditionalCameraDataRenderOpaqueProp = m_AdditionalCameraDataSO.FindProperty("m_RequiresOpaqueTextureOption");
+            m_AdditionalCameraDataRenderTransparentProp = m_AdditionalCameraDataSO.FindProperty("m_RequiresTransparentTextureOption");
             m_AdditionalCameraDataRendererProp = m_AdditionalCameraDataSO.FindProperty("m_RendererIndex");
             m_AdditionalCameraDataVolumeLayerMask = m_AdditionalCameraDataSO.FindProperty("m_VolumeLayerMask");
             m_AdditionalCameraDataVolumeTrigger = m_AdditionalCameraDataSO.FindProperty("m_VolumeTrigger");
@@ -644,6 +647,7 @@ namespace UnityEngine.Rendering.Universal
                 {
                     DrawPriority();
                     DrawOpaqueTexture();
+                    DrawTransparentTexture();
                     DrawDepthTexture();
                     DrawDeferredLighting();
                     DrawHeatMap();
@@ -1038,6 +1042,25 @@ namespace UnityEngine.Rendering.Universal
             if (EditorGUI.EndChangeCheck())
             {
                 m_AdditionalCameraDataRenderOpaqueProp.intValue = (int)selectedOpaqueOption;
+                m_AdditionalCameraDataSO.ApplyModifiedProperties();
+            }
+            EditorGUI.EndProperty();
+        }
+
+        void DrawTransparentTexture()
+        {
+            CameraOverrideOption selectedTransparentOption;
+            m_AdditionalCameraDataSO.Update();
+            selectedTransparentOption = (CameraOverrideOption)m_AdditionalCameraDataRenderTransparentProp.intValue;
+
+            Rect controlRectColor = EditorGUILayout.GetControlRect(true);
+
+            EditorGUI.BeginProperty(controlRectColor, Styles.requireTransparentTexture, m_AdditionalCameraDataRenderTransparentProp);
+            EditorGUI.BeginChangeCheck();
+            selectedTransparentOption = (CameraOverrideOption)EditorGUI.IntPopup(controlRectColor, Styles.requireTransparentTexture, (int)selectedTransparentOption, Styles.displayedAdditionalDataOptions, Styles.additionalDataOptions);
+            if (EditorGUI.EndChangeCheck())
+            {
+                m_AdditionalCameraDataRenderTransparentProp.intValue = (int)selectedTransparentOption;
                 m_AdditionalCameraDataSO.ApplyModifiedProperties();
             }
             EditorGUI.EndProperty();

@@ -33,6 +33,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         TEXTURE2D(_BlueNoise_Texture);
         TEXTURE2D(_CameraGlowTexture);
 
+        float4 _ScaleBiasRT;
         float4 _Lut_Params;
         float4 _UserLut_Params;
         float4 _Bloom_Params;
@@ -119,6 +120,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
             output.uv = float2(input.id / 2, input.id % 2) * 2;
             output.positionCS = float4(output.uv.xy * 2 - 1, 0, 1);
+            output.positionCS.y *= _ScaleBiasRT.x;
             return output;
         }
 
@@ -243,7 +245,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             Name "UberPost"
 
             HLSLPROGRAM
-                #pragma vertex UberVert
+                #pragma vertex Vert
                 #pragma fragment Frag
             ENDHLSL
         }

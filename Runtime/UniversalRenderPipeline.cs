@@ -684,6 +684,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.postProcessEnabled = CoreUtils.ArePostProcessesEnabled(camera);
                 cameraData.requiresDepthTexture = settings.supportsCameraDepthTexture;
                 cameraData.requiresOpaqueTexture = settings.supportsCameraOpaqueTexture;
+                cameraData.requiresTransparentTexture = settings.supportsCameraTransparentTexture;
                 cameraData.requiresLightData = true;
                 cameraData.deferredLightingMode = settings.deferredLightingMode;
                 cameraData.requireHeatMap = settings.requireHeatMap;
@@ -698,6 +699,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.maxShadowDistance = (additionalCameraData.renderShadows) ? cameraData.maxShadowDistance : 0.0f;
                 cameraData.requiresDepthTexture = additionalCameraData.requiresDepthTexture;
                 cameraData.requiresOpaqueTexture = additionalCameraData.requiresColorTexture;
+                cameraData.requiresTransparentTexture = additionalCameraData.requiresTransparentTexture;
                 cameraData.requiresLightData = additionalCameraData.requireLightData;
                 cameraData.deferredLightingMode = additionalCameraData.deferredLightingMode;
                 cameraData.requireHeatMap = additionalCameraData.requiresHeatMap;
@@ -711,6 +713,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.postProcessEnabled = false;
                 cameraData.requiresDepthTexture = settings.supportsCameraDepthTexture;
                 cameraData.requiresOpaqueTexture = settings.supportsCameraOpaqueTexture;
+                cameraData.requiresOpaqueTexture = settings.supportsCameraTransparentTexture;
                 cameraData.requiresLightData = true;
                 cameraData.deferredLightingMode = settings.deferredLightingMode;
                 cameraData.requireHeatMap = settings.requireHeatMap;
@@ -725,6 +728,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 cameraData.requiresDepthTexture = false;
                 cameraData.requiresOpaqueTexture = false;
+                cameraData.requiresTransparentTexture = false;
                 cameraData.deferredLightingMode = DeferredRenderingMode.Disabled;
             }
 

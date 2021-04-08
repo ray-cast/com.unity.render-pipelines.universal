@@ -27,7 +27,9 @@ namespace UnityEngine.Rendering.Universal
             public static GUIContent rendererDefaultMissingText = EditorGUIUtility.TrIconContent("console.erroricon.sml", "Default renderer missing. Click this to select a new renderer.");
             public static GUIContent requireDepthTextureText = EditorGUIUtility.TrTextContent("Depth Texture", "If enabled the pipeline will generate camera's depth that can be bound in shaders as _CameraDepthTexture.");
             public static GUIContent requireOpaqueTextureText = EditorGUIUtility.TrTextContent("Opaque Texture", "If enabled the pipeline will copy the screen to texture after opaque objects are drawn. For transparent objects this can be bound in shaders as _CameraOpaqueTexture.");
+            public static GUIContent requireTransparentTextureText = EditorGUIUtility.TrTextContent("Transparent Texture", "If enabled the pipeline will copy the screen to texture after opaque objects are drawn. For transparent objects this can be bound in shaders as _CameraOpaqueTexture.");
             public static GUIContent opaqueDownsamplingText = EditorGUIUtility.TrTextContent("Opaque Downsampling", "The downsampling method that is used for the opaque texture");
+            public static GUIContent transparentDownsamplingText = EditorGUIUtility.TrTextContent("Transparent Downsampling", "The downsampling method that is used for the opaque texture");
             public static GUIContent supportsTerrainHolesText = EditorGUIUtility.TrTextContent("Terrain Holes", "When disabled, Universal Rendering Pipeline removes all Terrain hole Shader variants when you build for the Unity Player. This decreases build time.");
 
             // Quality
@@ -111,7 +113,9 @@ namespace UnityEngine.Rendering.Universal
 
         SerializedProperty _requireDepthTextureProp;
         SerializedProperty _requireOpaqueTextureProp;
+        SerializedProperty _requireTransparentTextureProp;
         SerializedProperty _opaqueDownsamplingProp;
+        SerializedProperty _transparentDownsamplingProp;
         SerializedProperty _supportsTerrainHolesProp;
 
         SerializedProperty _HDR;
@@ -193,7 +197,9 @@ namespace UnityEngine.Rendering.Universal
 
             _requireDepthTextureProp = serializedObject.FindProperty("m_RequireDepthTexture");
             _requireOpaqueTextureProp = serializedObject.FindProperty("m_RequireOpaqueTexture");
+            _requireTransparentTextureProp = serializedObject.FindProperty("m_RequireTransparentTexture");
             _opaqueDownsamplingProp = serializedObject.FindProperty("m_OpaqueDownsampling");
+            _transparentDownsamplingProp = serializedObject.FindProperty("m_TransparentDownsampling");
             _supportsTerrainHolesProp = serializedObject.FindProperty("m_SupportsTerrainHoles");
 
             _HDR = serializedObject.FindProperty("m_SupportsHDR");
@@ -260,12 +266,21 @@ namespace UnityEngine.Rendering.Universal
                     EditorGUILayout.HelpBox(Styles.rendererMissingMessage.text, MessageType.Warning, true);
 
                 EditorGUILayout.PropertyField(_requireDepthTextureProp, Styles.requireDepthTextureText);
+
                 EditorGUILayout.PropertyField(_requireOpaqueTextureProp, Styles.requireOpaqueTextureText);
                 EditorGUI.indentLevel++;
                 EditorGUI.BeginDisabledGroup(!_requireOpaqueTextureProp.boolValue);
                 EditorGUILayout.PropertyField(_opaqueDownsamplingProp, Styles.opaqueDownsamplingText);
                 EditorGUI.EndDisabledGroup();
                 EditorGUI.indentLevel--;
+
+                EditorGUILayout.PropertyField(_requireTransparentTextureProp, Styles.requireTransparentTextureText);
+                EditorGUI.indentLevel++;
+                EditorGUI.BeginDisabledGroup(!_requireTransparentTextureProp.boolValue);
+                EditorGUILayout.PropertyField(_transparentDownsamplingProp, Styles.transparentDownsamplingText);
+                EditorGUI.EndDisabledGroup();
+                EditorGUI.indentLevel--;
+
                 EditorGUILayout.PropertyField(_supportsTerrainHolesProp, Styles.supportsTerrainHolesText);
                 EditorGUI.indentLevel--;
                 EditorGUILayout.Space();

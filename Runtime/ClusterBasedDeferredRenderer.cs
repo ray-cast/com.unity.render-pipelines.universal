@@ -18,7 +18,8 @@
         DrawObjectsPass _renderOpaqueForwardPass;
         DrawLightsPass _deferredLightingPass;
         DrawSkyboxPass _drawSkyboxPass;
-        CopyColorPass _copyColorPass;
+        CopyColorPass _copyOpaqueColorPass;
+        CopyColorPass _copyTransparentColorPass;
         CopyDepthPass _copyDepthPass;
         TransparentSettingsPass _transparentSettingsPass;
         DrawObjectsPass _renderTransparentForwardPass;
@@ -41,6 +42,7 @@
         RenderTargetHandle _cameraDepthAttachment;
         RenderTargetHandle _cameraDepthTexture;
         RenderTargetHandle _cameraOpaqueTexture;
+        RenderTargetHandle _cameraTransparentTexture;
         RenderTargetHandle _afterPostProcessColor;
         RenderTargetHandle _colorGradingLut;
         RenderTargetHandle[] _cameraGbufferAttachments;
@@ -100,7 +102,8 @@
             _drawSkyboxPass = new DrawSkyboxPass(RenderPassEvent.BeforeRenderingSkybox);
             _copyDepthPass = new CopyDepthPass(RenderPassEvent.BeforeRenderingSkybox, _copyDepthMaterial);
             _hizPass = new HizPass(RenderPassEvent.BeforeRenderingSkybox, data.shaders.HizCS);
-            _copyColorPass = new CopyColorPass(RenderPassEvent.AfterRenderingSkybox, _samplingMaterial);
+            _copyOpaqueColorPass = new CopyColorPass(RenderPassEvent.AfterRenderingSkybox, _samplingMaterial);
+            _copyTransparentColorPass = new CopyColorPass(RenderPassEvent.BeforeRenderingTransparents, _samplingMaterial);
             _transparentSettingsPass = new TransparentSettingsPass(RenderPassEvent.BeforeRenderingTransparents, data.shadowTransparentReceive);
             _renderTransparentForwardPass = new DrawObjectsPass("Render Transparents", false, RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask, _defaultStencilState, stencilData.stencilReference);
             _onRenderObjectCallbackPass = new InvokeOnRenderObjectCallbackPass(RenderPassEvent.BeforeRenderingPostProcessing);
@@ -130,6 +133,7 @@
             _cameraColorAttachment.Init("_CameraColorTexture");
             _cameraDepthAttachment.Init("_CameraDepthAttachment");
             _cameraOpaqueTexture.Init("_CameraOpaqueTexture");
+            _cameraTransparentTexture.Init("_CameraTransparentTexture");
             _cameraDepthTexture.Init("_CameraDepthTexture");
             _afterPostProcessColor.Init("_AfterPostProcessTexture");
             _colorGradingLut.Init("_InternalGradingLut");
@@ -367,8 +371,8 @@
             if (renderingData.cameraData.requiresOpaqueTexture)
             {
                 Downsampling downsamplingMethod = UniversalRenderPipeline.asset.opaqueDownsampling;
-                _copyColorPass.Setup(_activeCameraColorAttachment.Identifier(), _cameraOpaqueTexture, downsamplingMethod);
-                EnqueuePass(_copyColorPass);
+                _copyOpaqueColorPass.Setup(_activeCameraColorAttachment.Identifier(), _cameraOpaqueTexture, downsamplingMethod);
+                EnqueuePass(_copyOpaqueColorPass);
             }
 
             bool transparentsNeedSettingsPass = _transparentSettingsPass.Setup(ref renderingData);
@@ -377,6 +381,13 @@
 
             _renderTransparentForwardPass.ConfigureTarget(this._activeCameraColorAttachment.Identifier(), this._activeCameraDepthAttachment.Identifier());
             EnqueuePass(_renderTransparentForwardPass);
+
+            if (renderingData.cameraData.requiresTransparentTexture)
+            {
+                Downsampling downsamplingMethod = UniversalRenderPipeline.asset.transparentDownsampling;
+                _copyTransparentColorPass.Setup(_activeCameraColorAttachment.Identifier(), _cameraTransparentTexture, downsamplingMethod);
+                EnqueuePass(_copyTransparentColorPass);
+            }
 
             EnqueuePass(_onRenderObjectCallbackPass);
 
