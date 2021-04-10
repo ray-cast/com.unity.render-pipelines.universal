@@ -17,6 +17,14 @@ namespace UnityEngine.Rendering.Universal
 
         private RenderTargetHandle _depthTextureHandle { get; set; }
 
+        public static RenderTexture hizRenderTarget
+        {
+            get
+            {
+                return _hizRenderTarget;
+            }
+        }
+
         public HizPass(RenderPassEvent evt, ComputeShader hizCS)
         {
             renderPassEvent = evt;
@@ -119,8 +127,8 @@ namespace UnityEngine.Rendering.Universal
                         cmd.DispatchCompute(_hizCS, 0, Mathf.CeilToInt(width / 16f), Mathf.CeilToInt(height / 8f), 1);
                     }
 
-                    width = width >> 1;
-                    height = height >> 1;
+                    width = Mathf.Max(1, width >> 1);
+                    height = Mathf.Max(1, height >> 1);
                 }
             }
 

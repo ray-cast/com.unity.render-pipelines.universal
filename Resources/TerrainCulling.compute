@@ -1,0 +1,188 @@
+#pragma kernel CullTerrain
+#pragma kernel CullTerrainShadow
+#pragma kernel ClearIndirectArgument
+
+struct TerrainPatch
+{
+    float4 rect;
+    int mipmap;
+    int neighbor;
+    int padding1;
+    int padding2;
+};
+
+float _OffsetParams;
+float4 _TerrainParam;
+
+float4 _CameraDrawParams;
+float4 _CameraFrustumPlanes[6];
+float4x4 _CameraViewProjection;
+
+Texture2D<float> _HeightMap;
+float4 _HeightMapTexture_TexelSize;
+
+Texture2D<float> _HizTexture;
+float4 _HizTexture_Size;
+
+StructuredBuffer<TerrainPatch> _AllInstancesPatchBuffer; //will not change until instance count change
+
+RWStructuredBuffer<uint> _RWVisibleIndirectArgumentBuffer;
+RWStructuredBuffer<uint> _RWVisibleInstancesIndexBuffer; //will set counter to 0 per frame, then fill in by this compute shader
+
+float4 _ShadowBias;
+float3 _LightDirection;
+float3 _TerrainSize;
+
+bool ComputePlaneSphereIntersection(float4 plane, float3 center, float radius)
+{
+    float dist = dot(center, normalize(plane.xyz)) + plane.w;
+    return dist >= -radius;
+}
+
+float3 ApplyShadowBias(float3 positionWS, float3 normalWS, float3 lightDirection)
+{
+    float invNdotL = 1.0 - saturate(dot(lightDirection, normalWS));
+    float scale = invNdotL * _ShadowBias.y;
+
+    // normal bias is negative since we want to apply an inset normal offset
+    positionWS = lightDirection * _ShadowBias.xxx + positionWS;
+    positionWS = normalWS * scale.xxx + positionWS;
+    return positionWS;
+}
+
+[numthreads(1, 1, 1)]
+void ClearIndirectArgument(uint3 id : SV_DispatchThreadID)
+{
+    _RWVisibleIndirectArgumentBuffer[1] = 0;
+}
+
+[numthreads(64, 1, 1)]
+void CullTerrain (uint3 id : SV_DispatchThreadID)
+{
+    uint instanceIndex = id.x;
+    if (instanceIndex < uint(_OffsetParams))
+    {
+        float4 rect = _AllInstancesPatchBuffer[id.x].rect;
+
+        float2 minPos = rect.xy;
+        float2 maxPos = rect.xy + rect.zw;
+
+        uint2 minUV = uint2(saturate(minPos / _TerrainSize.xz) * (_HeightMapTexture_TexelSize.zw - 1));
+        uint2 maxUV = uint2(saturate(maxPos / _TerrainSize.xz) * (_HeightMapTexture_TexelSize.zw - 1));
+
+        float4 heights;
+        heights.x = _HeightMap[minUV];
+        heights.y = _HeightMap[maxUV];
+        heights.z = _HeightMap[uint2(minUV.x, maxUV.y)];
+        heights.w = _HeightMap[uint2(maxUV.x, minUV.y)];
+
+        float minHeight = min(min(heights.x, heights.y), min(heights.z, heights.w)) * _TerrainSize.y * 2;
+        float maxHeight = max(max(heights.x, heights.y), max(heights.z, heights.w)) * _TerrainSize.y * 2;
+
+        float3 minPoint = float3(minPos.x, minHeight, minPos.y);
+        float3 maxPoint = float3(maxPos.x, maxHeight, maxPos.y);
+
+        float3 extents = (maxPoint - minPoint) * 0.5h;
+        float3 center = minPoint + extents;
+        float radius = length(extents);
+
+        bool visible = true;
+
+        [unroll]
+        for (int i = 0; i < 6; i++)
+        {
+            if (!ComputePlaneSphereIntersection(_CameraFrustumPlanes[i], center, radius))
+            {
+                visible = false;
+                break;
+            }
+        }
+
+        if (visible)
+        {
+            float4 positionCS = mul(_CameraViewProjection, float4(center, 1));
+            positionCS.xyz /= positionCS.w;
+
+            if (abs(positionCS.x) <= 1.0f && abs(positionCS.y) <= 1.0f)
+            {
+                uint mip = _AllInstancesPatchBuffer[id.x].mipmap;
+                uint mips = clamp(1 + 1 << mip, 0, 6);
+                uint scale = 1 << mips;
+                uint2 uv = (positionCS.xy * 0.5f + 0.5f) * _HizTexture_Size.xy / scale;
+
+                float4 depth;
+                depth.x = _HizTexture.mips[mips][uv];
+                depth.y = _HizTexture.mips[mips][uv + uint2(1, 0)];
+                depth.z = _HizTexture.mips[mips][uv + uint2(1, 1)];
+                depth.w = _HizTexture.mips[mips][uv + uint2(0, 1)];
+
+    #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+                float farDepth = max(depth.x, max(depth.y, max(depth.z, depth.w)));
+    #else
+                float farDepth = 1 - min(depth.x, min(depth.y, min(depth.z, depth.w)));
+    #endif
+
+                if (positionCS.z > farDepth)
+                    visible = false;
+            }
+        }
+        
+        if (visible)
+        {
+            uint index = 0;
+            InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
+            _RWVisibleInstancesIndexBuffer[index] = id.x;
+        }
+    }
+}
+
+[numthreads(64, 1, 1)]
+void CullTerrainShadow(uint3 id : SV_DispatchThreadID)
+{
+    uint instanceIndex = id.x;
+    if (instanceIndex < uint(_OffsetParams))
+    {
+        float4 rect = _AllInstancesPatchBuffer[id.x].rect;
+
+        float2 minPos = rect.xy;
+        float2 maxPos = rect.xy + rect.zw;
+
+        uint2 minUV = uint2(saturate(minPos / _TerrainSize.xz) * (_HeightMapTexture_TexelSize.zw - 1));
+        uint2 maxUV = uint2(saturate(maxPos / _TerrainSize.xz) * (_HeightMapTexture_TexelSize.zw - 1));
+
+        float4 heights;
+        heights.x = _HeightMap[minUV];
+        heights.y = _HeightMap[maxUV];
+        heights.z = _HeightMap[uint2(minUV.x, maxUV.y)];
+        heights.w = _HeightMap[uint2(maxUV.x, minUV.y)];
+
+        float minHeight = min(min(heights.x, heights.y), min(heights.z, heights.w)) * _TerrainSize.y * 2;
+        float maxHeight = max(max(heights.x, heights.y), max(heights.z, heights.w)) * _TerrainSize.y * 2;
+
+        float3 minPoint = float3(minPos.x, minHeight, minPos.y);
+        float3 maxPoint = float3(maxPos.x, maxHeight, maxPos.y);
+
+        float3 extents = (maxPoint - minPoint) * 0.5h;
+        float3 center = ApplyShadowBias(minPoint + extents, float3(0, 1, 0), _LightDirection);
+        float radius = length(extents);
+
+        bool visible = true;
+
+        [unroll]
+        for (int i = 0; i < 6; i++)
+        {
+            if (!ComputePlaneSphereIntersection(_CameraFrustumPlanes[i], center, radius))
+            {
+                visible = false;
+                break;
+            }
+        }
+
+        if (visible)
+        {
+            uint index = 0;
+            InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
+            _RWVisibleInstancesIndexBuffer[index] = id.x;
+        }
+    }
+}

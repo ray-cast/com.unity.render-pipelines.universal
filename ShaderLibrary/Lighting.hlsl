@@ -291,6 +291,59 @@ half OneMinusReflectivityMetallic(half metallic)
     return oneMinusDielectricSpec - metallic * oneMinusDielectricSpec;
 }
 
+half3 BRDF_Specular_GGX(Light light, BRDFData brdfData, half3 normalWS, half3 viewDirectionWS)
+{
+#ifndef _SPECULARHIGHLIGHTS_OFF
+    float3 halfDir = SafeNormalize(float3(light.direction) + float3(viewDirectionWS));
+
+    float NoH = saturate(dot(normalWS, halfDir));
+    float d = NoH * NoH * brdfData.roughness2MinusOne + 1.00001f;
+
+    half LoH = saturate(dot(light.direction, halfDir));
+    half LoH2 = LoH * LoH;
+    half specularTerm = brdfData.roughness2 / ((d * d) * max(0.1h, LoH2) * brdfData.normalizationTerm);
+
+#if defined (SHADER_API_MOBILE) || defined (SHADER_API_SWITCH)
+    specularTerm = specularTerm - HALF_MIN;
+    specularTerm = clamp(specularTerm, 0.0, 100.0); // Prevent FP16 overflow on mobiles
+#endif
+
+    half3 color = specularTerm * brdfData.specular;
+    return color;
+#else
+    return 0;
+#endif
+}
+
+half3 BRDF_Specular_Anisotropic_GGX(Light light, BRDFData brdfData, half3 normalWS, half3 viewDirectionWS, half anisotropy)
+{
+#ifndef _SPECULARHIGHLIGHTS_OFF
+    half3 X = normalize(cross(normalWS, float3(1,0,0)));
+    half3 Y = normalize(cross(normalWS, X));
+
+    half alpha = brdfData.roughness2;
+    half ax = max(0.001f, alpha * ( 1.f - anisotropy));
+    half ay = max(0.001f, alpha * ( 1.f + anisotropy));
+
+    float3 halfDir = SafeNormalize(float3(light.direction) + float3(viewDirectionWS));
+
+    half dotNH = saturate(dot(normalWS, halfDir));
+    half dotLH = saturate(dot(light.direction, halfDir));
+
+    half denom = Pow2(dot(X, halfDir) / ax) + Pow2(dot(Y, halfDir) / ay) + dotNH * dotNH;
+    half specularTerm = denom > 1e-5 ? (1.f / (PI * ax * ay * denom * denom)) : 0.f;
+    
+#if defined (SHADER_API_MOBILE) || defined (SHADER_API_SWITCH)
+    specularTerm = specularTerm - HALF_MIN;
+    specularTerm = clamp(specularTerm, 0.0, 100.0); // Prevent FP16 overflow on mobiles
+#endif
+
+    return specularTerm * brdfData.specular;
+#else
+    return 0;
+#endif
+}
+
 inline void InitializeBRDFData(half3 albedo, half metallic, half3 specular, half smoothness, half alpha, out BRDFData outBRDFData)
 {
 #ifdef _SPECULAR_SETUP
