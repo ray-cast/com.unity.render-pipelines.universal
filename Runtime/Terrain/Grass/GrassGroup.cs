@@ -15,10 +15,10 @@ namespace UnityEngine.Rendering.Universal
         public bool isCpuCulling = true;
         public bool isGpuCulling = true;
 
-        public float brushSensity = 0.5f;
+        public float brushSensity = 0.05f;
 
         public float sensity = 1.0f;
-        public float distanceCulling = 1.0f;
+        public float distanceCulling = 0.8f;
         public float maxDrawDistance = 125;//this setting will affect performance a lot!
 
         public Material instanceMaterial;
@@ -56,6 +56,9 @@ namespace UnityEngine.Rendering.Universal
         Texture _windNoise;
 
         [SerializeField]
+        float _BendStrength = 0.2f;
+
+        [SerializeField]
         Mesh _cachedGrassMesh;
 
         public List<GrassPrototype> grasses = new List<GrassPrototype>();        
@@ -87,11 +90,14 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_windIntensity != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windIntensity = value;
-                    instanceMaterial.SetFloat("_WindAIntensity", _windIntensity);
+                    if (instanceMaterial)
+					{
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetFloat("_WindAIntensity", _windIntensity);
+                    }                    
                 }
             }
         }
@@ -103,11 +109,14 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_windFrequency != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windFrequency = value;
-                    instanceMaterial.SetFloat("_WindAFrequency", _windFrequency);
+                    if (instanceMaterial)
+                    {
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetFloat("_WindAFrequency", _windFrequency);
+                    }                    
                 }
             }
         }
@@ -119,11 +128,14 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_windRange != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windRange = value;
-                    instanceMaterial.SetFloat("_WindRange", _windRange);
+                    if (instanceMaterial)
+                    {
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetFloat("_WindRange", _windRange);
+                    }
                 }
             }
         }
@@ -135,11 +147,14 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_windTiling != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windTiling = value;
-                    instanceMaterial.SetVector("_WindATiling", _windTiling);
+                    if (instanceMaterial)
+                    {
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetVector("_WindATiling", _windTiling);
+                    }
                 }
             }
         }
@@ -151,23 +166,35 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_windWrap != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windWrap = value;
-                    instanceMaterial.SetVector("_WindAWrap", _windWrap);
+
+                    if (instanceMaterial)
+                    {
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetVector("_WindAWrap", _windWrap);
+                    }
                 }
             }
         }
         public float bendStrength
         {
-            get { return instanceMaterial.GetFloat("_BendStrength"); }
+            get { return _BendStrength; }
             set
             {
+                if (_BendStrength != value)
+                {
+                    _BendStrength = value;
+
+                    if (instanceMaterial)
+					{
 #if UNITY_EDITOR
-                Undo.RecordObject(instanceMaterial, "");
+                        Undo.RecordObject(instanceMaterial, "");
 #endif
-                instanceMaterial.SetFloat("_BendStrength", value);
+                        instanceMaterial.SetFloat("_BendStrength", value);
+                    }
+                }
             }
         }
 
@@ -178,11 +205,14 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_windHightlightSpeed != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windHightlightSpeed = value;
-                    instanceMaterial.SetFloat("_WindHightlightSpeed", _windHightlightSpeed);
+                    if (instanceMaterial)
+                    {
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetFloat("_WindHightlightSpeed", _windHightlightSpeed);
+                    }
                 }
             }
         }
@@ -194,11 +224,14 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_windScatter != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windScatter = value;
-                    instanceMaterial.SetVector("_WindScatter", _windScatter);
+                    if (instanceMaterial)
+                    {
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetVector("_WindScatter", _windScatter);
+                    }
                 }
             }
         }
@@ -210,11 +243,14 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_windDirection != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windDirection = value;
-                    instanceMaterial.SetVector("_WindDirection", _windDirection);
+                    if (instanceMaterial)
+                    {
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetVector("_WindDirection", _windDirection);
+                    }
                 }
             }
         }
@@ -226,11 +262,15 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (windNoise != value)
                 {
-#if UNITY_EDITOR
-                    Undo.RecordObjects(new UnityEngine.Object[2] { _renderer, instanceMaterial }, "");
-#endif
                     _windNoise = value;
-                    instanceMaterial.SetTexture("_WindNoiseMap", _windNoise);
+
+                    if (instanceMaterial)
+                    {
+#if UNITY_EDITOR
+                        Undo.RecordObject(instanceMaterial, "");
+#endif
+                        instanceMaterial.SetTexture("_WindNoiseMap", _windNoise);
+                    }
                 }
             }
         }
@@ -241,20 +281,18 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (_cachedGrassMesh == null)
                 {
-                    //if not exist, create a 3 vertices hardcode triangle grass mesh
-                    _cachedGrassMesh = new Mesh();
-
-                    //single grass (vertices)
                     Vector3[] verts = new Vector3[3];
                     verts[0] = new Vector3(-0.01f, 0);
                     verts[1] = new Vector3(+0.01f, 0);
                     verts[2] = new Vector3(-0.0f, 0.3f);
-                    //single grass (Triangle index)
-                    int[] trinagles = new int[3] { 2, 1, 0, }; //order to fit Cull Back in grass shader
 
+                    int[] trinagles = new int[3] { 2, 1, 0, };
+
+                    _cachedGrassMesh = new Mesh();
                     _cachedGrassMesh.SetVertices(verts);
                     _cachedGrassMesh.SetTriangles(trinagles, 0);
                 }
+
                 return _cachedGrassMesh;
             }
             set
@@ -262,8 +300,7 @@ namespace UnityEngine.Rendering.Universal
                 if (_cachedGrassMesh != value)
                 {
                     _cachedGrassMesh = value;
-                    if (onChange != null)
-                        onChange();
+                    this.UpdateGrass();
                 }
             }
         }
@@ -328,8 +365,8 @@ namespace UnityEngine.Rendering.Universal
                     if (gp.colorIndex == index)
                         gp.colorIndex = usingColorIndex;
                 }
-                if (onChange != null)
-                    onChange();
+
+                this.UpdateGrass();
             }
         }
 
@@ -369,8 +406,8 @@ namespace UnityEngine.Rendering.Universal
                     if (gp.scaleIndex == index)
                         gp.scaleIndex = usingScaleIndex;
                 }
-                if (onChange != null)
-                    onChange();
+
+                this.UpdateGrass();
             }
         }
 
@@ -415,6 +452,7 @@ namespace UnityEngine.Rendering.Universal
                 _windHightlightSpeed = instanceMaterial.GetFloat("_WindHightlightSpeed");
                 _windScatter = instanceMaterial.GetVector("_WindScatter");
                 _windDirection = instanceMaterial.GetVector("_WindDirection");
+                _BendStrength = instanceMaterial.GetFloat("_BendStrength");
             }
 
             if (allColors.Count == 0)
@@ -440,14 +478,18 @@ namespace UnityEngine.Rendering.Universal
             }
 #endif
         }
+
 #if UNITY_EDITOR
-        public void AddGrass(Vector3 pos)
+        public bool AddGrass(Vector3 pos)
         {
             pos.x = Mathf.Round(pos.x * 100) / 100;
             pos.y = Mathf.Round(pos.y * 100) / 100;
             pos.z = Mathf.Round(pos.z * 100) / 100;
+
             bool isAlreadyExist = false;
+
             List<GrassPrototype> gridGrasses;
+
             long key = GetGridKey(pos.x, pos.z);
             if (_gridDic.TryGetValue(key, out gridGrasses))
             {
@@ -460,35 +502,48 @@ namespace UnityEngine.Rendering.Universal
                     }
                 }
             }
+
             if (!isAlreadyExist)
             {
-                GrassPrototype gp = new GrassPrototype() {
-                    worldPos = pos,
-                    colorIndex = usingColorIndex,
-                    scaleIndex = usingScaleIndex
-                };
+                GrassPrototype gp = new GrassPrototype() { worldPos = pos, colorIndex = usingColorIndex, scaleIndex = usingScaleIndex };
                 grasses.Add(gp);
                 AddGrass2Grid(gp);
-                if (onChange != null)
-                    onChange();
             }
+
+            return !isAlreadyExist;
         }
+
         //圆范围内
         public void RemoveGrass(Vector3 center, float radius)
         {
             for (int i = grasses.Count - 1; i >= 0; i--)
             {
-                if (Vector3.Distance(grasses[i].worldPos, center) < radius)
+                var grassPos = grasses[i].worldPos;
+
+                if (Vector3.Distance(grassPos, center) < radius)
                 {
                     grasses.RemoveAt(i);
+
+                    if (_gridDic.TryGetValue(GetGridKey(grassPos.x, grassPos.z), out var gridGrasses))
+                    {
+                        for (int j = 0; j < gridGrasses.Count; j++)
+                        {
+                            if (grassPos.Equals(gridGrasses[j].worldPos))
+                            {
+                                gridGrasses.RemoveAt(j);
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
+
         public void ClearAllGrass()
         {
             grasses.Clear();
-            if (onChange != null)
-                onChange();
+            _gridDic.Clear();
+            this.UpdateGrass();
         }
         public void RandomGroup(Transform transform, int instanceCount)
         {
@@ -522,8 +577,8 @@ namespace UnityEngine.Rendering.Universal
                 grasses.Add(gp);
                 AddGrass2Grid(gp);
             }
-            if (onChange != null)
-                onChange();
+
+            this.UpdateGrass();
         }
         public void RandomGroupBySensity(Transform transform, int instanceCount)
         {
@@ -550,8 +605,8 @@ namespace UnityEngine.Rendering.Universal
                     count++;
                 }
             }
-            if (onChange != null)
-                onChange();
+
+            this.UpdateGrass();
         }
 #endif
         public void UpdateGrass()

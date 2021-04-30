@@ -1,28 +1,27 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
     public class HizPass : ScriptableRenderPass
     {
-        const int k_MaxPyramidSize = 8;
+        const int k_MaxPyramidSize = 7;
 
-        public static Camera _hizLastCamera = null;
-        public static Matrix4x4 _hizLastCameraProjection = Matrix4x4.identity;
-        public static RenderTexture _hizRenderTarget = null;
-
-        public Vector2Int _hizSize = Vector2Int.zero;
         public ProfilingSampler _profilingSampler;
 
         private ComputeShader _hizCS;
 
+        private RenderTextureDescriptor _cameraDescriptor { get; set; }
+
         private RenderTargetHandle _depthTextureHandle { get; set; }
 
-        public static RenderTexture hizRenderTarget
-        {
-            get
-            {
-                return _hizRenderTarget;
-            }
+        private static Dictionary<Camera, RenderTexture> _hizRenderTarget = new Dictionary<Camera, RenderTexture>();
+
+        public static RenderTexture GetHizTexture(ref Camera camera)
+		{
+            _hizRenderTarget.TryGetValue(camera, out var value);
+            return value;
         }
 
         public HizPass(RenderPassEvent evt, ComputeShader hizCS)
@@ -31,7 +30,7 @@ namespace UnityEngine.Rendering.Universal
 
             _hizCS = hizCS;
             _profilingSampler = new ProfilingSampler(ShaderConstants._profilerTag);
-
+            
             ShaderConstants._HizMipDown = new int[k_MaxPyramidSize];
 
             for (int i = 1; i < k_MaxPyramidSize; i++)
@@ -61,69 +60,77 @@ namespace UnityEngine.Rendering.Universal
             int width = Mathf.CeilToInt(cameraTextureDescriptor.width / 2f);
             int height = Mathf.CeilToInt(cameraTextureDescriptor.height / 2f);
 
-            if (_hizSize.x != cameraTextureDescriptor.width || _hizSize.y != cameraTextureDescriptor.height || _hizRenderTarget == null)
-			{
-                if (_hizRenderTarget)
-				{
-                    RenderTexture.ReleaseTemporary(_hizRenderTarget);
-                    _hizRenderTarget = null;
-                }
+            var desc = GetStereoCompatibleDescriptor(cameraTextureDescriptor, width, height, GraphicsFormat.R32_SFloat);
 
-                var hizDesc = GetStereoCompatibleDescriptor(cameraTextureDescriptor, width, height, GraphicsFormat.R32_SFloat);
-                hizDesc.mipCount = k_MaxPyramidSize - 1;
-                hizDesc.enableRandomWrite = true;
-                hizDesc.useMipMap = true;
-                hizDesc.autoGenerateMips = false;
-
-                _hizRenderTarget = RenderTexture.GetTemporary(hizDesc);
-                _hizSize.Set(cameraTextureDescriptor.width, cameraTextureDescriptor.height);
-
-                cmd.SetGlobalTexture("_CameraHizTexture", _hizRenderTarget);
-            }
-
-            var desc = GetStereoCompatibleDescriptor(cameraTextureDescriptor, width, height, _hizRenderTarget.graphicsFormat);
-
-            for (int i = 1; i < _hizRenderTarget.mipmapCount; ++i)
+            for (int i = 1; i < k_MaxPyramidSize; ++i)
             {
                 desc.width = Mathf.Max(1, width >> i);
                 desc.height = Mathf.Max(1, height >> i);
 
-                cmd.GetTemporaryRT(ShaderConstants._HizMipDown[i], desc, _hizRenderTarget.filterMode);
+                cmd.GetTemporaryRT(ShaderConstants._HizMipDown[i], desc, FilterMode.Point);
             }
+
+            this._cameraDescriptor = cameraTextureDescriptor;
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
+            ref var camera = ref renderingData.cameraData.camera;
 
-            _hizLastCamera = renderingData.cameraData.camera;
-            _hizLastCameraProjection = renderingData.cameraData.camera.projectionMatrix;
+            var halfWidth = Mathf.CeilToInt(camera.pixelWidth / 2f);
+            var halfHeight = Mathf.CeilToInt(camera.pixelHeight / 2f);
+            var hizRenderTarget = GetHizTexture(ref camera);
+
+            if (hizRenderTarget == null || hizRenderTarget.width != halfWidth || hizRenderTarget.height != halfHeight)
+            {
+                var hizDesc = GetStereoCompatibleDescriptor(_cameraDescriptor, halfWidth, halfHeight, GraphicsFormat.R32_SFloat);
+                hizDesc.mipCount = k_MaxPyramidSize;
+                hizDesc.enableRandomWrite = true;
+                hizDesc.useMipMap = true;
+                hizDesc.autoGenerateMips = false;
+
+                if (hizRenderTarget != null)
+                {
+                    RenderTexture.ReleaseTemporary(hizRenderTarget);
+                }
+
+                hizRenderTarget = RenderTexture.GetTemporary(hizDesc);
+
+                if (_hizRenderTarget.ContainsKey(camera))
+                    _hizRenderTarget[camera] = hizRenderTarget;
+                else
+                    _hizRenderTarget.Add(camera, hizRenderTarget);
+            }
+
+            CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
 
             using (new ProfilingScope(cmd, _profilingSampler))
             {
+                cmd.SetGlobalTexture("_CameraHizTexture", hizRenderTarget);
+
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
-                int width = _hizRenderTarget.width;
-                int height = _hizRenderTarget.height;
+                int width = hizRenderTarget.width;
+                int height = hizRenderTarget.height;
 
-                for (int i = 0; i < _hizRenderTarget.mipmapCount; i++)
+                for (int i = 0; i < hizRenderTarget.mipmapCount; i++)
                 {
                     if (i % 2 == 1)
                     {
                         cmd.SetComputeVectorParam(_hizCS, ShaderConstants._DepthTex_TexelSize, new Vector4(1.0f / width, 1.0f / height, 0, 0));
                         cmd.SetComputeIntParam(_hizCS, ShaderConstants._MipScale, 2 << (i - 1));
-                        cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._DepthTexture, _hizRenderTarget, i - 1);
+                        cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._DepthTexture, hizRenderTarget, i - 1);
                         cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._RWHizTexture, ShaderConstants._HizMipDown[i]);
                         cmd.DispatchCompute(_hizCS, 0, Mathf.CeilToInt(width / 16f), Mathf.CeilToInt(height / 8f), 1);
-                        cmd.CopyTexture(ShaderConstants._HizMipDown[i], 0, 0, _hizRenderTarget, 0, i);
+                        cmd.CopyTexture(ShaderConstants._HizMipDown[i], 0, 0, hizRenderTarget, 0, i);
                     }
                     else
                     {
                         cmd.SetComputeVectorParam(_hizCS, ShaderConstants._DepthTex_TexelSize, new Vector4(1.0f / width, 1.0f / height, 0, 0));
                         cmd.SetComputeIntParam(_hizCS, ShaderConstants._MipScale, 2);
                         cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._DepthTexture, i == 0 ? _depthTextureHandle.Identifier() : ShaderConstants._HizMipDown[i - 1]);
-                        cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._RWHizTexture, _hizRenderTarget, i);
+                        cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._RWHizTexture, hizRenderTarget, i);
                         cmd.DispatchCompute(_hizCS, 0, Mathf.CeilToInt(width / 16f), Mathf.CeilToInt(height / 8f), 1);
                     }
 
@@ -138,11 +145,14 @@ namespace UnityEngine.Rendering.Universal
 
         public override void FrameCleanup(CommandBuffer cmd)
         {
-            if (_hizRenderTarget != null)
+            foreach (var item in _hizRenderTarget)
 			{
-                for (int i = 1; i < _hizRenderTarget.mipmapCount; i++)
-                    cmd.ReleaseTemporaryRT(ShaderConstants._HizMipDown[i]);
+                if (item.Key == null && item.Value != null)
+                    RenderTexture.ReleaseTemporary(item.Value);
             }
+
+            for (int i = 1; i < k_MaxPyramidSize; i++)
+                cmd.ReleaseTemporaryRT(ShaderConstants._HizMipDown[i]);
         }
 
         static class ShaderConstants

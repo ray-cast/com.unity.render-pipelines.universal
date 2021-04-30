@@ -79,7 +79,7 @@
 
         public override void Create()
         {
-            glowPass = new GlowPass(RenderQueueRange.opaque, -1);
+            glowPass = new GlowPass(RenderQueueRange.all, -1);
             glowPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
             glowTexture.Init("_CameraGlowTexture");
         }

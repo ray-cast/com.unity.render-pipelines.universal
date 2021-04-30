@@ -1,6 +1,8 @@
-﻿using UnityEditor;
+﻿using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
-namespace UnityEngine.Rendering.Universal
+namespace UnityEditor.Rendering.Universal
 {
     [CustomEditor(typeof(InstancedIndirectGrassRenderer))]
     public class GrassEditor : Editor
@@ -186,10 +188,11 @@ namespace UnityEngine.Rendering.Universal
             if (_cullingSettingsFoldout.value)
             {
                 _grassGroup.sensity = EditorGUILayout.Slider("全局密度", _grassGroup.sensity, 0.0f, 1.0f);
-                _grassGroup.distanceCulling = EditorGUILayout.Slider("距离剔除", _grassGroup.distanceCulling, 0.001f, 10.00f);
                 _grassGroup.maxDrawDistance = EditorGUILayout.Slider("最大可视距离", _grassGroup.maxDrawDistance, 1.0f, 150f);
+                _grassGroup.distanceCulling = EditorGUILayout.Slider("可视距离剔除权重", _grassGroup.distanceCulling, 0f, 1f);
                 _grassGroup.isCpuCulling = EditorGUILayout.Toggle("启用区域剔除（CPU）", _grassGroup.isCpuCulling);
                 _grassGroup.isGpuCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driver）", _grassGroup.isGpuCulling);
+                _grassRender.debugMode = EditorGUILayout.Toggle("启用调试", _grassRender.debugMode);
 
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
@@ -212,27 +215,22 @@ namespace UnityEngine.Rendering.Universal
         void Painter()
         {
             Event e = Event.current;
-            Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
 
             HandleUtility.AddDefaultControl(0);
 
             if (e.type == EventType.KeyDown && e.keyCode == KeyCode.KeypadPlus)
-            {
                 FutureTerrainWindow.brushSize += 1;
-            }
             else if (e.type == EventType.KeyDown && e.keyCode == KeyCode.KeypadMinus)
-            {
                 FutureTerrainWindow.brushSize -= 1;
-            }
 
-            RaycastHit raycastHit = new RaycastHit();
-            bool isHit = Physics.Raycast(ray, out raycastHit, Mathf.Infinity, layerMask);
+            bool isHit = Physics.Raycast(HandleUtility.GUIPointToWorldRay(e.mousePosition), out var raycastHit, Mathf.Infinity, layerMask);
             if (isHit)
             {
                 if (!e.shift)
                 {
-                    if (_isUsingCicleBrush)//圆形画刷
+                    if (_isUsingCicleBrush)
                     {
+                        // 圆形画刷
                         Handles.color = Color.green;
                         Handles.DrawWireDisc(raycastHit.point, Vector3.up, _brushRadius);
                     }
@@ -242,20 +240,22 @@ namespace UnityEngine.Rendering.Universal
                         Handles.DrawLine(raycastHit.point + new Vector3(0, 0.5f, 0), raycastHit.point);
                     }
                 }
-                else//按住shift表示删草
+                else
                 {
+                    // 按住shift表示删草
                     Handles.color = Color.red;
                     Handles.DrawWireDisc(raycastHit.point, raycastHit.normal, _eraseRadius);
                 }
-                //Debug.LogFormat("type={0} button={1} isMouse={2}", e.type, e.button, e.isMouse); 
+
                 if (e.isMouse && (e.type == EventType.MouseDown || e.type == EventType.MouseDrag) && e.button == 0)
                 {
-                    Debug.LogFormat("hit mesh orgin {0} dir {1} hit {2}", ray.origin, ray.direction, raycastHit.point);
                     if (!e.shift)//加草
                     {
                         if (_isUsingCicleBrush)
                         {
+                            bool shouledUpdateData = false;
                             int needPaintCount = Mathf.RoundToInt(_brushRadius * _brushRadius / (_grassGroup.brushSensity * _grassGroup.brushSensity));
+
                             for (int i = 0; i < needPaintCount; i++)
                             {
                                 float len = Random.Range(0, _brushRadius);
@@ -263,16 +263,22 @@ namespace UnityEngine.Rendering.Universal
                                 float xPos = raycastHit.point.x + Mathf.Cos(angle) * len;
                                 float zPos = raycastHit.point.z + Mathf.Sin(angle) * len;
                                 Vector3 orgin = new Vector3(xPos, raycastHit.point.y + 0.5f, zPos);
-                                RaycastHit hit;
-                                bool isHitGround = Physics.Raycast(orgin, Vector3.down, out hit, Mathf.Infinity, layerMask);
+
+                                bool isHitGround = Physics.Raycast(orgin, Vector3.down, out var hit, Mathf.Infinity, layerMask);
                                 if (isHitGround)
-                                    _grassGroup.AddGrass(new Vector3(xPos, hit.point.y, zPos));
+                                    shouledUpdateData |= _grassGroup.AddGrass(new Vector3(xPos, hit.point.y, zPos));
                             }
+
+                            if (shouledUpdateData)
+                                _grassGroup.UpdateGrass();
+
                             EditorUtility.SetDirty(target);
                         }
                         else
                         {
-                            _grassGroup.AddGrass(raycastHit.point);
+                            if (_grassGroup.AddGrass(raycastHit.point))
+                                _grassGroup.UpdateGrass();
+
                             EditorUtility.SetDirty(target);
                         }
                     }
@@ -283,6 +289,16 @@ namespace UnityEngine.Rendering.Universal
                     }
                 }
             }
+        }
+    }
+
+    static class GrassMenuItems
+    {
+        [MenuItem("GameObject/GPU Driven/Grass", priority = CoreUtils.gameObjectMenuPriority)]
+        static void CreateGrass(MenuCommand menuCommand)
+        {
+            var go = CoreEditorUtils.CreateGameObject("GPU Driven Grass", menuCommand.context);
+            var grass = go.AddComponent<InstancedIndirectGrassRenderer>();
         }
     }
 }

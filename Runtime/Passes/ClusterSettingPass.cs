@@ -211,11 +211,8 @@ namespace UnityEngine.Rendering.Universal
 			}
 
 			// Directional Light attenuation is initialize so distance attenuation always be 1.0
-			if (lightData.lightType != LightType.Directional)
-			{
-				lightAttenuation.x = lightAdditionalData.attenuationBulbSize;
-				lightAttenuation.y = 0;
-			}
+			lightAttenuation.x = lightAdditionalData.attenuationBulbSize;
+			lightAttenuation.y = lightData.lightType != LightType.Directional ? 0 : 1;
 
 			if (lightData.lightType == LightType.Spot)
 			{

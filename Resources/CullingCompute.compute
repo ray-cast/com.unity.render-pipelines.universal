@@ -40,10 +40,11 @@ void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
 		float4 positionCS = mul(_CameraViewProjection, float4(worldPosition, 1.0));
 		positionCS.xyz = positionCS.xyz / positionCS.w;
 
+		float3 frustum = float3(abs(positionCS.xy), 1 - saturate(positionCS.w / _CameraDrawDistance));
 		float hash = GenerateHashedRandomFloat(worldPosition * 100);
-		float3 frustum = float3(abs(positionCS.xy), pow(1 - saturate(positionCS.w / _CameraDrawDistance), _CameraDrawDistanceSensity));
+		hash = lerp(0, hash, saturate(positionCS.w / (_CameraDrawDistance * _CameraDrawDistanceSensity) - 1));
 
-		if (frustum.x < 1.0f && frustum.y < 1.0f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
+		if (frustum.x < 1.1f && frustum.y < 1.1f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
 		{
 			uint index = 0;
 			InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
@@ -62,10 +63,11 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 		float4 positionCS = mul(_CameraViewProjection, float4(worldPosition, 1.0));
 		positionCS.xyz = positionCS.xyz / positionCS.w;
 
+		float3 frustum = float3(abs(positionCS.xy), 1 - saturate(positionCS.w / _CameraDrawDistance));
 		float hash = GenerateHashedRandomFloat(worldPosition * 100);
-		float3 frustum = float3(abs(positionCS.xy), pow(1 - saturate(positionCS.w / _CameraDrawDistance), _CameraDrawDistanceSensity));
+		hash = lerp(0, hash, saturate(positionCS.w / (_CameraDrawDistance * _CameraDrawDistanceSensity) - 1));
 
-		if (frustum.x < 1.0f && frustum.y < 1.0f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
+		if (frustum.x < 1.1f && frustum.y < 1.1f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
 		{
 			uint mips = clamp(log2(positionCS.w * positionCS.w * _CameraFov / 1024), 0, 6);
 			uint scale = 1 << mips;

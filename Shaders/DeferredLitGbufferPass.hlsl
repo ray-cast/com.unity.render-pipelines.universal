@@ -21,9 +21,7 @@ struct Varyings
     float2 uv                       : TEXCOORD0;
     DECLARE_LIGHTMAP_OR_SH(lightmapUV, vertexSH, 1);
 
-#if defined(REQUIRES_WORLD_SPACE_POS_INTERPOLATOR)
     float3 positionWS               : TEXCOORD2;
-#endif
 
     float3 normalWS                 : TEXCOORD3;
 #ifdef _NORMALMAP
@@ -31,7 +29,7 @@ struct Varyings
 #endif
     float3 viewDirWS                : TEXCOORD5;
 
-    half4 fogFactorAndVertexLight   : TEXCOORD6; // x: fogFactor, yzw: vertex light
+    float4 screenPos                : TEXCOORD6;
 
 #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
     float4 shadowCoord              : TEXCOORD7;
@@ -64,10 +62,7 @@ struct VaryingsLean
 void InitializeInputData(Varyings input, half3 normalTS, out InputData inputData)
 {
     inputData = (InputData)0;
-
-#if defined(REQUIRES_WORLD_SPACE_POS_INTERPOLATOR)
     inputData.positionWS = input.positionWS;
-#endif
 
     half3 viewDirWS = SafeNormalize(input.viewDirWS);
 #ifdef _NORMALMAP 
@@ -89,8 +84,8 @@ void InitializeInputData(Varyings input, half3 normalTS, out InputData inputData
     inputData.shadowCoord = float4(0, 0, 0, 0);
 #endif
 
-    inputData.fogCoord = input.fogFactorAndVertexLight.x;
-    inputData.vertexLighting = input.fogFactorAndVertexLight.yzw;
+    inputData.fogCoord = 0;
+    inputData.vertexLighting = 0;
     inputData.bakedGI = SAMPLE_GI(input.lightmapUV, input.vertexSH, inputData.normalWS);
 }
 
@@ -129,13 +124,9 @@ Varyings LitPassVertex(Attributes input)
 
     OUTPUT_LIGHTMAP_UV(input.lightmapUV, unity_LightmapST, output.lightmapUV);
     OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
-
     
-    output.fogFactorAndVertexLight = half4(fogFactor, vertexLight);
-
-#if defined(REQUIRES_WORLD_SPACE_POS_INTERPOLATOR)
+    output.screenPos = ComputeScreenPos(vertexInput.positionCS);
     output.positionWS = vertexInput.positionWS;
-#endif
 
 #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
     output.shadowCoord = GetShadowCoord(vertexInput);
@@ -150,6 +141,17 @@ FragmentOutput LitPassFragment(Varyings input)
 {
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+#ifdef _STIPPLETEST_ON
+    input.screenPos /= input.screenPos.w;
+    input.screenPos.xy *= _ScreenParams.xy;
+
+    float alpha = 1;
+    alpha *= saturate(distance(input.positionWS, _TargetPosition) / _TargetRangeCutoff);
+    alpha *= saturate(distance(input.positionWS, GetCameraPositionWS()) / _CameraRangeCutoff);
+
+    StippleAlpha(alpha, input.screenPos);
+#endif
 
     SurfaceData surfaceData;
     InitializeStandardLitSurfaceData(input.uv, surfaceData);

@@ -61,12 +61,16 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 
 			float deviceDepth = SampleSceneDepth(input.uv.xy);
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
-			deviceDepth = 2 * deviceDepth - 1;
-#endif
+			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth * 2 - 1, unity_MatrixInvVP);
+#else
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, unity_MatrixInvVP);
+#endif
 
-
-			return float4(surface.emission, 1);
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+			return float4(surface.emission, any(1 - deviceDepth));
+#else
+			return float4(surface.emission, any(deviceDepth));
+#endif
 		}
 
 		float4 MainLightingFragment(Varyings input) : SV_Target
@@ -81,9 +85,10 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 
 			float deviceDepth = SampleSceneDepth(input.uv.xy);
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
-			deviceDepth = 2 * deviceDepth - 1;
-#endif
+			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth * 2 - 1, unity_MatrixInvVP);
+#else
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, unity_MatrixInvVP);
+#endif
 
 			float3 lighting = surface.emission;
 
@@ -95,7 +100,11 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 #endif
 			lighting += LightingPhysicallyBased(brdfData, mainLight, n, v);
 
-			return float4(lighting, 1);
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+			return float4(lighting, any(1 - deviceDepth));
+#else
+			return float4(lighting, any(deviceDepth));
+#endif
 		}
 
 		float4 AdditionalLightingFragment(Varyings input) : SV_Target

@@ -1,6 +1,9 @@
-﻿using UnityEditor;
+﻿using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
-namespace UnityEngine.Rendering.Universal
+namespace UnityEditor.Rendering.Universal
 {
     [CustomEditor(typeof(InstancedIndirectFlowerRenderer))]
     public class FlowerEditor : Editor
@@ -40,7 +43,7 @@ namespace UnityEngine.Rendering.Universal
             EditorGUILayout.BeginVertical();
 
             GUILayout.Label(string.Format("花数量:{0}", _flowerGroup.floweres.Count));
-            GUILayout.Label(string.Format("花绘制数量:{0}", _flowerRender.drawInstancedCount));
+            _flowerRender.debugMode = EditorGUILayout.Toggle(string.Format("花绘制数量:{0}", _flowerRender.drawInstancedCount), _flowerRender.debugMode);
 
             this.DrawFlowerSetting();
             this.DrawFlowerSettings();
@@ -88,18 +91,21 @@ namespace UnityEngine.Rendering.Universal
             _grassSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_grassSettingsFoldout.value, Styles.grassSettingsText);
             if (_grassSettingsFoldout.value)
             {
-                EditorGUILayout.BeginHorizontal();
-                _flowerGroup.texture = (Texture)EditorGUILayout.ObjectField("花的纹理", _flowerGroup.texture, typeof(Texture), true);
-                _flowerGroup.color = EditorGUILayout.ColorField(_flowerGroup.color, new[] { GUILayout.Width(80) });
-                EditorGUILayout.EndHorizontal();
-
                 _flowerGroup.cachedGrassMesh = (Mesh)EditorGUILayout.ObjectField("花的网格", _flowerGroup.cachedGrassMesh, typeof(Mesh), true);
                 _flowerGroup.instanceMaterial = (Material)EditorGUILayout.ObjectField("花的材质", _flowerGroup.instanceMaterial, typeof(Material), true);
 
-                _flowerGroup.grassWidth = EditorGUILayout.FloatField("花宽度缩放", _flowerGroup.grassWidth);
-                _flowerGroup.grassHeight = EditorGUILayout.FloatField("花高度缩放", _flowerGroup.grassHeight);
-                _flowerGroup.bendStrength = EditorGUILayout.Slider("挤压带来的弯曲", _flowerGroup.bendStrength, 0, 1);
-                _flowerGroup.cutoff = EditorGUILayout.Slider("Alpha Clipping", _flowerGroup.cutoff, 0, 1);
+                if (_flowerGroup.instanceMaterial)
+				{
+                    EditorGUILayout.BeginHorizontal();
+                    _flowerGroup.texture = (Texture)EditorGUILayout.ObjectField("花的纹理", _flowerGroup.texture, typeof(Texture), true);
+                    _flowerGroup.color = EditorGUILayout.ColorField(_flowerGroup.color, new[] { GUILayout.Width(80) });
+                    EditorGUILayout.EndHorizontal();
+
+                    _flowerGroup.grassWidth = EditorGUILayout.FloatField("花宽度缩放", _flowerGroup.grassWidth);
+                    _flowerGroup.grassHeight = EditorGUILayout.FloatField("花高度缩放", _flowerGroup.grassHeight);
+                    _flowerGroup.bendStrength = EditorGUILayout.Slider("挤压带来的弯曲", _flowerGroup.bendStrength, 0, 1);
+                    _flowerGroup.cutoff = EditorGUILayout.Slider("Alpha Clipping", _flowerGroup.cutoff, 0, 1);
+                }
 
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
@@ -111,7 +117,7 @@ namespace UnityEngine.Rendering.Universal
         void DrawWindSettings()
         {
             _windSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_windSettingsFoldout.value, Styles.windSettingsText);
-            if (_windSettingsFoldout.value)
+            if (_windSettingsFoldout.value && _flowerGroup.instanceMaterial)
             {
                 _flowerGroup.windDirection = EditorGUILayout.Vector3Field("风的朝向", _flowerGroup.windDirection);
                 _flowerGroup.windIntensity = EditorGUILayout.FloatField("风的强度", _flowerGroup.windIntensity);
@@ -135,8 +141,8 @@ namespace UnityEngine.Rendering.Universal
             if (_cullingSettingsFoldout.value)
             {
                 _flowerGroup.sensity = EditorGUILayout.Slider("全局密度", _flowerGroup.sensity, 0.0f, 1.0f);
-                _flowerGroup.distanceCulling = EditorGUILayout.Slider("距离剔除", _flowerGroup.distanceCulling, 0.001f, 5.0f);
                 _flowerGroup.maxDrawDistance = EditorGUILayout.Slider("最大可视距离", _flowerGroup.maxDrawDistance, 1.0f, 150f);
+                _flowerGroup.distanceCulling = EditorGUILayout.Slider("可视距离剔除权重", _flowerGroup.distanceCulling, 0f, 1f);
                 _flowerGroup.isCpuCulling = EditorGUILayout.Toggle("启用区域剔除（CPU）", _flowerGroup.isCpuCulling);
                 _flowerGroup.isGpuCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driver）", _flowerGroup.isGpuCulling);
 
@@ -173,17 +179,7 @@ namespace UnityEngine.Rendering.Universal
             {
                 FutureTerrainWindow.brushSize -= 1;
             }
-            //if (e.shift)
-            {
-                //Handles.color = Color.red;
-                //Handles.DrawSolidDisc(ray.origin, Vector3.up, _eraseRadius);
-                //areaOfEffect = Handles.ScaleValueHandle(areaOfEffect,
-                //_terrain.transform.position + new Vector3(areaOfEffect, 0, 0),
-                //Quaternion.identity,
-                //2,
-                //Handles.CylinderCap,
-                //2);
-            }
+
             RaycastHit raycastHit = new RaycastHit();
             bool isHit = Physics.Raycast(ray, out raycastHit, Mathf.Infinity, layerMask);
             if (isHit)
@@ -212,10 +208,6 @@ namespace UnityEngine.Rendering.Universal
                         _flowerGroup.RemoveFlower(raycastHit.point, _eraseRadius);
                         EditorUtility.SetDirty(target);
                     }
-                }
-                else
-                {
-                    //Debug.LogFormat("not hit mesh orgin {0} dir {1}", ray.origin, ray.direction);
                 }
             }
         }

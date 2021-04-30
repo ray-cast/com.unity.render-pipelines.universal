@@ -70,6 +70,7 @@
             {
                 float4 positionCS  : SV_POSITION;//草顶点的裁剪空间坐标
 				float2 uv : TEXCOORD0;
+                float3 bakeGI : TEXCOORD1;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -127,6 +128,7 @@
 				
 				output.positionCS = TransformWorldToHClip(positionOS + pivotPositionWS);
 				output.uv = input.uv;
+                output.bakeGI = SampleSH(float3(0,1,0));
 
 				return output;
             }
@@ -143,7 +145,7 @@
 				data.metallic = 0;
 				data.smoothness = 0.25;
 				data.occlusion = 1;
-				data.emission = SampleSH(0) * data.albedo;
+				data.emission = input.bakeGI * data.albedo;
 
 				return EncodeGbuffer(data);
             }

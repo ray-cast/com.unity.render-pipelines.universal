@@ -36,13 +36,6 @@ namespace UnityEngine.Rendering.Universal
         {
             ref CameraData cameraData = ref renderingData.cameraData;
 
-            var isOffscreenDepthTexture = cameraData.targetTexture != null && cameraData.targetTexture.format == RenderTextureFormat.Depth;
-            if (isOffscreenDepthTexture)
-            {
-                context.DrawSkybox(renderingData.cameraData.camera);
-                return;
-            }
-
             var hdriSky = VolumeManager.instance.stack.GetComponent<HDRISky>();
             if (hdriSky && hdriSky.IsActive())
             {
@@ -66,7 +59,15 @@ namespace UnityEngine.Rendering.Universal
             }
             else
             {
-                context.DrawSkybox(renderingData.cameraData.camera);
+                bool isRequireSkybox = RenderSettings.skybox != null;
+                if (!isRequireSkybox)
+                {
+                    if (cameraData.camera.TryGetComponent<Skybox>(out var cameraSkybox))
+                        isRequireSkybox |= cameraSkybox.material != null;
+                }
+
+                if (isRequireSkybox)
+                    context.DrawSkybox(renderingData.cameraData.camera);
             }
         }
 

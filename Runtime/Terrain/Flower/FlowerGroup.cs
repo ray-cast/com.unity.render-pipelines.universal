@@ -51,7 +51,7 @@ namespace UnityEngine.Rendering.Universal
         public int brushSensity = 2;
 
         public float sensity = 1.0f;
-        public float distanceCulling = 1.0f;
+        public float distanceCulling = 0.8f;
         public float maxDrawDistance = 100;//this setting will affect performance a lot!
 
         float _cutoff = 0.5f;

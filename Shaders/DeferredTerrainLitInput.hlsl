@@ -25,6 +25,9 @@ CBUFFER_START(_Terrain)
     half _Smoothness1;
     half _Smoothness2;
     half _Smoothness3;
+    half _CameraRangeCutoff;
+    half _TargetRangeCutoff;
+    half3 _TargetPosition;
     half _specularAntiAliasingThreshold;
 CBUFFER_END
 

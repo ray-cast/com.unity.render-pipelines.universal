@@ -14,6 +14,9 @@ half4 _SpecColor;
 half4 _EmissionColor;
 half _EmissionIntensity;
 half _Cutoff;
+half _CameraRangeCutoff;
+half _TargetRangeCutoff;
+half3 _TargetPosition;
 half _Smoothness;
 half _Metallic;
 half _BumpScale;
@@ -39,8 +42,7 @@ half4 SampleMetallicSpecGloss(float2 uv, half albedoAlpha)
     specGloss = SAMPLE_TEXTURE2D(_MetallicGlossMap, sampler_MetallicGlossMap, uv);
     specGloss.a *= _Smoothness;
 #else
-    specGloss.rgb = _Metallic.rrr;
-    specGloss.a = _Smoothness;
+    specGloss = half4(_Metallic.r, 1, 0, _Smoothness);
 #endif
 
     return specGloss;
@@ -86,7 +88,7 @@ inline void InitializeStandardLitSurfaceData(float2 uv, out SurfaceData outSurfa
 
     outSurfaceData.smoothness = specGloss.a;
     outSurfaceData.normalTS = SampleNormal(uv, TEXTURE2D_ARGS(_BumpMap, sampler_BumpMap), _BumpScale);
-    outSurfaceData.occlusion = SampleOcclusion(uv);
+    outSurfaceData.occlusion = LerpWhiteTo(specGloss.g, _OcclusionStrength);
 
 #if _DETAILBUMPMAP
     float2 uv_DetailBumpMap = uv_OriginMap * _DetailBumpMap_ST.xy + _DetailBumpMap_ST.zw;

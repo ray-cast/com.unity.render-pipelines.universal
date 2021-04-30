@@ -576,7 +576,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        public void OnDrawGizmos()
+		public void OnDrawGizmos()
         {
             string path = "Packages/com.unity.render-pipelines.universal/Editor/Gizmos/";
             string gizmoName = "";

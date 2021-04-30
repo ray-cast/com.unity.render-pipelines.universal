@@ -153,7 +153,7 @@
 		{
 			ZTest Off ZWrite Off
 			Cull Off
-			Blend SrcAlpha OneMinusSrcAlpha
+			Blend SrcAlpha OneMinusSrcAlpha, Zero One
 
 			HLSLPROGRAM
 				#pragma vertex FogVertex

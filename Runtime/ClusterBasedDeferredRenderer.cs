@@ -22,6 +22,7 @@
         CopyColorPass _copyTransparentColorPass;
         CopyDepthPass _copyDepthPass;
         TransparentSettingsPass _transparentSettingsPass;
+        TransparentPreDepth _renderTransparentDepthPass;
         DrawObjectsPass _renderTransparentForwardPass;
         InvokeOnRenderObjectCallbackPass _onRenderObjectCallbackPass;
         ColorGradingLutPass _colorGradingLutPass;
@@ -105,6 +106,7 @@
             _copyOpaqueColorPass = new CopyColorPass(RenderPassEvent.AfterRenderingSkybox, _samplingMaterial);
             _copyTransparentColorPass = new CopyColorPass(RenderPassEvent.BeforeRenderingTransparents, _samplingMaterial);
             _transparentSettingsPass = new TransparentSettingsPass(RenderPassEvent.BeforeRenderingTransparents, data.shadowTransparentReceive);
+            _renderTransparentDepthPass = new TransparentPreDepth(RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask);
             _renderTransparentForwardPass = new DrawObjectsPass("Render Transparents", false, RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask, _defaultStencilState, stencilData.stencilReference);
             _onRenderObjectCallbackPass = new InvokeOnRenderObjectCallbackPass(RenderPassEvent.BeforeRenderingPostProcessing);
             _colorGradingLutPass = new ColorGradingLutPass(RenderPassEvent.BeforeRenderingPrepasses, data.postProcessData);
@@ -329,17 +331,7 @@
 
             bool isOverlayCamera = cameraData.renderType == CameraRenderType.Overlay;
             if (camera.clearFlags == CameraClearFlags.Skybox && !isOverlayCamera)
-            {
-                bool isRequireSkybox = RenderSettings.skybox != null;
-                if (!isRequireSkybox)
-                {
-                    if (cameraData.camera.TryGetComponent<Skybox>(out var cameraSkybox))
-                        isRequireSkybox |= cameraSkybox.material != null;
-                }
-
-                if (isRequireSkybox)
-                    EnqueuePass(_drawSkyboxPass);
-            }
+                EnqueuePass(_drawSkyboxPass);
 
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             if (SystemInfo.supportsGeometryShaders && _supportsClusterLighting && cameraData.requireDrawCluster && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
@@ -378,6 +370,9 @@
             bool transparentsNeedSettingsPass = _transparentSettingsPass.Setup(ref renderingData);
             if (transparentsNeedSettingsPass)
                 EnqueuePass(_transparentSettingsPass);
+
+            _renderTransparentDepthPass.Setup(_activeCameraDepthAttachment);
+            EnqueuePass(_renderTransparentDepthPass);
 
             _renderTransparentForwardPass.ConfigureTarget(this._activeCameraColorAttachment.Identifier(), this._activeCameraDepthAttachment.Identifier());
             EnqueuePass(_renderTransparentForwardPass);

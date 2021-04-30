@@ -10,21 +10,23 @@ Shader "Universal Render Pipeline/Deferred Lit"
         _Cutoff("透明度剔除阈值", Range(0.0, 1.0)) = 0.5
 
         [Space(20)]
+        [Toggle(_STIPPLETEST_ON)]_UseStippleCutoff("启用点阵像素剔除", int) = 0
+        _CameraRangeCutoff("相机剔除范围", Range(0.01, 10.0)) = 1
+        _TargetRangeCutoff("目标剔除范围", Range(0.01, 10.0)) = 1
+        _TargetPosition("目标世界位置", Vector) = (0, 0, 0)
+
+        [Space(20)]
         _BumpScale("法线强度", Float) = 1.0
         [NoScaleOffset][TexToggle(_NORMALMAP)]_BumpMap("法线贴图", 2D) = "bump" {}
 
         [Space(20)]
         _Metallic("金属程度", Range(0.0, 1.0)) = 0.0
         _Smoothness("光滑度", Range(0.0, 1.0)) = 0.5
-
+        _OcclusionStrength("遮蔽强度", Range(0.0, 1.0)) = 1.0
         [NoScaleOffset][TexToggle(_METALLICSPECGLOSSMAP)]_MetallicGlossMap("材质复合贴图", 2D) = "white" {}
 
         _SpecColor("镜面颜色", Color) = (0.2, 0.2, 0.2)
         [NoScaleOffset]_SpecGlossMap("镜面贴图", 2D) = "white" {}
-
-        [Space(20)]
-        _OcclusionStrength("遮蔽强度", Range(0.0, 1.0)) = 1.0
-        [NoScaleOffset][TexToggle(_OCCLUSIONMAP)]_OcclusionMap("遮蔽贴图", 2D) = "white" {}
 
         [Space(20)]
         [KeywordEnum(None, Color, Albedo, Texture)]
@@ -107,19 +109,20 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma shader_feature _NORMALMAP
             #pragma shader_feature _ALPHATEST_ON
             #pragma shader_feature _ALPHAPREMULTIPLY_ON
-            #pragma shader_feature _EMISSIONMODE_NONE _EMISSIONMODE_COLOR _EMISSIONMODE_ALBEDO _EMISSIONMODE_TEXTURE
             #pragma shader_feature _METALLICSPECGLOSSMAP
             #pragma shader_feature _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
-            #pragma shader_feature _OCCLUSIONMAP
-            #pragma shader_feature _WETNESS_ON
-            #pragma shader_feature _DETAILMAP
-            #pragma shader_feature _DETAILBUMPMAP
+            #pragma shader_feature_local _EMISSIONMODE_NONE _EMISSIONMODE_COLOR _EMISSIONMODE_ALBEDO _EMISSIONMODE_TEXTURE
+            #pragma shader_feature_local _OCCLUSIONMAP
+            #pragma shader_feature_local _WETNESS_ON
+            #pragma shader_feature_local _DETAILMAP
+            #pragma shader_feature_local _DETAILBUMPMAP
 
             #pragma shader_feature _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature _ENVIRONMENTREFLECTIONS_OFF
-            #pragma shader_feature _SPECULAR_SETUP
             #pragma shader_feature _RECEIVE_SHADOWS_OFF
-            #pragma shader_feature _SPECULAR_ANTIALIASING
+            #pragma shader_feature_local _SPECULAR_ANTIALIASING
+
+            #pragma multi_compile_local _ _STIPPLETEST_ON
 
             // -------------------------------------
             // Universal Pipeline keywords
@@ -204,6 +207,8 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma shader_feature _ALPHATEST_ON
             #pragma shader_feature _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
 
+            #pragma multi_compile_local _ _STIPPLETEST_ON
+
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
@@ -236,6 +241,8 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma shader_feature _ALPHATEST_ON
             #pragma shader_feature _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
 
+            #pragma multi_compile_local _ _STIPPLETEST_ON
+
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
@@ -261,7 +268,6 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma vertex UniversalVertexMeta
             #pragma fragment UniversalFragmentMeta
 
-            #pragma shader_feature _SPECULAR_SETUP
             #pragma shader_feature _EMISSION
             #pragma shader_feature _METALLICSPECGLOSSMAP
             #pragma shader_feature _ALPHATEST_ON

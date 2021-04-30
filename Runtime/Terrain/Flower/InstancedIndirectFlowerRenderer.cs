@@ -26,6 +26,7 @@ namespace UnityEngine.Rendering.Universal
         //所有格子组成一个二维数组，每个格子关联了位置归属于此格子范围内的所有草
         //将二组数据按[xId,zId]=>xId+zId*cellCountX映射到一维数组就成了cellPosWSsList
         private FlowerCell[] cellPosWSsList; //for binning: binning will put each posWS into correct cell
+        private MaterialPropertyBlock properties;
 
         private Transform _transform;//草丛渲染器所在的结点
         private Vector3 _cacheTransformPos;//结点位置缓存
@@ -47,6 +48,7 @@ namespace UnityEngine.Rendering.Universal
         private ComputeBuffer _argsBuffer;
 
 #if UNITY_EDITOR
+        public bool debugMode;
         public int drawInstancedCount;
 #endif
 
@@ -140,23 +142,53 @@ namespace UnityEngine.Rendering.Universal
                 }
             }
 
-            _allInstancesPosWSBuffer?.Release();
-            _allInstancesPosWSBuffer = new ComputeBuffer(allFlowerPos.Count, sizeof(float) * 3); //float3 posWS only, per grass
+            if (_allInstancesPosWSBuffer == null || _allInstancesPosWSBuffer != null && _allInstancesPosWSBuffer.count < allFlowerPos.Count)
+            {
+                if (_allInstancesPosWSBuffer != null)
+                    _allInstancesPosWSBuffer.Release();
+
+#if UNITY_EDITOR
+                _allInstancesPosWSBuffer = new ComputeBuffer(allFlowerPos.Count << 1, sizeof(float) * 3); //float3 posWS only, per grass
+#else
+                _allInstancesPosWSBuffer = new ComputeBuffer(allFlowerPos.Count, sizeof(float) * 3); //float3 posWS only, per grass
+#endif
+            }
+
             _allInstancesPosWSBuffer.SetData(allGrassPosWSSortedByCell);
 
-            _allVisibleInstancesIndexBuffer?.Release();
-            _allVisibleInstancesIndexBuffer = new ComputeBuffer(allFlowerPos.Count, sizeof(uint)); //uint only, per visible grass
+            if (_allVisibleInstancesIndexBuffer == null || _allVisibleInstancesIndexBuffer != null && _allVisibleInstancesIndexBuffer.count < allFlowerPos.Count)
+            {
+                if (_allVisibleInstancesIndexBuffer != null)
+                    _allVisibleInstancesIndexBuffer.Release();
 
-            uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
-            args[0] = (uint)flowerGroup.cachedGrassMesh.GetIndexCount(0);
-            args[1] = (uint)allFlowerPos.Count;
-            args[2] = (uint)flowerGroup.cachedGrassMesh.GetIndexStart(0);
-            args[3] = (uint)flowerGroup.cachedGrassMesh.GetBaseVertex(0);
-            args[4] = 0;
+#if UNITY_EDITOR
+                _allVisibleInstancesIndexBuffer = new ComputeBuffer(allFlowerPos.Count << 1, sizeof(uint)); //uint only, per visible grass
+#else
+                _allVisibleInstancesIndexBuffer = new ComputeBuffer(allFlowerPos.Count, sizeof(uint)); //uint only, per visible grass
+#endif
+            }
 
-            _argsBuffer?.Release();
-            _argsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
-            _argsBuffer.SetData(args);
+            if (_argsBuffer == null)
+			{
+                uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
+                args[0] = (uint)flowerGroup.cachedGrassMesh.GetIndexCount(0);
+                args[1] = (uint)allFlowerPos.Count;
+                args[2] = (uint)flowerGroup.cachedGrassMesh.GetIndexStart(0);
+                args[3] = (uint)flowerGroup.cachedGrassMesh.GetBaseVertex(0);
+                args[4] = 0;
+
+                _argsBuffer?.Release();
+                _argsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
+                _argsBuffer.SetData(args);
+            }
+
+            var lightprobes = new SphericalHarmonicsL2[allFlowerPos.Count];
+            var occlusionprobes = new Vector4[allFlowerPos.Count];
+            LightProbes.CalculateInterpolatedLightAndOcclusionProbes(allGrassPosWSSortedByCell, lightprobes, occlusionprobes);
+
+            properties = new MaterialPropertyBlock();
+            properties.CopySHCoefficientArraysFrom(lightprobes);
+            properties.CopyProbeOcclusionArrayFrom(occlusionprobes);
         }
 
         void SetupAllInstanceDataConstants()
@@ -240,9 +272,12 @@ namespace UnityEngine.Rendering.Universal
             var tanFov = Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad);
             var size = this.flowerGroup.cachedGrassMesh.bounds.size;
 
-            int occlusionKernel = HizPass._hizLastCamera == renderingData.cameraData.camera && HizPass._hizRenderTarget && flowerGroup.isGpuCulling ? _computeOcclusionCulling : _computeFrustumCulling;
+            var hizRenderTarget = HizPass.GetHizTexture(ref cam);
+            int occlusionKernel = hizRenderTarget && flowerGroup.isGpuCulling ? _computeOcclusionCulling : _computeFrustumCulling;
 
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, flowerGroup.maxDrawDistance, flowerGroup.sensity, flowerGroup.distanceCulling));
+            cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, cam.projectionMatrix * cam.worldToCameraMatrix);
+
             cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
             cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
@@ -250,13 +285,8 @@ namespace UnityEngine.Rendering.Universal
 
             if (occlusionKernel == _computeOcclusionCulling)
             {
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * cam.worldToCameraMatrix);
-                cmd.SetComputeTextureParam(_cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, HizPass._hizRenderTarget);
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_TexelSize, new Vector4(HizPass._hizRenderTarget.width, HizPass._hizRenderTarget.height, 0, 0));
-            }
-            else
-            {
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, cam.projectionMatrix * cam.worldToCameraMatrix);
+                cmd.SetComputeTextureParam(_cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, hizRenderTarget);
+                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_TexelSize, new Vector4(hizRenderTarget.width, hizRenderTarget.height, 0, 0));
             }
 
             for (int i = 0; i < _visibleCellIDList.Count; i++)
@@ -289,13 +319,16 @@ namespace UnityEngine.Rendering.Universal
             }
 
 #if UNITY_EDITOR
-            uint[] counter = new uint[5];
-            _argsBuffer.GetData(counter);
-            drawInstancedCount = (int)counter[1];
+            if (this.debugMode)
+			{
+                uint[] counter = new uint[5];
+                _argsBuffer.GetData(counter);
+                drawInstancedCount = (int)counter[1];
+            }
 #endif
         }
 
-        public void Update()
+        public void LateUpdate()
         {
             if (_cacheTransformPos != _transform.position)
             {
@@ -313,7 +346,20 @@ namespace UnityEngine.Rendering.Universal
             flowerGroup.instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
 #endif
 
-            Graphics.DrawMeshInstancedIndirect(flowerGroup.cachedGrassMesh, 0, flowerGroup.instanceMaterial, boundingBox, _argsBuffer);
+            Graphics.DrawMeshInstancedIndirect(
+                    flowerGroup.cachedGrassMesh,
+                    0,
+                    flowerGroup.instanceMaterial,
+                    boundingBox,
+                    _argsBuffer,
+                    0,
+                    properties,
+                    ShadowCastingMode.Off,
+                    false,
+                    0,
+                    null,
+                    LightProbeUsage.CustomProvided
+                );
         }
 
         static class ShaderConstants

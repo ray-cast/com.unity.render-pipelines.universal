@@ -3,11 +3,11 @@
 	Properties
 	{
 		[Header(Wind)]
-		_WindAIntensity("_WindAIntensity", Float) = 1.77
-		_WindAFrequency("_WindAFrequency", Float) = 4
-		_WindATiling("_WindATiling", Vector) = (0.1,0.1,0)
-		_WindAWrap("_WindAWrap", Vector) = (0.5,0.5,0)
-		_WindDirection("WindDirection", Vector) = (1.0, 0.0, 0.0)
+		_WindAIntensity("_WindAIntensity", Float) = 0.3
+		_WindAFrequency("_WindAFrequency", Float) = 2
+		_WindATiling("_WindATiling", Vector) = (0.66, 5, 0, 0)
+		_WindAWrap("_WindAWrap", Vector) = (0.24,0.5,0,0)
+		_WindDirection("WindDirection", Vector) = (1.0, 0.0, -0.5,0)
 
 		_WindScatter("风场扩散范围", Vector) = (20, 20, 1, 1)
 		_WindRange("风场运动范围", Float) = 20
@@ -69,7 +69,6 @@
 		{
 			float4 positionOS   : POSITION;
 			float4 normalOS     : NORMAL;
-			float2 lightmapUV   : TEXCOORD1;
 			uint instanceID : SV_InstanceID;
 			UNITY_VERTEX_INPUT_INSTANCE_ID
 		};
@@ -78,8 +77,7 @@
 		{
 			float4 positionCS  : SV_POSITION;//草顶点的裁剪空间坐标
 			float4 color       : TEXCOORD0;
-			DECLARE_LIGHTMAP_OR_SH(lightmapUV, vertexSH, 1);
-
+			float3 bakeGI      : TEXCOORD1;
 			float3 normalWS    : TEXCOORD2;
 			float3 viewDirWS   : TEXCOORD3;
 
@@ -122,7 +120,7 @@
 			half4 dryColor = _AllColorsBuffer[perGrassIndex.x];
 			half4 healthyColor = _AllColorsBuffer[perGrassIndex.y];
 
-			half3 direction = normalize(_WindDirection);
+			half3 direction = SafeNormalize(_WindDirection);
 			half2 windTexcoord = (pivotPositionWS + input.positionOS).xz / _WindScatter;
 			half2 windWindTexcoord = windTexcoord - direction.xz * _WindHightlightSpeed * _Time.x;
 			half wind = SAMPLE_TEXTURE2D_LOD(_WindNoiseMap, sampler_WindNoiseMap, windWindTexcoord, 0).r;
@@ -154,9 +152,7 @@
 			output.color = float4(albedo, occlusion);
 			output.normalWS = N;
 			output.viewDirWS = GetCameraPositionWS() - positionWS;
-
-			OUTPUT_LIGHTMAP_UV(input.lightmapUV, unity_LightmapST, output.lightmapUV);
-			OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
+			output.bakeGI = SampleSH(N) * albedo;
 
 			return output;
 		}
@@ -170,7 +166,7 @@
 			surfaceData.smoothness = 0.25;
 			surfaceData.normalTS = float3(0, 0, 1);
 			surfaceData.occlusion = input.color.a;
-			surfaceData.emission = SampleSH(0) * surfaceData.albedo * surfaceData.occlusion;
+			surfaceData.emission = input.bakeGI;
 			surfaceData.alpha = 1;
 
 			GbufferData data;
@@ -180,7 +176,7 @@
 			data.specular = surfaceData.specular;
 			data.metallic = surfaceData.metallic;
 			data.smoothness = surfaceData.smoothness;
-			data.occlusion = surfaceData.occlusion;
+			data.occlusion = 1;
 
 			return EncodeGbuffer(data);
 		}

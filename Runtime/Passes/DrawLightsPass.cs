@@ -25,7 +25,7 @@ namespace UnityEngine.Rendering.Universal
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
             ConfigureTarget(_colorAttachmentHandle.Identifier(), _depthAttachmentHandle.Identifier());
-            ConfigureClear(ClearFlag.None, Color.black);
+            ConfigureClear(ClearFlag.None, ShaderConstants.black);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -37,7 +37,7 @@ namespace UnityEngine.Rendering.Universal
             var scaleBias = flipSign < 0.0f ? new Vector4(flipSign, 1.0f, -1.0f, 1.0f) : new Vector4(flipSign, 0.0f, 1.0f, 1.0f);
 
             cmd.Clear();
-            cmd.ClearRenderTarget(false, true, new Color(0, 0, 0, 0));
+            cmd.ClearRenderTarget(false, true, ShaderConstants.black);
             cmd.SetGlobalVector(ShaderConstants._scaleBiasId, scaleBias);
 
             if (renderingData.lightData.mainLightIndex >= 0)
@@ -88,6 +88,8 @@ namespace UnityEngine.Rendering.Universal
         static class ShaderConstants
         {
             public const string _profilerTag = "Draw Lights";
+
+            public static readonly Color black = new Color(0, 0, 0, 0);
 
             public static readonly int _scaleBiasId = Shader.PropertyToID("_ScaleBiasRT");
             public static readonly int _LightParams = Shader.PropertyToID("_LightParams");

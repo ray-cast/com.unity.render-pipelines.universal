@@ -35,6 +35,12 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
         _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
 
         [Space(20)]
+        [Toggle(_STIPPLETEST_ON)]_UseStippleCutoff("启用点阵像素剔除", int) = 0
+        _CameraRangeCutoff("相机剔除范围", Range(0.01, 10.0)) = 1
+        _TargetRangeCutoff("目标剔除范围", Range(0.01, 10.0)) = 1
+        _TargetPosition("目标世界位置", Vector) = (0, 0, 0)
+
+        [Space(20)]
         [Toggle]_DepthPrepass("深度预渲染", Float) = 0
 
         [HideInInspector] [MainColor] _BaseColor("基本颜色", Color) = (1,1,1,1)
@@ -93,18 +99,18 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
 
             // -------------------------------------
             // Material Keywords
-            #pragma shader_feature _NORMALMAP
-            #pragma shader_feature _USE_WETNESSMAP1
-            #pragma shader_feature _USE_WETNESSMAP2
-            #pragma shader_feature _USE_WETNESSMAP3
-            #pragma shader_feature _USE_WETNESSMAP4
+            #pragma shader_feature_local _NORMALMAP
+            #pragma shader_feature_local _USE_WETNESSMAP1
+            #pragma shader_feature_local _USE_WETNESSMAP2
+            #pragma shader_feature_local _USE_WETNESSMAP3
+            #pragma shader_feature_local _USE_WETNESSMAP4
+            #pragma shader_feature_local _SPECULAR_ANTIALIASING
 
             #pragma shader_feature _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature _ENVIRONMENTREFLECTIONS_OFF
-            #pragma shader_feature _SPECULAR_SETUP
             #pragma shader_feature _RECEIVE_SHADOWS_OFF
-            #pragma shader_feature _SPECULAR_ANTIALIASING
 
+            #pragma multi_compile_local _ _STIPPLETEST_ON
             // -------------------------------------
             // Universal Pipeline keywords
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS
@@ -173,6 +179,7 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma vertex DepthOnlyVertex
             #pragma fragment DepthOnlyFragment
 
+            #pragma multi_compile_local _ _STIPPLETEST_ON
             #pragma multi_compile_instancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
@@ -198,6 +205,7 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma vertex DepthOnlyVertex
             #pragma fragment DepthOnlyFragment
 
+            #pragma multi_compile_local _ _STIPPLETEST_ON
             #pragma multi_compile_instancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
@@ -222,7 +230,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma vertex UniversalVertexMeta
             #pragma fragment UniversalFragmentMeta
 
-            #pragma shader_feature _SPECULAR_SETUP
             #pragma shader_feature _EMISSION
             #pragma shader_feature _METALLICSPECGLOSSMAP
             #pragma shader_feature _ALPHATEST_ON

@@ -270,8 +270,8 @@ namespace UnityEngine.Rendering.Universal
 
             ref var camera = ref renderingData.cameraData.camera;
 
-            var hizRT = HizPass.hizRenderTarget;
-            if (hizRT && HizPass._hizLastCamera == renderingData.cameraData.camera)
+            var hizRT = HizPass.GetHizTexture(ref camera);
+            if (hizRT)
             {
                 UpdateTerrainPatchesIfNeeded(camera.transform.position);
 
@@ -297,7 +297,7 @@ namespace UnityEngine.Rendering.Universal
                 cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(camera.fieldOfView, camera.nearClipPlane, camera.farClipPlane, 0));
                 cmd.SetComputeVectorArrayParam(_cullingComputeShader, ShaderConstants._CameraFrustumPlanes, _cameraFrustumData);
 
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, HizPass._hizLastCameraProjection * camera.worldToCameraMatrix);
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, camera.projectionMatrix * camera.worldToCameraMatrix);
 
                 cmd.SetComputeTextureParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._HeightMap, _heightMap);
                 cmd.SetComputeTextureParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._HizTexture, hizRT);

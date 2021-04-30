@@ -291,54 +291,89 @@ half OneMinusReflectivityMetallic(half metallic)
     return oneMinusDielectricSpec - metallic * oneMinusDielectricSpec;
 }
 
-half3 BRDF_Specular_GGX(Light light, BRDFData brdfData, half3 normalWS, half3 viewDirectionWS)
+float StrandSpecular(float3 T, float3 V, float3 L, float exponent, float specular)
+{
+    float3 H = normalize(L + V);
+    float dotTH = dot(T, H);
+    float sinTH = sqrt(1.0 - dotTH * dotTH);
+    float dirAtten = smoothstep(-1.0, 0.0, dotTH);
+    return dirAtten * pow(sinTH, exponent) * specular;
+}
+
+float3 BRDF_Specular_Sheen(Light light, half3 normalWS, half3 viewDirectionWS, half roughness2)
 {
 #ifndef _SPECULARHIGHLIGHTS_OFF
-    float3 halfDir = SafeNormalize(float3(light.direction) + float3(viewDirectionWS));
+    float3 halfDir = normalize(light.direction + viewDirectionWS);
 
-    float NoH = saturate(dot(normalWS, halfDir));
-    float d = NoH * NoH * brdfData.roughness2MinusOne + 1.00001f;
+    float dotNH = saturate(dot(normalWS, halfDir));
+    half dotNL = saturate(dot(normalWS, light.direction));
+    half dotNV = saturate(dot(normalWS, viewDirectionWS)) + 1e-5;
+    half dotLH = saturate(dot(light.direction, halfDir));
 
-    half LoH = saturate(dot(light.direction, halfDir));
-    half LoH2 = LoH * LoH;
-    half specularTerm = brdfData.roughness2 / ((d * d) * max(0.1h, LoH2) * brdfData.normalizationTerm);
+    half sin2 = (1 - dotNH * dotNH);
+    half specularTerm = (2 + 1 / roughness2) * pow(sin2, 0.5 / roughness2) / (2 * PI);
+
+    half G = 4 * (dotNL + dotNV - dotNL * dotNV);
+    specularTerm /= G;
 
 #if defined (SHADER_API_MOBILE) || defined (SHADER_API_SWITCH)
     specularTerm = specularTerm - HALF_MIN;
     specularTerm = clamp(specularTerm, 0.0, 100.0); // Prevent FP16 overflow on mobiles
 #endif
 
-    half3 color = specularTerm * brdfData.specular;
+    return specularTerm * G;
+#else
+    return 0;
+#endif
+}
+
+half3 BRDF_Specular_GGX(Light light, half3 normalWS, half3 viewDirectionWS, half roughness2, half roughness2MinusOne, half normalizationTerm)
+{
+#ifndef _SPECULARHIGHLIGHTS_OFF
+    float3 halfDir = SafeNormalize(float3(light.direction) + float3(viewDirectionWS));
+
+    float NoH = saturate(dot(normalWS, halfDir));
+    float d = NoH * NoH * roughness2MinusOne + 1.00001f;
+
+    half LoH = saturate(dot(light.direction, halfDir));
+    half LoH2 = LoH * LoH;
+    half specularTerm = roughness2 / ((d * d) * max(0.1h, LoH2) * normalizationTerm);
+
+#if defined (SHADER_API_MOBILE) || defined (SHADER_API_SWITCH)
+    specularTerm = specularTerm - HALF_MIN;
+    specularTerm = clamp(specularTerm, 0.0, 100.0); // Prevent FP16 overflow on mobiles
+#endif
+
+    half3 color = specularTerm;
     return color;
 #else
     return 0;
 #endif
 }
 
-half3 BRDF_Specular_Anisotropic_GGX(Light light, BRDFData brdfData, half3 normalWS, half3 viewDirectionWS, half anisotropy)
+half3 BRDF_Specular_Anisotropic_GGX(Light light, half3 normalWS, half3 X, half3 Y, half3 viewDirectionWS, half anisotropy, half roughness)
 {
 #ifndef _SPECULARHIGHLIGHTS_OFF
-    half3 X = normalize(cross(normalWS, float3(1,0,0)));
-    half3 Y = normalize(cross(normalWS, X));
-
-    half alpha = brdfData.roughness2;
-    half ax = max(0.001f, alpha * ( 1.f - anisotropy));
-    half ay = max(0.001f, alpha * ( 1.f + anisotropy));
+    half aspect = rsqrt(1.0 - anisotropy * 0.9);
+    half ax = 1.0 / (roughness * aspect);
+    half ay = aspect / roughness;
 
     float3 halfDir = SafeNormalize(float3(light.direction) + float3(viewDirectionWS));
 
     half dotNH = saturate(dot(normalWS, halfDir));
     half dotLH = saturate(dot(light.direction, halfDir));
 
-    half denom = Pow2(dot(X, halfDir) / ax) + Pow2(dot(Y, halfDir) / ay) + dotNH * dotNH;
-    half specularTerm = denom > 1e-5 ? (1.f / (PI * ax * ay * denom * denom)) : 0.f;
+    half dotXH = dot(X, halfDir) * ax;
+    half dotYH = dot(Y, halfDir) * ay;
+    half denom = (dotXH * dotXH) + (dotYH * dotYH) + dotNH * dotNH;
+    half specularTerm = ax * ay / (denom * denom * PI);
     
 #if defined (SHADER_API_MOBILE) || defined (SHADER_API_SWITCH)
     specularTerm = specularTerm - HALF_MIN;
     specularTerm = clamp(specularTerm, 0.0, 100.0); // Prevent FP16 overflow on mobiles
 #endif
 
-    return specularTerm * brdfData.specular;
+    return specularTerm;
 #else
     return 0;
 #endif
@@ -373,6 +408,26 @@ inline void InitializeBRDFData(half3 albedo, half metallic, half3 specular, half
     outBRDFData.diffuse *= alpha;
     alpha = alpha * oneMinusReflectivity + reflectivity;
 #endif
+}
+
+half3 EnvironmentBRDF_Sheen(half3 normalWS, half3 viewDirectionWS, half3 indirectDiffuse, half3 indirectSpecular, half3 albedo, half3 specular, half roughness) {
+    const half4 c0 = half4(0.24,  0.93, 0.01, 0.20);
+    const half4 c1 = half4(2.00, -1.30, 0.40, 0.03);
+    half s = 1.0 - saturate(dot(normalWS, viewDirectionWS));
+    half e = s - c0.y;
+    half g = c0.x * exp2(-(e * e) / (2.0 * c0.z)) + s * c0.w;
+    half n = roughness * c1.x + c1.y;
+    half r = max(1.0 - n * n, c1.z) * g;
+    return indirectDiffuse * albedo + indirectSpecular * (specular * r + r * c1.w);
+}
+
+half3 EnvironmentBRDF(half3 normalWS, half3 viewDirectionWS, half3 indirectDiffuse, half3 indirectSpecular, half3 diffuse, half3 specular, half roughness2, half grazingTerm)
+{
+    half3 c = indirectDiffuse * diffuse;
+    half fresnelTerm = Pow4(1.0 - saturate(dot(normalWS, viewDirectionWS)));
+    float surfaceReduction = 1.0 / (roughness2 + 1.0);
+    c += surfaceReduction * indirectSpecular * lerp(specular, grazingTerm, fresnelTerm);
+    return c;
 }
 
 half3 EnvironmentBRDF(BRDFData brdfData, half3 indirectDiffuse, half3 indirectSpecular, half fresnelTerm)

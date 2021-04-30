@@ -23,9 +23,7 @@ struct Varyings
     float2 uv                       : TEXCOORD0;
     DECLARE_LIGHTMAP_OR_SH(lightmapUV, vertexSH, 1);
 
-#if defined(REQUIRES_WORLD_SPACE_POS_INTERPOLATOR)
     float3 positionWS               : TEXCOORD2;
-#endif
 
     float3 normalWS                 : TEXCOORD3;
 #ifdef _NORMALMAP
@@ -33,7 +31,7 @@ struct Varyings
 #endif
     float3 viewDirWS                : TEXCOORD5;
 
-    half4 fogFactorAndVertexLight   : TEXCOORD6; // x: fogFactor, yzw: vertex light
+    float4 screenPos                : TEXCOORD6;
 
 #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
     float4 shadowCoord              : TEXCOORD7;
@@ -56,9 +54,13 @@ struct AttributesLean
 
 struct VaryingsLean
 {
-    float4 clipPos      : SV_POSITION;
+    float4 positionCS   : SV_POSITION;
 #ifdef _ALPHATEST_ON
     float2 texcoord     : TEXCOORD0;
+#endif
+#ifdef _STIPPLETEST_ON
+    float3 positionWS   : TEXCOORD1;
+    float4 screenPos    : TEXCOORD2;
 #endif
     UNITY_VERTEX_OUTPUT_STEREO
 };
@@ -91,8 +93,8 @@ void InitializeInputData(Varyings input, half3 normalTS, out InputData inputData
     inputData.shadowCoord = float4(0, 0, 0, 0);
 #endif
 
-    inputData.fogCoord = input.fogFactorAndVertexLight.x;
-    inputData.vertexLighting = input.fogFactorAndVertexLight.yzw;
+    inputData.fogCoord = 0;
+    inputData.vertexLighting = 0;
     inputData.bakedGI = SAMPLE_GI(input.lightmapUV, input.vertexSH, inputData.normalWS);
 }
 
@@ -117,7 +119,6 @@ Varyings LitPassVertex(Attributes input)
     VertexNormalInputs normalInput = GetVertexNormalInputs(input.normalOS, input.tangentOS);
     float3 viewDirWS = GetCameraPositionWS() - vertexInput.positionWS;
     half3 vertexLight = VertexLighting(vertexInput.positionWS, normalInput.normalWS);
-    half fogFactor = ComputeFogFactor(vertexInput.positionCS.z);
 
     output.uv = input.texcoord;
 
@@ -132,11 +133,8 @@ Varyings LitPassVertex(Attributes input)
     OUTPUT_LIGHTMAP_UV(input.lightmapUV, unity_LightmapST, output.lightmapUV);
     OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
     
-    output.fogFactorAndVertexLight = half4(fogFactor, vertexLight);
-
-#if defined(REQUIRES_WORLD_SPACE_POS_INTERPOLATOR)
+    output.screenPos = ComputeScreenPos(vertexInput.positionCS);
     output.positionWS = vertexInput.positionWS;
-#endif
 
 #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
     output.shadowCoord = GetShadowCoord(vertexInput);
@@ -151,6 +149,17 @@ FragmentOutput LitPassFragment(Varyings input)
 {
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+#ifdef _STIPPLETEST_ON
+    input.screenPos /= input.screenPos.w;
+    input.screenPos.xy *= _ScreenParams.xy;
+
+    float alpha = 1;
+    alpha *= saturate(distance(input.positionWS, _TargetPosition) / _TargetRangeCutoff);
+    alpha *= saturate(distance(input.positionWS, GetCameraPositionWS()) / _CameraRangeCutoff);
+
+    StippleAlpha(alpha, input.screenPos);
+#endif
 
     SurfaceData surfaceData;
     InitializeStandardLitSurfaceData(input.uv, surfaceData);
@@ -178,16 +187,16 @@ FragmentOutput LitPassFragment(Varyings input)
     return EncodeGbuffer(data);
 }
 
-VaryingsLean ShadowPassVertex(AttributesLean v)
+VaryingsLean ShadowPassVertex(AttributesLean input)
 {
     VaryingsLean o = (VaryingsLean)0;
-    UNITY_SETUP_INSTANCE_ID(v);
+    UNITY_SETUP_INSTANCE_ID(input);
 
-    float3 positionWS = TransformObjectToWorld(v.position.xyz);
-    float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
+    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.position.xyz);
 
+    float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
     float2 shadowBias = float2(_ShadowDepthBias, _ShadowNormalBias);
-    float4 clipPos = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection, shadowBias));
+    float4 clipPos = TransformWorldToHClip(ApplyShadowBias(vertexInput.positionWS, normalWS, _LightDirection, shadowBias));
 
 #if UNITY_REVERSED_Z
     clipPos.z = min(clipPos.z, clipPos.w * UNITY_NEAR_CLIP_VALUE);
@@ -195,10 +204,15 @@ VaryingsLean ShadowPassVertex(AttributesLean v)
     clipPos.z = max(clipPos.z, clipPos.w * UNITY_NEAR_CLIP_VALUE);
 #endif
 
-    o.clipPos = clipPos;
+    o.positionCS = clipPos;
 
 #ifdef _ALPHATEST_ON
-    o.texcoord = v.texcoord;
+    o.texcoord = input.texcoord;
+#endif
+
+#ifdef _STIPPLETEST_ON
+    o.screenPos = ComputeScreenPos(vertexInput.positionCS);
+    o.positionWS = vertexInput.positionWS;
 #endif
 
     return o;
@@ -212,23 +226,41 @@ half4 ShadowPassFragment(VaryingsLean IN) : SV_TARGET
     return 0;
 }
 
-VaryingsLean DepthOnlyVertex(AttributesLean v)
+VaryingsLean DepthOnlyVertex(AttributesLean input)
 {
-    VaryingsLean o = (VaryingsLean)0;
-    UNITY_SETUP_INSTANCE_ID(v);
-    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+    VaryingsLean output = (VaryingsLean)0;
+    UNITY_SETUP_INSTANCE_ID(input);
+    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-    o.clipPos = TransformObjectToHClip(v.position.xyz);
+    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.position.xyz);
+
+#ifdef _STIPPLETEST_ON
+    output.screenPos = ComputeScreenPos(vertexInput.positionCS);
+    output.positionWS = vertexInput.positionWS;
+#endif
+    output.positionCS = vertexInput.positionCS;
+
 #ifdef _ALPHATEST_ON
     o.texcoord = v.texcoord;
 #endif
-    return o;
+
+    return output;
 }
 
-half4 DepthOnlyFragment(VaryingsLean IN) : SV_TARGET
+half4 DepthOnlyFragment(VaryingsLean input) : SV_TARGET
 {
+#ifdef _STIPPLETEST_ON
+    input.screenPos /= input.screenPos.w;
+    input.screenPos.xy *= _ScreenParams.xy;
+
+    float alpha = 1;
+    alpha *= saturate(distance(input.positionWS, _TargetPosition) / _TargetRangeCutoff);
+    alpha *= saturate(distance(input.positionWS, GetCameraPositionWS()) / _CameraRangeCutoff);
+
+    StippleAlpha(alpha, input.screenPos);
+#endif
 #ifdef _ALPHATEST_ON
-    ClipHoles(IN.texcoord);
+    ClipHoles(input.texcoord);
 #endif
 #ifdef SCENESELECTIONPASS
     // We use depth prepass for scene selection in the editor, this code allow to output the outline correctly
