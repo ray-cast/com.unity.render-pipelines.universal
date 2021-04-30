@@ -75,6 +75,12 @@ namespace UnityEditor.Rendering.Universal
 
                     _renderer.instanceMaterial = instanceMaterial;
 
+                    if (_renderer.instanceMaterial)
+					{
+                        _renderer.instanceMaterial.SetInt("_InstancingRendering", 1);
+                        _renderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
+                    }
+
                     serializedObject.ApplyModifiedProperties();
 
                     if (_materialEditor != null)
@@ -127,11 +133,11 @@ namespace UnityEditor.Rendering.Universal
 
                 EditorGUILayout.BeginHorizontal();
                 randomCount = EditorGUILayout.IntField("随机数量", randomCount);
-                if (GUILayout.Button("随机树"))
+                if (GUILayout.Button("随机实例"))
                     _batchData.RandomGroupBySensity(_renderer.transform, randomCount);
                 EditorGUILayout.EndHorizontal();
 
-                if (GUILayout.Button("清除所有树"))
+                if (GUILayout.Button("清除所有实例"))
                     _batchData.Clear();
 
                 EditorGUILayout.Space();

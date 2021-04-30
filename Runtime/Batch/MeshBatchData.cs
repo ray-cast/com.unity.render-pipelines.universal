@@ -74,7 +74,7 @@ namespace UnityEngine.Rendering.Universal
 
                 pos += transform.position;
 
-                instanceData.Add(new BatchData() { worldPos = new Vector3(pos.x, pos.y, pos.z)});
+                instanceData.Add(new BatchData() { worldPos = new Vector3(pos.x, pos.y, pos.z), worldScale = Vector3.one });
             }
 
             this.UploadMeshData();
@@ -94,7 +94,7 @@ namespace UnityEngine.Rendering.Universal
                 {
                     Vector3 pos = new Vector3(j* ss, 0, i* ss);
                     pos += offset;
-                    instanceData.Add(new BatchData() { worldPos = new Vector3(pos.x, pos.y, pos.z) });
+                    instanceData.Add(new BatchData() { worldPos = new Vector3(pos.x, pos.y, pos.z), worldScale = Vector3.one });
                     count++;
                 }
             }
