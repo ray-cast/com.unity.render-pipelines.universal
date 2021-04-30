@@ -17,7 +17,7 @@ SAMPLER(sampler_PointRepeat);
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
 #if defined(PLATFORM_SUPPORT_GATHER)
-	float4 depth = GATHER_RED_TEXTURE2D(_DepthTexture, sampler_PointClamp, id.xy * _DepthTex_TexelSize.xy + float2(0.5, 0.5) * _DepthTex_TexelSize.xy);
+	float4 depth = GATHER_TEXTURE2D(_DepthTexture, sampler_PointClamp, id.xy * _DepthTex_TexelSize.xy + float2(0.5, 0.5) * _DepthTex_TexelSize.xy);
 #else
 	uint2 uv = id.xy * _MipScale;
 	float4 depth;

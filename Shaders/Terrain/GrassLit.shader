@@ -91,7 +91,7 @@
             UNITY_VERTEX_OUTPUT_STEREO
         };
 
-        struct MeshData
+        struct BatchData
         {
             float4 position;
             float4 scale;
@@ -136,7 +136,7 @@
         TEXTURE2D(_HeadTex);       SAMPLER(sampler_HeadTex);
         TEXTURE2D(_WindNoiseMap);  SAMPLER(sampler_WindNoiseMap);
 
-        StructuredBuffer<MeshData> _AllInstancesTransformBuffer;
+        StructuredBuffer<BatchData> _AllInstancesTransformBuffer;
         StructuredBuffer<uint> _AllVisibleInstancesIndexBuffer;
 
         float2 BoundsToWorldUV(in float3 wPos, in half4 b)
@@ -158,25 +158,34 @@
         {
             Varyings output;
 
+            UNITY_SETUP_INSTANCE_ID(input);
+            UNITY_TRANSFER_INSTANCE_ID(input, output);
+            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
         #ifdef _INSTANCING_RENDERING_ON
             uint index = _AllVisibleInstancesIndexBuffer[input.instanceID];
-            float3 pivotPositionWS = _AllInstancesTransformBuffer[index].position;
-            float3 pivotScaleWS = _AllInstancesTransformBuffer[index].scale;
-        #else
-            float3 pivotPositionWS = float3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
+            float3 positionWS = _AllInstancesTransformBuffer[index].position.xyz;
+            float3 scale = _AllInstancesTransformBuffer[index].scale.xyz;
+            UNITY_MATRIX_M = float4x4(
+                    scale.x,0,0, positionWS.x,
+                    0,scale.y,0, positionWS.y,
+                    0,0,scale.z, positionWS.z,
+                    0,0,0,1
+                );
         #endif
 
+            float3 pivotPositionWS = float3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
             half3 direction = SafeNormalize(_WindDirection);
-            half2 windTexcoord = (pivotPositionWS + input.positionOS).xz / _WindScatter;
+            half2 windTexcoord = (pivotPositionWS.xz + input.positionOS.xz) / _WindScatter;
             half2 windWindTexcoord = windTexcoord - direction.xz * _WindHightlightSpeed * _Time.x;
             half wind = SAMPLE_TEXTURE2D_LOD(_WindNoiseMap, sampler_WindNoiseMap, windWindTexcoord, 0).r;
 
             float distanceThreadhold = 1 - saturate(distance(pivotPositionWS, GetCameraPositionWS()) / _WindRange);
 
-            float4 positionOS = input.positionOS;
-            positionOS.xyz = ApplyRotationAndScale(positionOS.xyz, pivotPositionWS, 1, 1, 1);
-            positionOS.xyz = ApplyBending(positionOS.xyz, pivotPositionWS, _BendStrength);
-            positionOS.xyz = ApplyWind(positionOS.xyz, pivotPositionWS, direction, _WindAFrequency, _WindATiling, _WindAWrap, (_WindAIntensity + wind * _WindHightlightIntensity) * distanceThreadhold);
+            float3 positionOS = input.positionOS.xyz;
+            positionOS = ApplyRotationAndScale(positionOS, pivotPositionWS, 1, 1, 1);
+            positionOS = ApplyBending(positionOS, pivotPositionWS, _BendStrength);
+            positionOS = ApplyWind(positionOS, pivotPositionWS, direction, _WindAFrequency, _WindATiling, _WindAWrap, (_WindAIntensity + wind * _WindHightlightIntensity) * distanceThreadhold);
 
             float3 cameraTransformRightWS = UNITY_MATRIX_V[0].xyz;
             float3 cameraTransformForwardWS = -UNITY_MATRIX_V[2].xyz;
@@ -187,14 +196,10 @@
             float rootBlend = lerp(1, smoothstep(_RootBlendHeight, _RootBlendHeight + (1 - _HeadBlendHeight), sqrt(input.positionOS.y)), _RootStrength);
             float headBlend = lerp(0, lerp(1, ObjectPosRand01(pivotPositionWS), _HeadColor.a), _HeadStrength);
 
-        #ifdef _INSTANCING_RENDERING_ON
-            output.positionWS = float4(positionOS * pivotScaleWS + pivotPositionWS, rootBlend);
-        #else
             output.positionWS = float4(TransformObjectToWorld(positionOS), rootBlend);
-        #endif
             output.normalWS = float4(N, headBlend);
             output.color = float4(_MainColor, wind * saturate(input.positionOS.y / 0.12));
-            output.positionCS = TransformWorldToHClip(output.positionWS);
+            output.positionCS = TransformWorldToHClip(output.positionWS.xyz);
             output.uv = input.uv;
             output.bakeGI = SampleSH(N);
 
@@ -249,31 +254,30 @@
 
         #ifdef _INSTANCING_RENDERING_ON
             uint index = _AllVisibleInstancesIndexBuffer[input.instanceID];
-            float3 pivotPositionWS = _AllInstancesTransformBuffer[index].position;
-            float3 pivotScaleWS = _AllInstancesTransformBuffer[index].scale;
-        #else
-            float3 pivotPositionWS = float3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
+            float3 positionWS = _AllInstancesTransformBuffer[index].position.xyz;
+            float3 scale = _AllInstancesTransformBuffer[index].scale.xyz;
+            UNITY_MATRIX_M = float4x4(
+                    scale.x,0,0, positionWS.x,
+                    0,scale.y,0, positionWS.y,
+                    0,0,scale.z, positionWS.z,
+                    0,0,0,1
+                );
         #endif
 
+            float3 pivotPositionWS = float3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
             half3 direction = SafeNormalize(_WindDirection);
-            half2 windTexcoord = (pivotPositionWS + input.positionOS).xz / _WindScatter;
+            half2 windTexcoord = (pivotPositionWS.xz + input.positionOS.xz) / _WindScatter;
             half2 windWindTexcoord = windTexcoord - direction.xz * _WindHightlightSpeed * _Time.x;
             half wind = SAMPLE_TEXTURE2D_LOD(_WindNoiseMap, sampler_WindNoiseMap, windWindTexcoord, 0).r;
 
             float distanceThreadhold = 1 - saturate(distance(pivotPositionWS, GetCameraPositionWS()) / _WindRange);
 
-            float4 positionOS = input.positionOS;
-            positionOS.xyz = ApplyRotationAndScale(positionOS.xyz, pivotPositionWS, 1, 1, 1);
-            positionOS.xyz = ApplyBending(positionOS.xyz, pivotPositionWS, _BendStrength);
-            positionOS.xyz = ApplyWind(positionOS.xyz, pivotPositionWS, direction, _WindAFrequency, _WindATiling, _WindAWrap, (_WindAIntensity + wind * _WindHightlightIntensity) * distanceThreadhold);
-            
-        #ifdef _INSTANCING_RENDERING_ON
-            float4 positionWS = float4(positionOS.xyz * pivotScaleWS + pivotPositionWS, 1);
-        #else
-            float4 positionWS = float4(TransformObjectToWorld(positionOS), 1);
-        #endif
+            float3 positionOS = input.positionOS.xyz;
+            positionOS = ApplyRotationAndScale(positionOS, pivotPositionWS, 1, 1, 1);
+            positionOS = ApplyBending(positionOS, pivotPositionWS, _BendStrength);
+            positionOS = ApplyWind(positionOS, pivotPositionWS, direction, _WindAFrequency, _WindATiling, _WindAWrap, (_WindAIntensity + wind * _WindHightlightIntensity) * distanceThreadhold);           
 
-            output.positionCS = TransformWorldToHClip(positionWS);
+            output.positionCS = TransformWorldToHClip(TransformObjectToWorld(positionOS));
 
             return output;
         }

@@ -8,7 +8,7 @@ namespace UnityEngine.Rendering.Universal
     {
         public delegate void onUploadMeshDataEvent();
 
-        public int brushSensity = 2;
+        public int brushSensity = 5;
 
         public List<BatchData> instanceData = new List<BatchData>();
 
@@ -16,25 +16,7 @@ namespace UnityEngine.Rendering.Universal
 
         public void Append(Vector3 worldPos, Vector3 worldScale)
         {
-            worldPos.x = Mathf.Round(worldPos.x * 100) / 100;
-            worldPos.y = Mathf.Round(worldPos.y * 100) / 100;
-            worldPos.z = Mathf.Round(worldPos.z * 100) / 100;
-
-            bool isAlreadyExist = false;
-
-            for (int i = 0; i < instanceData.Count; i++)
-            {
-                if (Vector3.Distance(instanceData[i].worldPos, worldPos) * 100 < brushSensity)
-                {
-                    isAlreadyExist = true;
-                    break;
-                }
-            }
-
-            if (!isAlreadyExist)
-            {
-                instanceData.Add(new BatchData() { worldPos = worldPos, worldScale = worldScale });
-            }
+            instanceData.Add(new BatchData() { worldPos = worldPos, worldScale = worldScale });
         }
 
         public void Remove(Vector3 center, float radius)
