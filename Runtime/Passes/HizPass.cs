@@ -8,8 +8,6 @@ namespace UnityEngine.Rendering.Universal
     {
         const int k_MaxPyramidSize = 7;
 
-        public ProfilingSampler _profilingSampler;
-
         private ComputeShader _hizCS;
 
         private RenderTextureDescriptor _cameraDescriptor { get; set; }
@@ -29,7 +27,6 @@ namespace UnityEngine.Rendering.Universal
             renderPassEvent = evt;
 
             _hizCS = hizCS;
-            _profilingSampler = new ProfilingSampler(ShaderConstants._profilerTag);
             
             ShaderConstants._HizMipDown = new int[k_MaxPyramidSize];
 
@@ -104,42 +101,40 @@ namespace UnityEngine.Rendering.Universal
 
             CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
 
-            using (new ProfilingScope(cmd, _profilingSampler))
-            {
-                cmd.SetGlobalTexture("_CameraHizTexture", hizRenderTarget);
-
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
-
-                int width = hizRenderTarget.width;
-                int height = hizRenderTarget.height;
-
-                for (int i = 0; i < hizRenderTarget.mipmapCount; i++)
-                {
-                    if (i % 2 == 1)
-                    {
-                        cmd.SetComputeVectorParam(_hizCS, ShaderConstants._DepthTex_TexelSize, new Vector4(1.0f / width, 1.0f / height, 0, 0));
-                        cmd.SetComputeIntParam(_hizCS, ShaderConstants._MipScale, 2 << (i - 1));
-                        cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._DepthTexture, hizRenderTarget, i - 1);
-                        cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._RWHizTexture, ShaderConstants._HizMipDown[i]);
-                        cmd.DispatchCompute(_hizCS, 0, Mathf.CeilToInt(width / 16f), Mathf.CeilToInt(height / 8f), 1);
-                        cmd.CopyTexture(ShaderConstants._HizMipDown[i], 0, 0, hizRenderTarget, 0, i);
-                    }
-                    else
-                    {
-                        cmd.SetComputeVectorParam(_hizCS, ShaderConstants._DepthTex_TexelSize, new Vector4(1.0f / width, 1.0f / height, 0, 0));
-                        cmd.SetComputeIntParam(_hizCS, ShaderConstants._MipScale, 2);
-                        cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._DepthTexture, i == 0 ? _depthTextureHandle.Identifier() : ShaderConstants._HizMipDown[i - 1]);
-                        cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._RWHizTexture, hizRenderTarget, i);
-                        cmd.DispatchCompute(_hizCS, 0, Mathf.CeilToInt(width / 16f), Mathf.CeilToInt(height / 8f), 1);
-                    }
-
-                    width = Mathf.Max(1, width >> 1);
-                    height = Mathf.Max(1, height >> 1);
-                }
-            }
+            cmd.SetGlobalTexture("_CameraHizTexture", hizRenderTarget);
 
             context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
+            cmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
+
+            int width = hizRenderTarget.width;
+            int height = hizRenderTarget.height;
+
+            for (int i = 0; i < hizRenderTarget.mipmapCount; i++)
+            {
+                if (i % 2 == 1)
+                {
+                    cmd.SetComputeVectorParam(_hizCS, ShaderConstants._DepthTex_TexelSize, new Vector4(1.0f / width, 1.0f / height, 0, 0));
+                    cmd.SetComputeIntParam(_hizCS, ShaderConstants._MipScale, 2 << (i - 1));
+                    cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._DepthTexture, hizRenderTarget, i - 1);
+                    cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._RWHizTexture, ShaderConstants._HizMipDown[i]);
+                    cmd.DispatchCompute(_hizCS, 0, Mathf.CeilToInt(width / 16f), Mathf.CeilToInt(height / 8f), 1);
+                    cmd.CopyTexture(ShaderConstants._HizMipDown[i], 0, 0, hizRenderTarget, 0, i);
+                }
+                else
+                {
+                    cmd.SetComputeVectorParam(_hizCS, ShaderConstants._DepthTex_TexelSize, new Vector4(1.0f / width, 1.0f / height, 0, 0));
+                    cmd.SetComputeIntParam(_hizCS, ShaderConstants._MipScale, 2);
+                    cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._DepthTexture, i == 0 ? _depthTextureHandle.Identifier() : ShaderConstants._HizMipDown[i - 1]);
+                    cmd.SetComputeTextureParam(_hizCS, 0, ShaderConstants._RWHizTexture, hizRenderTarget, i);
+                    cmd.DispatchCompute(_hizCS, 0, Mathf.CeilToInt(width / 16f), Mathf.CeilToInt(height / 8f), 1);
+                }
+
+                width = Mathf.Max(1, width >> 1);
+                height = Mathf.Max(1, height >> 1);
+            }
+
+            context.ExecuteCommandBufferAsync(cmd, ComputeQueueType.Background);
             CommandBufferPool.Release(cmd);
         }
 
