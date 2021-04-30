@@ -226,13 +226,12 @@ namespace UnityEditor.Rendering.Universal
             int[] trinagles = new int[3] { 2, 1, 0, };
 
             var go = CoreEditorUtils.CreateGameObject("GPU Driven Batch", menuCommand.context);
-            go.AddComponent<MeshBatchRenderer>();
-
             var mesh = new Mesh();
             mesh.SetVertices(verts);
             mesh.SetTriangles(trinagles, 0);
 
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshBatchRenderer>();
         }
 
         [MenuItem("GameObject/GPU Driven/Combine/Tree Batch", true)]
