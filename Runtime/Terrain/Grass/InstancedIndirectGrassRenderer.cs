@@ -97,16 +97,24 @@ namespace UnityEngine.Rendering.Universal
                 SystemInfo.maxComputeBufferInputsCompute
                 );
 
-            GbufferPreparePass.ConfigureOpaqueAction += Configure;
+            RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
+
+#if UNITY_EDITOR
+            RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
+#endif
         }
 
         public void OnDisable()
         {
+            RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
+
+#if UNITY_EDITOR
+            RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
+#endif
+
             grassGroup.onChange -= OnGrassGroupChange;
             grassGroup.onColorChange -= OnColorChange;
             grassGroup.onScaleChange -= OnScaleChange;
-
-            GbufferPreparePass.ConfigureOpaqueAction -= Configure;
 
             _allInstancesPosWSBuffer?.Release();
             _allInstancesIndexBuffer?.Release();
@@ -335,26 +343,22 @@ namespace UnityEngine.Rendering.Universal
             _shouldUpdateInstanceData = false;
         }
 
-        void Configure(ref CommandBuffer cmd, ref RenderingData renderingData)
+        void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
         {
-            if (renderingData.cameraData.renderType == CameraRenderType.Overlay)
+#if UNITY_EDITOR
+            if (EditorApplication.isPlaying && camera != Camera.main)
                 return;
+#endif
 
             if (grassGroup.instanceMaterial == null || _cullingComputeShader == null || grassGroup.grasses.Count == 0)
                 return;
 
-#if UNITY_EDITOR
-            if (EditorApplication.isPlaying && renderingData.cameraData.isSceneViewCamera)
-                return;
-#endif
-
             UpdateAllInstanceTransformBufferIfNeeded();
 
-            ref Camera cam = ref renderingData.cameraData.camera;
-            float cameraOriginalFarPlane = cam.farClipPlane;
-            cam.farClipPlane = grassGroup.maxDrawDistance;
-            GeometryUtility.CalculateFrustumPlanes(cam, _cameraFrustumPlanes);
-            cam.farClipPlane = cameraOriginalFarPlane;
+            float cameraOriginalFarPlane = camera.farClipPlane;
+            camera.farClipPlane = grassGroup.maxDrawDistance;
+            GeometryUtility.CalculateFrustumPlanes(camera, _cameraFrustumPlanes);
+            camera.farClipPlane = cameraOriginalFarPlane;
 
             if (!GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, boundingBox))
                 return;
@@ -379,68 +383,90 @@ namespace UnityEngine.Rendering.Universal
             if (_visibleCellIDList.Count == 0)
                 return;
 
-            using (new ProfilingScope(cmd, ProfilingSampler.Get(GrassProfileId.Dispatch)))
+            CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag);
+
+            using (new ProfilingScope(cmd, ShaderConstants._profilingSampler))
             {
                 cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounter, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
                 cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounter, 1, 1, 1);
-            }
 
-            var tanFov = Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad);
-            var hizRenderTarget = HizPass.GetHizTexture(ref cam);
-            int occlusionKernel = hizRenderTarget && grassGroup.isGpuCulling ? _computeOcclusionCulling : _computeFrustumCulling;
+                var tanFov = Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad);
+                var hizRenderTarget = HizPass.GetHizTexture(ref camera);
+                int occlusionKernel = hizRenderTarget && grassGroup.isGpuCulling ? _computeOcclusionCulling : _computeFrustumCulling;
 
-            cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, this._cachedGrassMesh.bounds.size.y, 0));
-            cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, grassGroup.maxDrawDistance, grassGroup.sensity, grassGroup.distanceCulling));
-            cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, cam.projectionMatrix * cam.worldToCameraMatrix);
+                float near = camera.nearClipPlane;
+                float far = camera.farClipPlane;
+                float invNear = Mathf.Approximately(near, 0.0f) ? 0.0f : 1.0f / near;
+                float invFar = Mathf.Approximately(far, 0.0f) ? 0.0f : 1.0f / far;
+                float isOrthographic = camera.orthographic ? 1.0f : 0.0f;
+                float zc0 = 1.0f - far * invNear;
+                float zc1 = far * invNear;
 
-            cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
-            cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
-            cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+                Vector4 zBufferParams = new Vector4(zc0, zc1, zc0 * invFar, zc1 * invFar);
 
-            if (occlusionKernel == _computeOcclusionCulling)
-            {
-                cmd.SetComputeTextureParam(_cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, hizRenderTarget);
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, cam.projectionMatrix * cam.worldToCameraMatrix);
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_TexelSize, new Vector4(hizRenderTarget.width, hizRenderTarget.height, 0, 0));
-            }
-
-            for (int i = 0; i < _visibleCellIDList.Count; i++)
-            {
-                int targetCellID = _visibleCellIDList[i];
-                int jobLength = cellPosWSsList[targetCellID].grasses.Count;
-
-                if (_shouldBatchDispatch)
+                if (SystemInfo.usesReversedZBuffer)
                 {
-                    while ((i < _visibleCellIDList.Count - 1) && (_visibleCellIDList[i + 1] == _visibleCellIDList[i] + 1))
-                    {
-                        jobLength += cellPosWSsList[_visibleCellIDList[i + 1]].grasses.Count;
-                        i++;
-                    }
+                    zBufferParams.y += zBufferParams.x;
+                    zBufferParams.x = -zBufferParams.x;
+                    zBufferParams.w += zBufferParams.z;
+                    zBufferParams.z = -zBufferParams.z;
                 }
 
-                if (jobLength > 0)
-                {
-                    int memoryOffset = 0;
-                    for (int j = 0; j < targetCellID; j++)
-                        memoryOffset += cellPosWSsList[j].grasses.Count;
+                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams);
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix);
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false));
+                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, grassGroup.maxDrawDistance, grassGroup.sensity, grassGroup.distanceCulling));
 
-                    using (new ProfilingScope(cmd, ProfilingSampler.Get(GrassProfileId.Dispatch)))
+                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, this._cachedGrassMesh.bounds.size.y, 0));
+                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
+                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
+                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+
+                if (occlusionKernel == _computeOcclusionCulling)
+                {
+                    cmd.SetComputeTextureParam(_cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, hizRenderTarget);
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_TexelSize, new Vector4(hizRenderTarget.width, hizRenderTarget.height, 0, 0));
+                }
+
+                for (int i = 0; i < _visibleCellIDList.Count; i++)
+                {
+                    int targetCellID = _visibleCellIDList[i];
+                    int jobLength = cellPosWSsList[targetCellID].grasses.Count;
+
+                    if (_shouldBatchDispatch)
                     {
-                        cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._StartOffset, memoryOffset);
-                        cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._EndOffset, memoryOffset + jobLength);
-                        cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / 64f), 1, 1);
+                        while ((i < _visibleCellIDList.Count - 1) && (_visibleCellIDList[i + 1] == _visibleCellIDList[i] + 1))
+                        {
+                            jobLength += cellPosWSsList[_visibleCellIDList[i + 1]].grasses.Count;
+                            i++;
+                        }
+                    }
+
+                    if (jobLength > 0)
+                    {
+                        int memoryOffset = 0;
+                        for (int j = 0; j < targetCellID; j++)
+                            memoryOffset += cellPosWSsList[j].grasses.Count;
+
+                        using (new ProfilingScope(cmd, ProfilingSampler.Get(GrassProfileId.Dispatch)))
+                        {
+                            cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._StartOffset, memoryOffset);
+                            cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._EndOffset, memoryOffset + jobLength);
+                            cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / 64f), 1, 1);
+                        }
                     }
                 }
             }
+        }
 
-#if UNITY_EDITOR
-            if (debugMode)
-			{
+        public void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
+        {
+            if (this.debugMode && _argsBuffer != null)
+            {
                 uint[] counter = new uint[5];
                 _argsBuffer.GetData(counter);
                 drawInstancedCount = (int)counter[1];
             }
-#endif
         }
 
         public void LateUpdate()
@@ -491,9 +517,11 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _PivotPosWS = Shader.PropertyToID("_PivotPosWS");
             public static readonly int _BoundSize = Shader.PropertyToID("_BoundSize");
 
+            public static readonly int _CameraZBufferParams = Shader.PropertyToID("_CameraZBufferParams");
             public static readonly int _CameraDrawParams = Shader.PropertyToID("_CameraDrawParams");
+            public static readonly int _CameraViewMatrix = Shader.PropertyToID("_CameraViewMatrix");
             public static readonly int _CameraViewProjection = Shader.PropertyToID("_CameraViewProjection");
-            
+
             public static readonly int _HizTexture = Shader.PropertyToID("_HizTexture");
             public static readonly int _HizTexture_TexelSize = Shader.PropertyToID("_HizTexture_TexelSize");
 

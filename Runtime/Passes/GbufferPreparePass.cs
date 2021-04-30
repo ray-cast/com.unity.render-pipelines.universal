@@ -20,14 +20,6 @@ namespace UnityEngine.Rendering.Universal
         private RenderTargetHandle[] _colorAttachmentHandle { get; set; }
         private RenderTargetHandle _depthAttachmentHandle { get; set; }
 
-        public delegate void RefAction(ref CommandBuffer cmd, ref RenderingData renderingData);
-
-        public static event RefAction ConfigureOpaqueAction;
-        public static event RefAction ConfigureTransparentAction;
-
-        public static event RefAction DrawOpaqueAction;
-        public static event RefAction DrawTransparentAction;
-
         public GbufferPreparePass(string profilerTag, bool opaque, RenderPassEvent evt, RenderQueueRange renderQueueRange, LayerMask layerMask, StencilState stencilState, int stencilReference)
         {
             renderPassEvent = evt;
@@ -102,17 +94,6 @@ namespace UnityEngine.Rendering.Universal
             {
                 cmd.SetGlobalVector(ShaderConstants._DrawObjectPassDataPropID, ShaderConstants.drawObjectPassData);
 
-                if (_isOpaque)
-                {
-                    if (ConfigureOpaqueAction != null)
-                        ConfigureOpaqueAction(ref cmd, ref renderingData);
-                }
-                else
-                {
-                    if (ConfigureTransparentAction != null)
-                        ConfigureTransparentAction(ref cmd, ref renderingData);
-                }
-
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
@@ -128,17 +109,6 @@ namespace UnityEngine.Rendering.Universal
 #endif
 
                 context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref filterSettings, ref _renderStateBlock);
-
-                if (_isOpaque)
-                {
-                    if (DrawOpaqueAction != null)
-                        DrawOpaqueAction(ref cmd, ref renderingData);
-                }
-                else
-                {
-                    if (DrawTransparentAction != null)
-                        DrawTransparentAction(ref cmd, ref renderingData);
-                }
             }
 
             context.ExecuteCommandBuffer(cmd);

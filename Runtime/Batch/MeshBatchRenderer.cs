@@ -265,11 +265,10 @@ namespace UnityEngine.Rendering.Universal
 
             UpdateAllInstanceTransformBufferIfNeeded();
 
-            Camera cam = camera;
-            float cameraOriginalFarPlane = cam.farClipPlane;
-            cam.farClipPlane = maxDrawDistance;
-            GeometryUtility.CalculateFrustumPlanes(cam, _cameraFrustumPlanes);
-            cam.farClipPlane = cameraOriginalFarPlane;
+            float cameraOriginalFarPlane = camera.farClipPlane;
+            camera.farClipPlane = maxDrawDistance;
+            GeometryUtility.CalculateFrustumPlanes(camera, _cameraFrustumPlanes);
+            camera.farClipPlane = cameraOriginalFarPlane;
 
             if (!GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, _boundingBox))
                 return;
@@ -304,10 +303,10 @@ namespace UnityEngine.Rendering.Universal
                 cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
                 cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounterKernel, 1, 1, 1);
 
-                var tanFov = Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad);
+                var tanFov = Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad);
                 var size = this._instanceMesh.bounds.center;
 
-                var hizRenderTarget = HizPass.GetHizTexture(ref cam);
+                var hizRenderTarget = HizPass.GetHizTexture(ref camera);
                 var occlusionKernel = hizRenderTarget && this.isGpuCulling ? _computeOcclusionCullingKernel : _computeFrustumCullingKernel;
 
                 float near = camera.nearClipPlane;
@@ -330,8 +329,8 @@ namespace UnityEngine.Rendering.Universal
 
                 cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams); 
                 cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, this.maxDrawDistance, this.sensity, this.distanceCulling));
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, cam.worldToCameraMatrix); 
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(cam.projectionMatrix, false));
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix); 
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false));
 
                 cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
                 cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allBatchPositionBuffer);

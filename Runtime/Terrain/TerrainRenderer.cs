@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEditor;
-using Unity.Collections;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -22,7 +21,7 @@ namespace UnityEngine.Rendering.Universal
     }
 
     [ExecuteAlways]
-    public class GPUTerrain : MonoBehaviour
+    public class TerrainRenderer : MonoBehaviour
     {
         public Material material;
         public TerrainData terrainData;
@@ -48,12 +47,16 @@ namespace UnityEngine.Rendering.Universal
 
         private bool _sholudUpdateTerrain;
 
-        [SerializeField]
-        private int drawInstancedCount = 0;
         private int patchSize = 64;
         private TerrainTree _terrainTree;
         private List<TerrainPatch> _terrainPatches;
         private TerrainData _cacheTerrainData;
+
+#if UNITY_EDITOR
+        [SerializeField]
+        private bool debugMode = false;
+        private int drawInstancedCount = 0;
+#endif
 
         void InitializeNormalMap()
 		{
@@ -222,11 +225,19 @@ namespace UnityEngine.Rendering.Universal
             _shadowBuffer.SetData(args);
 
             //ShadowUtils.CustomRenderShadowSlice += this.RenderShadowmap;
-            DrawObjectsPass.ConfigureOpaqueAction += Configure;
+            RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
+#if UNITY_EDITOR
+            RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
+#endif
         }
 
         void OnDisable()
         {
+            RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
+#if UNITY_EDITOR
+            RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
+#endif
+
             if (_allInstancesPatchBuffer != null)
                 _allInstancesPatchBuffer.Release();
 
@@ -250,69 +261,78 @@ namespace UnityEngine.Rendering.Universal
             _normalMap = null;
 
             //ShadowUtils.CustomRenderShadowSlice -= this.RenderShadowmap;
-            DrawObjectsPass.ConfigureOpaqueAction -= Configure;
+            RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
         }
 
-        void Configure(ref CommandBuffer cmd, ref RenderingData renderingData)
+        void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
         {
             UnityEngine.Assertions.Assert.IsNotNull(_cullingComputeShader);
 
-            if (terrainData == null || material == null)
-                return;
-
-            if (renderingData.cameraData.renderType == CameraRenderType.Overlay)
-                return;
-
 #if UNITY_EDITOR
-            if (EditorApplication.isPlaying && renderingData.cameraData.isSceneViewCamera)
+            if (EditorApplication.isPlaying && camera != Camera.main)
                 return;
 #endif
 
-            ref var camera = ref renderingData.cameraData.camera;
+            if (terrainData == null || material == null)
+                return;
 
             var hizRT = HizPass.GetHizTexture(ref camera);
             if (hizRT)
             {
                 UpdateTerrainPatchesIfNeeded(camera.transform.position);
 
-                cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
-                cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounterKernel, 1, 1, 1);
+                CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag);
 
-                GeometryUtility.CalculateFrustumPlanes(camera, _cameraFrustumPlanes);
+                using (new ProfilingScope(cmd, ShaderConstants._profilingSampler))
+                {
+                    cmd.Clear();
+                    cmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
 
-                for (int i = 0; i < _cameraFrustumPlanes.Length; i++)
-				{
-                    ref var plane = ref _cameraFrustumPlanes[i];
-                    _cameraFrustumData[i].x = plane.normal.x;
-                    _cameraFrustumData[i].y = plane.normal.y;
-                    _cameraFrustumData[i].z = plane.normal.z;
-                    _cameraFrustumData[i].w = plane.distance;
+                    cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+                    cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounterKernel, 1, 1, 1);
+
+                    GeometryUtility.CalculateFrustumPlanes(camera, _cameraFrustumPlanes);
+
+                    for (int i = 0; i < _cameraFrustumPlanes.Length; i++)
+                    {
+                        ref var plane = ref _cameraFrustumPlanes[i];
+                        _cameraFrustumData[i].x = plane.normal.x;
+                        _cameraFrustumData[i].y = plane.normal.y;
+                        _cameraFrustumData[i].z = plane.normal.z;
+                        _cameraFrustumData[i].w = plane.distance;
+                    }
+
+                    cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._OffsetParams, _terrainPatches.Count);
+
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._TerrainSize, terrainData.size);
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_Size, new Vector2(hizRT.width, hizRT.height));
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HeightMapTexture_TexelSize, new Vector4(_heightMap.texelSize.x, _heightMap.texelSize.y, _heightMap.width, _heightMap.height));
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(camera.fieldOfView, camera.nearClipPlane, camera.farClipPlane, 0));
+                    cmd.SetComputeVectorArrayParam(_cullingComputeShader, ShaderConstants._CameraFrustumPlanes, _cameraFrustumData);
+
+                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, camera.projectionMatrix * camera.worldToCameraMatrix);
+
+                    cmd.SetComputeTextureParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._HeightMap, _heightMap);
+                    cmd.SetComputeTextureParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._HizTexture, hizRT);
+
+                    cmd.SetComputeBufferParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._AllInstancesPatchBuffer, _allInstancesPatchBuffer);
+                    cmd.SetComputeBufferParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _visibleInstancesIndexBuffer);
+                    cmd.SetComputeBufferParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+
+                    cmd.DispatchCompute(_cullingComputeShader, _cullTerrainKernel, Mathf.CeilToInt(_terrainPatches.Count / 64f), 1, 1);
                 }
 
-                cmd.SetComputeFloatParam(_cullingComputeShader, ShaderConstants._OffsetParams, _terrainPatches.Count);
+                context.ExecuteCommandBufferAsync(cmd, ComputeQueueType.Background);
+            }
+        }
 
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._TerrainSize, terrainData.size);
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_Size, new Vector2(hizRT.width, hizRT.height));
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HeightMapTexture_TexelSize, new Vector4(_heightMap.texelSize.x, _heightMap.texelSize.y, _heightMap.width, _heightMap.height));
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(camera.fieldOfView, camera.nearClipPlane, camera.farClipPlane, 0));
-                cmd.SetComputeVectorArrayParam(_cullingComputeShader, ShaderConstants._CameraFrustumPlanes, _cameraFrustumData);
-
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, camera.projectionMatrix * camera.worldToCameraMatrix);
-
-                cmd.SetComputeTextureParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._HeightMap, _heightMap);
-                cmd.SetComputeTextureParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._HizTexture, hizRT);
-
-                cmd.SetComputeBufferParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._AllInstancesPatchBuffer, _allInstancesPatchBuffer);
-                cmd.SetComputeBufferParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _visibleInstancesIndexBuffer);
-                cmd.SetComputeBufferParam(_cullingComputeShader, _cullTerrainKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
-
-                cmd.DispatchCompute(_cullingComputeShader, _cullTerrainKernel, Mathf.CeilToInt(_terrainPatches.Count / 64f), 1, 1);
-
-#if UNITY_EDITOR
+        public void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
+        {
+            if (this.debugMode && _argsBuffer != null)
+            {
                 uint[] counter = new uint[5];
                 _argsBuffer.GetData(counter);
                 drawInstancedCount = (int)counter[1];
-#endif
             }
         }
 
@@ -339,6 +359,11 @@ namespace UnityEngine.Rendering.Universal
 
         static class ShaderConstants
         {
+            public const string _configureTag = "Setup Terrain Instances";
+            public const string _renderTag = "Draw Batch Instanced";
+
+            public static ProfilingSampler _profilingSampler = new ProfilingSampler(_renderTag);
+
             public static readonly int _CameraDrawParams = Shader.PropertyToID("_CameraDrawParams");
             public static readonly int _CameraFrustumPlanes = Shader.PropertyToID("_CameraFrustumPlanes");
             public static readonly int _CameraViewProjection = Shader.PropertyToID("_CameraViewProjection");

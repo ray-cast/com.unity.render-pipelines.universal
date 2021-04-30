@@ -246,7 +246,6 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
     public class QueueDrawer : MaterialPropertyDrawer
 	{
         float height = 16;
-        float width = 90;
         bool alphaClip = false;
 
         public enum SurfaceType
@@ -313,8 +312,6 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
 
     public class BlendSwitcherDrawer : MaterialPropertyDrawer
     {
-        float height = 16;
-        float width = 65;
         bool _alphaClip = false;
         float _surface = -1.0f;
         string propertyName;
