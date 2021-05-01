@@ -13,7 +13,7 @@ namespace UnityEngine.Rendering.Universal
             boundingBox = new Bounds(center, new Vector3(sizeX, 0, sizeZ));
         }
 
-        public void AddGrass(BatchData fp)
+        public void Append(BatchData fp)
         {
             boundingBox.Encapsulate(fp.worldPos);
             data.Add(fp);

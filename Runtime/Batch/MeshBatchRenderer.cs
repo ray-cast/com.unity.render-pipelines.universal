@@ -108,7 +108,7 @@ namespace UnityEngine.Rendering.Universal
 
             _boundingBox.SetMinMax(Vector3.positiveInfinity, Vector3.negativeInfinity);
             for (int i = 0; i < allBatchPos.Count; i++)
-                _boundingBox.Encapsulate(Vector3.Scale(allBatchPos[i].worldPos, transform.lossyScale));
+                _boundingBox.Encapsulate(allBatchPos[i].worldPos);
 
             var max = _boundingBox.max;
             var min = _boundingBox.min;
@@ -128,12 +128,11 @@ namespace UnityEngine.Rendering.Universal
             for (int i = 0; i < allBatchPos.Count; i++)
             {
                 BatchData gp = allBatchPos[i];
-                Vector3 pos = Vector3.Scale(gp.worldPos, transform.localScale);
 
-                int xID = Mathf.Min(cellCountX - 1, Mathf.FloorToInt(Mathf.InverseLerp(min.x, max.x, pos.x) * cellCountX));
-                int zID = Mathf.Min(cellCountZ - 1, Mathf.FloorToInt(Mathf.InverseLerp(min.z, max.z, pos.z) * cellCountZ));
+                int xID = Mathf.Min(cellCountX - 1, Mathf.FloorToInt(Mathf.InverseLerp(min.x, max.x, gp.worldPos.x) * cellCountX));
+                int zID = Mathf.Min(cellCountZ - 1, Mathf.FloorToInt(Mathf.InverseLerp(min.z, max.z, gp.worldPos.z) * cellCountZ));
 
-                _chunks[xID + zID * cellCountX].AddGrass(gp);
+                _chunks[xID + zID * cellCountX].Append(gp);
             }
 
             Vector3[] allMeshPosWSSortedByCell = new Vector3[allBatchPos.Count];
