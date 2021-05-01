@@ -8,7 +8,6 @@
         [Space(20)]
         [Toggle(_ALPHATEST_ON)] _AlphaClip ("启用透明度剔除", Float) = 0
         _Cutoff("透明剔除", Range(0.0, 1.0)) = 0.5
-        _AlphaMipScale("透明剔除抗锯齿程度", Range(0, 1)) = 0.25
 
         [Space(20)]
         [TexToggle(_ROOTMAP)][NoScaleOffset]_RootTex("根部贴图", 2D) = "white" {}
@@ -54,6 +53,7 @@
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Gbuffer.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
         #include "VegetationCommon.cginc"
 
         struct Attributes
@@ -73,6 +73,7 @@
             float3 bakeGI      : TEXCOORD3;
             float2 uv          : TEXCOORD4;
             float4 color       : TEXCOORD5;
+            float4 screenPos   : TEXCOORD6;
         };
 
         struct AttributesLean
@@ -102,7 +103,6 @@
             half3 _MainColor;
             half4 _MainTex_TexelSize;
             half _Cutoff;
-            half _AlphaMipScale;
 
             float3 _PivotPosWS;
             float3 _PivotScaleWS;
@@ -203,6 +203,7 @@
             output.normalWS = float4(N, headBlend);
             output.color = float4(_MainColor, wind * saturate(input.positionOS.y / 0.12));
             output.positionCS = TransformWorldToHClip(output.positionWS.xyz);
+            output.screenPos = ComputeScreenPos(output.positionCS);
             output.uv = input.uv;
             output.bakeGI = SampleSH(N);
 
@@ -219,9 +220,14 @@
         #endif
 
         #if _ALPHATEST_ON
-            albedo.a *= (1 + ComputeTextureLOD(input.uv, _MainTex_TexelSize.zw) * _AlphaMipScale);
-            albedo.a = (albedo.a - _Cutoff) / max(fwidth(albedo.a), 0.0001) + 0.5;
-            clip(albedo.a);
+            input.screenPos /= input.screenPos.w;
+            input.screenPos.xy *= _ScreenParams.xy;
+
+            float linearDepth = distance(input.positionWS, GetCameraPositionWS());
+            float alpha = albedo.a;
+            alpha *= saturate(linearDepth / 2);
+
+            StippleAlpha(alpha, input.screenPos.xy);
         #endif
 
         #if _ROOTMAP
