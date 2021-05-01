@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.Collections;
 using UnityEditor;
 
 namespace UnityEngine.Rendering.Universal

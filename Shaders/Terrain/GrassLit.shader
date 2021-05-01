@@ -8,6 +8,7 @@
         [Space(20)]
         [Toggle(_ALPHATEST_ON)] _AlphaClip ("启用透明度剔除", Float) = 0
         _Cutoff("透明剔除", Range(0.0, 1.0)) = 0.5
+        _AlphaMipScale("透明剔除抗锯齿程度", Range(0, 1)) = 0.25
 
         [Space(20)]
         [TexToggle(_ROOTMAP)][NoScaleOffset]_RootTex("根部贴图", 2D) = "white" {}
@@ -99,7 +100,9 @@
 
         CBUFFER_START(UnityPerMaterial)
             half3 _MainColor;
+            half4 _MainTex_TexelSize;
             half _Cutoff;
+            half _AlphaMipScale;
 
             float3 _PivotPosWS;
             float3 _PivotScaleWS;
@@ -216,7 +219,9 @@
         #endif
 
         #if _ALPHATEST_ON
-            clip(albedo.a - _Cutoff);
+            albedo.a *= (1 + ComputeTextureLOD(input.uv, _MainTex_TexelSize.zw) * _AlphaMipScale);
+            albedo.a = (albedo.a - _Cutoff) / max(fwidth(albedo.a), 0.0001) + 0.5;
+            clip(albedo.a);
         #endif
 
         #if _ROOTMAP
