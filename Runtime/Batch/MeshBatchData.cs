@@ -31,6 +31,7 @@ namespace UnityEngine.Rendering.Universal
         public void Clear()
         {
             instanceData.Clear();
+            this.UploadMeshData();
         }
 
         public void UploadMeshData()

@@ -250,7 +250,7 @@ namespace UnityEditor.Rendering.Universal
             if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
             {
                 var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-                batchRenderer.instanceMaterial = pipeline.m_EditorResourcesAsset.materials.natureLit;
+                batchRenderer.instanceMaterial = Material.Instantiate(pipeline.m_EditorResourcesAsset.materials.natureLit);
                 batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
                 batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
             }
@@ -298,7 +298,7 @@ namespace UnityEditor.Rendering.Universal
                 if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
                 {
                     var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-                    batchRenderer.instanceMaterial = pipeline.m_EditorResourcesAsset.materials.treeLit;
+                    batchRenderer.instanceMaterial = Material.Instantiate(pipeline.m_EditorResourcesAsset.materials.treeLit);
                     batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
                     batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
 
@@ -365,7 +365,7 @@ namespace UnityEditor.Rendering.Universal
                 if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
 				{
                     var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-                    batchRenderer.instanceMaterial = pipeline.m_EditorResourcesAsset.materials.natureLit;
+                    batchRenderer.instanceMaterial = Material.Instantiate(pipeline.m_EditorResourcesAsset.materials.natureLit);
                     batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
                     batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
 

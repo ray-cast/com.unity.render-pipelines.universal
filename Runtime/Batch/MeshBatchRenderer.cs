@@ -29,8 +29,6 @@ namespace UnityEngine.Rendering.Universal
 
         private MaterialPropertyBlock _materialProperties;
 
-        private int _cacheInstanceCount = -1;
-
         private bool _shouldBatchDispatch = true;
         private bool _shouldUpdateInstanceData = false;
         private List<int> _visibleChunkList = new List<int>();
@@ -72,6 +70,7 @@ namespace UnityEngine.Rendering.Universal
             _computeFrustumCullingKernel = _cullingComputeShader.FindKernel("ComputeFrustumCulling");
             _computeOcclusionCullingKernel = _cullingComputeShader.FindKernel("ComputeOcclusionCulling");
 
+            RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
             RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
 #if UNITY_EDITOR
             RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
@@ -82,6 +81,7 @@ namespace UnityEngine.Rendering.Universal
         {
             instanceBatchData.onUploadMeshData -= UploadBatchData;
 
+            RenderPipelineManager.beginFrameRendering -= OnBeginFrameRendering;
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
 #if UNITY_EDITOR
             RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
@@ -201,55 +201,60 @@ namespace UnityEngine.Rendering.Universal
 
         void InitializeInstanceMesh()
         {
-            if (_argsBuffer == null || _meshFilter.sharedMesh != _instanceMesh)
+            if (_argsBuffer == null && _meshFilter.sharedMesh != null || _meshFilter.sharedMesh != _instanceMesh)
             {
                 _instanceMesh = _meshFilter.sharedMesh;
 
-                uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
-                args[0] = _instanceMesh.GetIndexCount(0);
-                args[1] = (uint)instanceBatchData.instanceData.Count;
-                args[2] = _instanceMesh.GetIndexStart(0);
-                args[3] = _instanceMesh.GetBaseVertex(0);
-                args[4] = 0;
+                if (_instanceMesh)
+				{
+                    uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
+                    args[0] = _instanceMesh.GetIndexCount(0);
+                    args[1] = (uint)instanceBatchData.instanceData.Count;
+                    args[2] = _instanceMesh.GetIndexStart(0);
+                    args[3] = _instanceMesh.GetBaseVertex(0);
+                    args[4] = 0;
 
-                _argsBuffer?.Release();
-                _argsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
-                _argsBuffer.SetData(args);
+                    _argsBuffer?.Release();
+                    _argsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
+                    _argsBuffer.SetData(args);
+                }
+                else
+				{
+                    _argsBuffer?.Release();
+                    _argsBuffer = null;
+                }
             }
         }
 
-        void SetupAllInstanceDataConstants()
+        void InitializeAllInstanceTransformBufferIfNeeded()
         {
-            ref var allBatchPos = ref instanceBatchData.instanceData;
-
-            if (allBatchPos.Count > 0)
+            if (_shouldUpdateInstanceData)
             {
-                this.InitializeInstanceMesh();
-                this.InitializeInstanceGridConstants();
+                ref var allBatchPos = ref instanceBatchData.instanceData;
 
-                instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allBatchDataBuffer);
-                instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
+                if (allBatchPos.Count > 0)
+                {
+                    this.InitializeInstanceGridConstants();
+                }
+                else
+                {
+                    _allBatchDataBuffer?.Release();
+                    _allBatchPositionBuffer?.Release();
+                    _allBatchVisibleIndexBuffer?.Release();
+
+                    _allBatchDataBuffer = null;
+                    _allBatchPositionBuffer = null;
+                    _allBatchVisibleIndexBuffer = null;
+                }
+
+                if (instanceMaterial)
+				{
+                    instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allBatchDataBuffer);
+                    instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
+                }
+
+                _shouldUpdateInstanceData = false;
             }
-
-            _cacheInstanceCount = allBatchPos.Count;
-        }
-
-        void UpdateAllInstanceTransformBufferIfNeeded()
-        {
-            ref var allBatchPos = ref instanceBatchData.instanceData;
-
-            if (!_shouldUpdateInstanceData &&
-                _cacheInstanceCount == allBatchPos.Count &&
-                _argsBuffer != null &&
-                _allBatchDataBuffer != null &&
-                _allBatchVisibleIndexBuffer != null &&
-                _meshFilter.sharedMesh == _instanceMesh)
-            {
-                return;
-            }
-
-            this.SetupAllInstanceDataConstants();
-            _shouldUpdateInstanceData = false;
         }
 
         void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
@@ -259,119 +264,115 @@ namespace UnityEngine.Rendering.Universal
                 return;
 #endif
 
-            ref var allBatchPos = ref instanceBatchData.instanceData;
-
-             if (_meshFilter.sharedMesh == null || instanceMaterial == null || _cullingComputeShader == null || allBatchPos.Count == 0)
-                return;
-
-            UpdateAllInstanceTransformBufferIfNeeded();
-
-            float cameraOriginalFarPlane = camera.farClipPlane;
-            camera.farClipPlane = maxDrawDistance;
-            GeometryUtility.CalculateFrustumPlanes(camera, _cameraFrustumPlanes);
-            camera.farClipPlane = cameraOriginalFarPlane;
-
-            if (!GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, _boundingBox))
-                return;
-
-            _visibleChunkList.Clear();
-
-            if (this.isCpuCulling)
+            if (_instanceMesh != null && _cullingComputeShader != null && instanceBatchData.instanceData.Count > 0)
             {
-                for (int i = 0; i < _chunks.Length; i++)
+                float cameraOriginalFarPlane = camera.farClipPlane;
+                camera.farClipPlane = maxDrawDistance;
+                GeometryUtility.CalculateFrustumPlanes(camera, _cameraFrustumPlanes);
+                camera.farClipPlane = cameraOriginalFarPlane;
+
+                if (!GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, _boundingBox))
+                    return;
+
+                _visibleChunkList.Clear();
+
+                if (this.isCpuCulling)
                 {
-                    Bounds cellBound = _chunks[i].boundingBox;
-                    if (GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, cellBound))
+                    for (int i = 0; i < _chunks.Length; i++)
+                    {
+                        Bounds cellBound = _chunks[i].boundingBox;
+                        if (GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, cellBound))
+                            _visibleChunkList.Add(i);
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < _chunks.Length; i++)
                         _visibleChunkList.Add(i);
                 }
-            }
-            else
-            {
-                for (int i = 0; i < _chunks.Length; i++)
-                    _visibleChunkList.Add(i);
-            }
 
-            if (_visibleChunkList.Count == 0)
-                return;
+                if (_visibleChunkList.Count == 0)
+                    return;
 
-            CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag);
+                CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag);
 
-            using (new ProfilingScope(cmd, ShaderConstants._profilingSampler))
-            {
-                cmd.Clear();
-                cmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
-
-                cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
-                cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounterKernel, 1, 1, 1);
-
-                var tanFov = Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad);
-                var size = this._instanceMesh.bounds.center;
-
-                var hizRenderTarget = HizPass.GetHizTexture(ref camera);
-                var occlusionKernel = hizRenderTarget && this.isGpuCulling ? _computeOcclusionCullingKernel : _computeFrustumCullingKernel;
-
-                float near = camera.nearClipPlane;
-                float far = camera.farClipPlane;
-                float invNear = Mathf.Approximately(near, 0.0f) ? 0.0f : 1.0f / near;
-                float invFar = Mathf.Approximately(far, 0.0f) ? 0.0f : 1.0f / far;
-                float isOrthographic = camera.orthographic ? 1.0f : 0.0f;
-                float zc0 = 1.0f - far * invNear;
-                float zc1 = far * invNear;
-
-                Vector4 zBufferParams = new Vector4(zc0, zc1, zc0 * invFar, zc1 * invFar);
-
-                if (SystemInfo.usesReversedZBuffer)
+                using (new ProfilingScope(cmd, ShaderConstants._profilingSampler))
                 {
-                    zBufferParams.y += zBufferParams.x;
-                    zBufferParams.x = -zBufferParams.x;
-                    zBufferParams.w += zBufferParams.z;
-                    zBufferParams.z = -zBufferParams.z;
-                }
+                    cmd.Clear();
+                    cmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
 
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams); 
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, this.maxDrawDistance, this.sensity, this.distanceCulling));
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix); 
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false));
+                    cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+                    cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounterKernel, 1, 1, 1);
 
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
-                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allBatchPositionBuffer);
-                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
-                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+                    var tanFov = Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad);
+                    var size = this._instanceMesh.bounds.center;
 
-                if (occlusionKernel == _computeOcclusionCullingKernel)
-                {
-                    cmd.SetComputeTextureParam(_cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, hizRenderTarget);
-                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_TexelSize, new Vector4(hizRenderTarget.width, hizRenderTarget.height, 0, 0));
-                }
+                    var hizRenderTarget = HizPass.GetHizTexture(ref camera);
+                    var occlusionKernel = hizRenderTarget && this.isGpuCulling ? _computeOcclusionCullingKernel : _computeFrustumCullingKernel;
 
-                for (int i = 0; i < _visibleChunkList.Count; i++)
-                {
-                    int targetCellFlattenID = _visibleChunkList[i];
-                    int jobLength = _chunks[targetCellFlattenID].data.Count;
+                    float near = camera.nearClipPlane;
+                    float far = camera.farClipPlane;
+                    float invNear = Mathf.Approximately(near, 0.0f) ? 0.0f : 1.0f / near;
+                    float invFar = Mathf.Approximately(far, 0.0f) ? 0.0f : 1.0f / far;
+                    float isOrthographic = camera.orthographic ? 1.0f : 0.0f;
+                    float zc0 = 1.0f - far * invNear;
+                    float zc1 = far * invNear;
 
-                    if (_shouldBatchDispatch)
+                    Vector4 zBufferParams = new Vector4(zc0, zc1, zc0 * invFar, zc1 * invFar);
+
+                    if (SystemInfo.usesReversedZBuffer)
                     {
-                        while ((i < _visibleChunkList.Count - 1) && (_visibleChunkList[i + 1] == _visibleChunkList[i] + 1))
+                        zBufferParams.y += zBufferParams.x;
+                        zBufferParams.x = -zBufferParams.x;
+                        zBufferParams.w += zBufferParams.z;
+                        zBufferParams.z = -zBufferParams.z;
+                    }
+
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams);
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, this.maxDrawDistance, this.sensity, this.distanceCulling));
+                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix);
+                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false));
+
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
+                    cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allBatchPositionBuffer);
+                    cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
+                    cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+
+                    if (occlusionKernel == _computeOcclusionCullingKernel)
+                    {
+                        cmd.SetComputeTextureParam(_cullingComputeShader, occlusionKernel, ShaderConstants._HizTexture, hizRenderTarget);
+                        cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._HizTexture_TexelSize, new Vector4(hizRenderTarget.width, hizRenderTarget.height, 0, 0));
+                    }
+
+                    for (int i = 0; i < _visibleChunkList.Count; i++)
+                    {
+                        int targetCellFlattenID = _visibleChunkList[i];
+                        int jobLength = _chunks[targetCellFlattenID].data.Count;
+
+                        if (_shouldBatchDispatch)
                         {
-                            jobLength += _chunks[_visibleChunkList[i + 1]].data.Count;
-                            i++;
+                            while ((i < _visibleChunkList.Count - 1) && (_visibleChunkList[i + 1] == _visibleChunkList[i] + 1))
+                            {
+                                jobLength += _chunks[_visibleChunkList[i + 1]].data.Count;
+                                i++;
+                            }
+                        }
+
+                        if (jobLength > 0)
+                        {
+                            int memoryOffset = 0;
+                            for (int j = 0; j < targetCellFlattenID; j++)
+                                memoryOffset += _chunks[j].data.Count;
+
+                            cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._StartOffset, memoryOffset);
+                            cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._EndOffset, memoryOffset + jobLength);
+                            cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / 64f), 1, 1);
                         }
                     }
-
-                    if (jobLength > 0)
-                    {
-                        int memoryOffset = 0;
-                        for (int j = 0; j < targetCellFlattenID; j++)
-                            memoryOffset += _chunks[j].data.Count;
-
-                        cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._StartOffset, memoryOffset);
-                        cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._EndOffset, memoryOffset + jobLength);
-                        cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / 64f), 1, 1);
-                    }
                 }
-            }
 
-            context.ExecuteCommandBufferAsync(cmd, ComputeQueueType.Background);
+                context.ExecuteCommandBufferAsync(cmd, ComputeQueueType.Background);
+            }
         }
 
         public void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
@@ -386,35 +387,38 @@ namespace UnityEngine.Rendering.Universal
 #endif
         }
 
-        public void LateUpdate()
+        public void OnBeginFrameRendering(ScriptableRenderContext context, Camera[] camera)
         {
             ref var allBatchPos = ref instanceBatchData.instanceData;
 
-            if (instanceMaterial == null || _argsBuffer == null || allBatchPos.Count == 0)
-                return;
+            this.InitializeInstanceMesh();
+            this.InitializeAllInstanceTransformBufferIfNeeded();
 
-            instanceMaterial.SetVector(ShaderConstants._PivotPosWS, transform.position);
-            instanceMaterial.SetVector(ShaderConstants._PivotScaleWS, transform.lossyScale);
+            if (instanceMaterial != null && _argsBuffer != null && allBatchPos.Count > 0)
+			{
+                instanceMaterial.SetVector(ShaderConstants._PivotPosWS, transform.position);
+                instanceMaterial.SetVector(ShaderConstants._PivotScaleWS, transform.lossyScale);
 
 #if UNITY_EDITOR
-            instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allBatchDataBuffer);
-            instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
+                instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allBatchDataBuffer);
+                instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
 #endif
 
-            Graphics.DrawMeshInstancedIndirect(
-                    _instanceMesh,
-                    0,
-                    instanceMaterial,
-                    _boundingBox,
-                    _argsBuffer,
-                    0,
-                    _materialProperties,
-                    ShadowCastingMode.Off,
-                    false,
-                    0,
-                    null,
-                    LightProbeUsage.CustomProvided
-                );
+                Graphics.DrawMeshInstancedIndirect(
+                        _instanceMesh,
+                        0,
+                        instanceMaterial,
+                        _boundingBox,
+                        _argsBuffer,
+                        0,
+                        _materialProperties,
+                        ShadowCastingMode.Off,
+                        false,
+                        0,
+                        null,
+                        LightProbeUsage.CustomProvided
+                    );
+            }
         }
 
         static class ShaderConstants
