@@ -34,7 +34,6 @@ namespace UnityEngine.Rendering.Universal
         private List<int> _visibleChunkList = new List<int>();
         private Plane[] _cameraFrustumPlanes = new Plane[6];
 
-        [Reload("Resources/CullingCompute.compute")]
         private ComputeShader _cullingComputeShader;
         private ComputeBuffer _allBatchDataBuffer;
         private ComputeBuffer _allBatchPositionBuffer;
