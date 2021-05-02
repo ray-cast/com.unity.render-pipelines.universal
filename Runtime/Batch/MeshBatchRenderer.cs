@@ -158,7 +158,7 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_EDITOR
                 _allBatchPositionBuffer = new ComputeBuffer(allBatchPos.Count << 1, Marshal.SizeOf<Vector3>());
 #else
-                _allInstancesPosWSBuffer = new ComputeBuffer(allBatchPos.Count, Marshal.SizeOf<Vector3>());
+                _allBatchPositionBuffer = new ComputeBuffer(allBatchPos.Count, Marshal.SizeOf<Vector3>());
 #endif
             }
 
@@ -172,7 +172,7 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_EDITOR
                 _allBatchDataBuffer = new ComputeBuffer(allBatchPos.Count << 1, Marshal.SizeOf<BatchData>());
 #else
-                _allInstancesPosWSBuffer = new ComputeBuffer(allBatchPos.Count, Marshal.SizeOf<TreeData>());
+                _allBatchDataBuffer = new ComputeBuffer(allBatchPos.Count, Marshal.SizeOf<BatchData>());
 #endif
             }
 
@@ -186,7 +186,7 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_EDITOR
                 _allBatchVisibleIndexBuffer = new ComputeBuffer(allBatchPos.Count << 1, sizeof(uint));
 #else
-                _allVisibleInstancesIndexBuffer = new ComputeBuffer(allBatchPos.Count, sizeof(uint));
+                _allBatchVisibleIndexBuffer = new ComputeBuffer(allBatchPos.Count, sizeof(uint));
 #endif
             }
 
@@ -376,12 +376,14 @@ namespace UnityEngine.Rendering.Universal
 
         public void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
 		{
+#if UNITY_EDITOR
             if (this.debugMode && _argsBuffer != null)
             {
                 uint[] counter = new uint[5];
                 _argsBuffer.GetData(counter);
                 drawInstancedCount = (int)counter[1];
             }
+#endif
         }
 
         public void LateUpdate()

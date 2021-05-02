@@ -328,12 +328,14 @@ namespace UnityEngine.Rendering.Universal
 
         public void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
         {
+#if UNITY_EDITOR
             if (this.debugMode && _argsBuffer != null)
             {
                 uint[] counter = new uint[5];
                 _argsBuffer.GetData(counter);
                 drawInstancedCount = (int)counter[1];
             }
+#endif
         }
 
         public void LateUpdate()
