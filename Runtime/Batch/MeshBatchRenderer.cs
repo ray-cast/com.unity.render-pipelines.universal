@@ -47,6 +47,7 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_EDITOR
         public bool debugMode;
         public int drawInstancedCount;
+        public uint[] argumentCounter = new uint[5];
 #endif
 
         internal enum MeshBatchProfile
@@ -375,9 +376,8 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_EDITOR
             if (this.debugMode && _argsBuffer != null)
             {
-                uint[] counter = new uint[5];
-                _argsBuffer.GetData(counter);
-                drawInstancedCount = (int)counter[1];
+                _argsBuffer.GetData(argumentCounter);
+                drawInstancedCount = (int)argumentCounter[1];
             }
 #endif
         }
