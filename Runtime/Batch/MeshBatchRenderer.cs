@@ -293,13 +293,9 @@ namespace UnityEngine.Rendering.Universal
                 if (_visibleChunkList.Count == 0)
                     return;
 
-                CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag);
-
-                using (new ProfilingScope(cmd, ShaderConstants._profilingSampler))
-                {
-                    cmd.Clear();
+                using (CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag))
+				{
                     cmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
-
                     cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
                     cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounterKernel, 1, 1, 1);
 
@@ -368,9 +364,9 @@ namespace UnityEngine.Rendering.Universal
                             cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / 64f), 1, 1);
                         }
                     }
-                }
 
-                context.ExecuteCommandBufferAsync(cmd, ComputeQueueType.Background);
+                    context.ExecuteCommandBufferAsync(cmd, ComputeQueueType.Background);
+                }
             }
         }
 
