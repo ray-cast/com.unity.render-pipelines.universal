@@ -220,7 +220,7 @@ namespace UnityEditor.Rendering.Universal
         }
     }
 
-    static class TreeMenuItems
+    static class BatchMenuItems
     {
         [MenuItem("GameObject/GPU Driven/Batch Renderer", priority = CoreUtils.gameObjectMenuPriority)]
         static void CreateBatchRenderer(MenuCommand menuCommand)
@@ -238,6 +238,22 @@ namespace UnityEditor.Rendering.Universal
 
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             go.AddComponent<MeshBatchRenderer>();
+        }
+
+        [MenuItem("GameObject/GPU Driven/Nature", priority = CoreUtils.gameObjectMenuPriority)]
+        static void CreateGrass(MenuCommand menuCommand)
+        {
+            var go = CoreEditorUtils.CreateGameObject("GPU Driven Nature", menuCommand.context);
+
+            var batchRenderer = go.AddComponent<MeshBatchRenderer>();
+
+            if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
+            {
+                var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+                batchRenderer.instanceMaterial = pipeline.m_EditorResourcesAsset.materials.natureLit;
+                batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
+                batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
+            }
         }
 
         [MenuItem("GameObject/GPU Driven/Combine/Tree Batch", true)]
@@ -278,19 +294,25 @@ namespace UnityEditor.Rendering.Universal
                 meshFilter.sharedMesh = group.Key;
 
                 var batchRenderer = go.AddComponent<MeshBatchRenderer>();
-                batchRenderer.instanceMaterial = new Material(Shader.Find("Universal Render Pipeline/Tree Lit"));
-                batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
-                batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
 
-                if (group.Value[0].TryGetComponent<MeshRenderer>(out var renderer))
-				{
-                    var material = renderer.sharedMaterial;
-                    if (material)
-					{
-                        batchRenderer.instanceMaterial.color = material.color;
-                        batchRenderer.instanceMaterial.mainTexture = material.mainTexture;
-                        batchRenderer.instanceMaterial.mainTextureOffset = material.mainTextureOffset;
-                        batchRenderer.instanceMaterial.mainTextureScale = material.mainTextureScale;
+                if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
+                {
+                    var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+                    batchRenderer.instanceMaterial = pipeline.m_EditorResourcesAsset.materials.treeLit;
+                    batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
+                    batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
+
+                    if (group.Value[0].TryGetComponent<MeshRenderer>(out var renderer))
+                    {
+                        var material = renderer.sharedMaterial;
+                        if (material)
+                        {
+                            batchRenderer.instanceMaterial.color = material.color;
+                            batchRenderer.instanceMaterial.mainTexture = material.mainTexture;
+                            batchRenderer.instanceMaterial.mainTextureOffset = material.mainTextureOffset;
+                            batchRenderer.instanceMaterial.mainTextureScale = material.mainTextureScale;
+                            batchRenderer.instanceMaterial.CopyPropertiesFromMaterial(material);
+                        }
                     }
                 }
 
@@ -301,14 +323,14 @@ namespace UnityEditor.Rendering.Universal
             }
         }
 
-        [MenuItem("GameObject/GPU Driven/Combine/Grass Batch", true)]
-        static bool ValidateConvertGrass()
+        [MenuItem("GameObject/GPU Driven/Combine/Nature Batch", true)]
+        static bool ValidateConvertNature()
         {
             return Selection.activeGameObject != null && PrefabUtility.GetPrefabInstanceHandle(Selection.activeGameObject) == null;
         }
 
-        [MenuItem("GameObject/GPU Driven/Combine/Grass Batch", priority = CoreUtils.gameObjectMenuPriority)]
-        static void ConvertGrass(MenuCommand menuCommand)
+        [MenuItem("GameObject/GPU Driven/Combine/Nature Batch", priority = CoreUtils.gameObjectMenuPriority)]
+        static void ConvertNature(MenuCommand menuCommand)
         {
             Transform[] transforms = Selection.GetTransforms(SelectionMode.Deep | SelectionMode.ExcludePrefab | SelectionMode.Editable);
 
@@ -333,29 +355,33 @@ namespace UnityEditor.Rendering.Universal
 
             foreach (var group in meshClassify)
             {
-                var go = CoreEditorUtils.CreateGameObject(Selection.activeGameObject, "GPU Driven Grass");
+                var go = CoreEditorUtils.CreateGameObject(Selection.activeGameObject, "GPU Driven Nature");
 
                 var meshFilter = go.AddComponent<MeshFilter>();
                 meshFilter.sharedMesh = group.Key;
 
                 var batchRenderer = go.AddComponent<MeshBatchRenderer>();
-                batchRenderer.instanceMaterial = new Material(Shader.Find("Universal Render Pipeline/Grass Lit"));
 
-                if (group.Value[0].TryGetComponent<MeshRenderer>(out var renderer))
-                {
-                    var material = renderer.sharedMaterial;
-                    if (material)
+                if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
+				{
+                    var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+                    batchRenderer.instanceMaterial = pipeline.m_EditorResourcesAsset.materials.natureLit;
+                    batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
+                    batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
+
+                    if (group.Value[0].TryGetComponent<MeshRenderer>(out var renderer))
                     {
-                        batchRenderer.instanceMaterial.color = material.color;
-                        batchRenderer.instanceMaterial.mainTexture = material.mainTexture;
-                        batchRenderer.instanceMaterial.mainTextureOffset = material.mainTextureOffset;
-                        batchRenderer.instanceMaterial.mainTextureScale = material.mainTextureScale;
-                        batchRenderer.instanceMaterial.CopyPropertiesFromMaterial(material);
+                        var material = renderer.sharedMaterial;
+                        if (material)
+                        {
+                            batchRenderer.instanceMaterial.color = material.color;
+                            batchRenderer.instanceMaterial.mainTexture = material.mainTexture;
+                            batchRenderer.instanceMaterial.mainTextureOffset = material.mainTextureOffset;
+                            batchRenderer.instanceMaterial.mainTextureScale = material.mainTextureScale;
+                            batchRenderer.instanceMaterial.CopyPropertiesFromMaterial(material);
+                        }
                     }
                 }
-
-                batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
-                batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
 
                 foreach (var item in group.Value)
                     batchRenderer.instanceBatchData.Append(item.position, item.lossyScale);

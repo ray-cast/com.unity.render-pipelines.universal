@@ -291,14 +291,4 @@ namespace UnityEditor.Rendering.Universal
             }
         }
     }
-
-    static class GrassMenuItems
-    {
-        [MenuItem("GameObject/GPU Driven/Grass", priority = CoreUtils.gameObjectMenuPriority)]
-        static void CreateGrass(MenuCommand menuCommand)
-        {
-            var go = CoreEditorUtils.CreateGameObject("GPU Driven Grass", menuCommand.context);
-            var grass = go.AddComponent<InstancedIndirectGrassRenderer>();
-        }
-    }
 }

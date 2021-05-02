@@ -43,6 +43,12 @@ namespace UnityEngine.Rendering.Universal
 
             [Reload("Runtime/Materials/TerrainLit.mat")]
             public Material terrainLit;
+
+            [Reload("Runtime/Materials/TreeLit.mat")]
+            public Material treeLit;
+
+            [Reload("Runtime/Materials/NatureLit.mat")]
+            public Material natureLit;
         }
 
         public ShaderResources shaders;

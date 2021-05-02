@@ -56,6 +56,8 @@ namespace UnityEngine.Rendering.Universal
         Particle,
         Terrain,
         Sprite,
+        Tree,
+        Nature,
         UnityBuiltinDefault
     }
 

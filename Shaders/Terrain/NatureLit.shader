@@ -1,4 +1,4 @@
-﻿Shader "Universal Render Pipeline/Grass Lit"
+﻿Shader "Universal Render Pipeline/Nature Lit"
 {
     Properties
     {
