@@ -397,7 +397,7 @@ namespace UnityEngine.Rendering.Universal
                         _materialProperties,
                         ShadowCastingMode.Off,
                         false,
-                        0,
+                        this.gameObject.layer,
                         null,
                         LightProbeUsage.CustomProvided
                     );
