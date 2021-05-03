@@ -88,10 +88,10 @@ namespace UnityEngine.Rendering.Universal
             RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
 #endif
 
-            _allBatchDataBuffer?.Release();
-            _allBatchPositionBuffer?.Release();
-            _allBatchVisibleIndexBuffer?.Release();
-            _argsBuffer?.Release();
+            _allBatchDataBuffer?.Dispose();
+            _allBatchPositionBuffer?.Dispose();
+            _allBatchVisibleIndexBuffer?.Dispose();
+            _argsBuffer?.Dispose();
 
             _shouldUpdateInstanceData = false;
             _allBatchDataBuffer = null;
@@ -159,9 +159,7 @@ namespace UnityEngine.Rendering.Universal
 
             if (_allBatchPositionBuffer == null || _allBatchPositionBuffer != null && _allBatchPositionBuffer.count < allBatchPos.Count)
             {
-                if (_allBatchPositionBuffer != null)
-                    _allBatchPositionBuffer.Release();
-
+                _allBatchPositionBuffer?.Dispose();
                 _allBatchPositionBuffer = new ComputeBuffer(threadGroupCount, Marshal.SizeOf<Vector3>());
             }
 
@@ -169,9 +167,7 @@ namespace UnityEngine.Rendering.Universal
 
             if (_allBatchDataBuffer == null || _allBatchDataBuffer != null && _allBatchDataBuffer.count < allBatchPos.Count)
             {
-                if (_allBatchDataBuffer != null)
-                    _allBatchDataBuffer.Release();
-
+                _allBatchDataBuffer?.Dispose();
                 _allBatchDataBuffer = new ComputeBuffer(threadGroupCount, Marshal.SizeOf<BatchData>());
             }
 
@@ -179,9 +175,7 @@ namespace UnityEngine.Rendering.Universal
 
             if (_allBatchVisibleIndexBuffer == null || _allBatchVisibleIndexBuffer != null && _allBatchVisibleIndexBuffer.count < allBatchPos.Count)
             {
-                if (_allBatchVisibleIndexBuffer != null)
-                    _allBatchVisibleIndexBuffer.Release();
-
+                _allBatchVisibleIndexBuffer?.Dispose();
                 _allBatchVisibleIndexBuffer = new ComputeBuffer(threadGroupCount, sizeof(uint));
             }
 
@@ -209,13 +203,13 @@ namespace UnityEngine.Rendering.Universal
                     args[3] = _instanceMesh.GetBaseVertex(0);
                     args[4] = 0;
 
-                    _argsBuffer?.Release();
+                    _argsBuffer?.Dispose();
                     _argsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
                     _argsBuffer.SetData(args);
                 }
                 else
 				{
-                    _argsBuffer?.Release();
+                    _argsBuffer?.Dispose();
                     _argsBuffer = null;
                 }
             }
@@ -233,9 +227,9 @@ namespace UnityEngine.Rendering.Universal
                 }
                 else
                 {
-                    _allBatchDataBuffer?.Release();
-                    _allBatchPositionBuffer?.Release();
-                    _allBatchVisibleIndexBuffer?.Release();
+                    _allBatchDataBuffer?.Dispose();
+                    _allBatchPositionBuffer?.Dispose();
+                    _allBatchVisibleIndexBuffer?.Dispose();
 
                     _allBatchDataBuffer = null;
                     _allBatchPositionBuffer = null;

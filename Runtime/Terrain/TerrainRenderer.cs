@@ -158,6 +158,7 @@ namespace UnityEngine.Rendering.Universal
 
             if (_visibleInstancesIndexBuffer == null || _visibleInstancesIndexBuffer != null && _visibleInstancesIndexBuffer.count < _terrainPatches.Count)
 			{
+                _visibleInstancesIndexBuffer?.Dispose();
                 _visibleInstancesIndexBuffer = new ComputeBuffer(_terrainPatches.Count, sizeof(uint));
 
                 if (material)
@@ -166,6 +167,7 @@ namespace UnityEngine.Rendering.Universal
 
             if (_allInstancesPatchBuffer == null || _allInstancesPatchBuffer != null && _allInstancesPatchBuffer.count < _terrainPatches.Count)
 			{
+                _allInstancesPatchBuffer?.Dispose();
                 _allInstancesPatchBuffer = new ComputeBuffer(_terrainPatches.Count, Marshal.SizeOf<TerrainPatch>());
 
                 if (material)
@@ -215,8 +217,8 @@ namespace UnityEngine.Rendering.Universal
             args[3] = (uint)_instancePatchMesh.GetBaseVertex(0);
             args[4] = 0;
 
-            if (_argsBuffer != null) _argsBuffer.Release();
-            if (_shadowBuffer != null) _shadowBuffer.Release();
+            if (_argsBuffer != null) _argsBuffer.Dispose();
+            if (_shadowBuffer != null) _shadowBuffer.Dispose();
 
             _argsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
             _argsBuffer.SetData(args);
@@ -238,17 +240,10 @@ namespace UnityEngine.Rendering.Universal
             RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
 #endif
 
-            if (_allInstancesPatchBuffer != null)
-                _allInstancesPatchBuffer.Release();
-
-            if (_visibleInstancesIndexBuffer != null)
-                _visibleInstancesIndexBuffer.Release();
-
-            if (_argsBuffer != null)
-                _argsBuffer.Release();
-
-            if (_shadowBuffer != null)
-                _shadowBuffer.Release();
+            _allInstancesPatchBuffer?.Dispose();
+            _visibleInstancesIndexBuffer?.Dispose();
+            _argsBuffer?.Dispose();
+            _shadowBuffer?.Dispose();
 
             if (_normalMap != null)
                 DestroyImmediate(_normalMap);
