@@ -5,8 +5,8 @@
 
 		struct VertexShaderOutput
 		{
-			float4 Min          : AABB_MIN;
-			float4 Max          : AABB_MAX;
+			float3 Min          : AABB_MIN;
+			float3 Max          : AABB_MAX;
 			float4 Color        : COLOR;
 		};
 
@@ -22,7 +22,7 @@
 			float4 Max;
 		};
 
-		StructuredBuffer<AABB> _ClusterBoxBuffer;
+		StructuredBuffer<float4> _ClusterBoxBuffer;
 
 		bool CMin(float3 a, float3 b)
 		{
@@ -58,13 +58,13 @@
 
 		VertexShaderOutput vert(uint clusterID : SV_VertexID)
 		{
-			AABB aabb = _ClusterBoxBuffer[clusterID];
+			float4 aabb = _ClusterBoxBuffer[clusterID];
 			float count = _ClusterLightGridBuffer[clusterID].y;
-			float4 factor = (aabb.Max - aabb.Min) * (count > 0.5 ? 0.2 : 0.05);
+			float4 factor = aabb.w * (count > 0.5 ? 0.2 : 0.05);
 
 			VertexShaderOutput output = (VertexShaderOutput)0;
-			output.Min = aabb.Min + (aabb.Max - aabb.Min - factor) * 0.5;
-			output.Max = output.Min + factor;
+			output.Min = aabb.xyz - aabb.w / 20;
+			output.Max = aabb.xyz + aabb.w / 20;
 			
 			if (count <= GetPerClusterLightsLimit())
 				output.Color = float4(lerp(float3(1,1,1), HeatMap(saturate(count / GetPerClusterLightsLimit())), saturate(count)), 1);
@@ -77,8 +77,8 @@
 		[maxvertexcount(16)]
 		void main_GS(point VertexShaderOutput IN[1], inout TriangleStream<Varyings> OutputStream)
 		{
-			float4 min = IN[0].Min;
-			float4 max = IN[0].Max;
+			float3 min = IN[0].Min;
+			float3 max = IN[0].Max;
 
 			const float4 Pos[8] = {
 				float4(min.x, min.y, min.z, 1.0f),

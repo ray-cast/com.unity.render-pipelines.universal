@@ -1,7 +1,7 @@
 #pragma kernel ClearLightIndexList
 #pragma kernel ClearLightIndexCounter
 #pragma kernel ClearClusterBuffers
-#pragma kernel SetupClusterAABBs
+#pragma kernel SetupClusterData
 #pragma kernel SetupClusterFlags
 #pragma kernel ComputeClusterCount
 #pragma kernel UpdateIndirectArgumentBuffers
@@ -56,12 +56,12 @@ float4x4 _TransformToViewMatrix;
 float4x4 _InverseViewMatrix;
 float4 _ClusterZBufferParams;
 
-StructuredBuffer<AABB> _ClusterBoxBuffer;
+StructuredBuffer<float4> _ClusterBoxBuffer;
 StructuredBuffer<uint>	_ClusterUniqueBuffer;
 StructuredBuffer<uint> _ClusterFlagBuffer;
 StructuredBuffer<uint> _ClusterUniqueCounterBuffer;
 
-RWStructuredBuffer<AABB> _RWClusterBoxBuffer;
+RWStructuredBuffer<float4> _RWClusterBoxBuffer;
 RWStructuredBuffer<uint> _RWClusterFlagBuffer;
 RWStructuredBuffer<uint> _RWClusterUniqueBuffer;
 RWStructuredBuffer<uint> _RWClusterUniqueCounterBuffer;
@@ -70,17 +70,16 @@ RWStructuredBuffer<uint2> _RWClusterLightGridBuffer;
 RWStructuredBuffer<uint> _RWClusterLightIndexListBuffer;
 RWByteAddressBuffer _RWClusterIndirectArgumentBuffer;
 
-groupshared AABB gs_ClusterAABB;
+groupshared float4 gs_ClusterData;
 groupshared uint gs_ClusterIndex1D;
 groupshared uint gs_LightCount;
 groupshared uint gs_LightStartOffset;
 groupshared uint gs_LightList[MAX_WORKGROUP_SIZE_X];
 
-bool ComputeSphereBoxIntersection(Sphere sphere, AABB aabb)
+bool ComputeSphereIntersection(Sphere a, Sphere b)
 {
-	float3 x = max(aabb.Min.xyz, min(sphere.center, aabb.Max.xyz));
-	float3 v = x - sphere.center;
-	return dot(v, v) <= sphere.radius * sphere.radius;
+	float3 v = b.center - a.center;
+	return dot(v, v) <= (a.radius * a.radius + b.radius * b.radius);
 }
 
 bool ComputeSphereConeIntersection(Sphere sphere, Cone cone)
@@ -109,6 +108,13 @@ bool ComputeConeBoxIntersection(Cone cone, AABB aabb)
 	return ComputeSphereConeIntersection(sphere, cone);
 }
 
+bool ComputeSphereBoxIntersection(Sphere sphere, AABB aabb)
+{
+	float3 x = max(aabb.Min.xyz, min(sphere.center, aabb.Max.xyz));
+	float3 v = x - sphere.center;
+	return dot(v, v) <= sphere.radius * sphere.radius;
+}
+
 bool ComputeRayPlaneInterction(float3 a, float3 b, Plane p, out float3 q)
 {
 	float3 ab = b - a;
@@ -131,7 +137,8 @@ void ComputeLightsClusterIntersection(uint clusterID)
 	uint lightStartOffset = 0;
 	uint lightList[32];
 
-	AABB aabb = _ClusterBoxBuffer[clusterID];
+	float4 cluster = _ClusterBoxBuffer[clusterID];
+	Sphere sphere = { cluster.xyz, cluster.w };
 
 	for (uint i = 0; i < uint(_ClusterLightParams.x) && lightCount < 32; i++)
 	{
@@ -149,7 +156,7 @@ void ComputeLightsClusterIntersection(uint clusterID)
 				cone.angle = spotDirection.w;
 				cone.range = lightPositionWS.w;
 
-				if (ComputeConeBoxIntersection(cone, aabb))
+				if (ComputeSphereConeIntersection(sphere, cone))
 				{
 					lightList[lightCount] = i;
 					lightCount++;
@@ -157,9 +164,9 @@ void ComputeLightsClusterIntersection(uint clusterID)
 			}
 			else
 			{
-				Sphere sphere = { lightPosView, lightPositionWS.w };
+				Sphere pointLight = { lightPosView, lightPositionWS.w };
 
-				if (ComputeSphereBoxIntersection(sphere, aabb))
+				if (ComputeSphereIntersection(sphere, pointLight))
 				{
 					lightList[lightCount] = i;
 					lightCount++;
@@ -249,7 +256,7 @@ void ClearLightIndexList(ComputeShaderInput IN)
 }
 
 [numthreads(MAX_WORKGROUP_SIZE_X, 1, 1)]
-void SetupClusterAABBs(ComputeShaderInput cs_IDs)
+void SetupClusterData(ComputeShaderInput cs_IDs)
 {
 	uint clusterIndex1D = cs_IDs.DispatchThreadID.x;
 	uint3 clusterIndex3D = ComputeClusterIndex3D(clusterIndex1D);
@@ -281,9 +288,11 @@ void SetupClusterAABBs(ComputeShaderInput cs_IDs)
 	float3 aabbMin = min(nearMin, min(nearMax, min(farMin, farMax)));
 	float3 aabbMax = max(nearMin, max(nearMax, max(farMin, farMax)));
 
-	AABB aabb = { float4(aabbMin, 1.0f), float4(aabbMax, 1.0f) };
-	
-	_RWClusterBoxBuffer[clusterIndex1D] = aabb;
+	float3 extents = (aabbMax - aabbMin) * 0.5h;
+	float3 center = aabbMin + extents;
+	float radius = length(extents);
+
+	_RWClusterBoxBuffer[clusterIndex1D] = float4(center, radius);
 }
 
 [numthreads(MAX_WORKGROUP_UV_X, MAX_WORKGROUP_UV_Y, 1)]
@@ -351,10 +360,12 @@ void ComputeLightsToDynamicClusterBufferIndirect(ComputeShaderInput IN)
 	{
 		gs_LightCount = 0;
 		gs_ClusterIndex1D = _ClusterUniqueBuffer[IN.GroupID.x];
-		gs_ClusterAABB = _ClusterBoxBuffer[gs_ClusterIndex1D];
+		gs_ClusterData = _ClusterBoxBuffer[gs_ClusterIndex1D];
 	}
 
 	GroupMemoryBarrierWithGroupSync();
+
+	Sphere sphere = { gs_ClusterData.xyz, gs_ClusterData.w };
 
 	for (i = IN.GroupIndex; i < uint(_ClusterLightParams.x); i += MAX_WORKGROUP_SIZE_X)
 	{
@@ -372,7 +383,7 @@ void ComputeLightsToDynamicClusterBufferIndirect(ComputeShaderInput IN)
 				cone.angle = spotDirection.w;
 				cone.range = lightPositionWS.w;
 
-				if (ComputeConeBoxIntersection(cone, gs_ClusterAABB))
+				if (ComputeSphereConeIntersection(sphere, cone))
 				{
 					InterlockedAdd(gs_LightCount, 1, index);
 					if (index < MAX_WORKGROUP_SIZE_X)
@@ -383,9 +394,9 @@ void ComputeLightsToDynamicClusterBufferIndirect(ComputeShaderInput IN)
 			}
 			else
 			{
-				Sphere sphere = { lightPosView, lightPositionWS.w };
+				Sphere pointLight = { lightPosView, lightPositionWS.w };
 
-				if (ComputeSphereBoxIntersection(sphere, gs_ClusterAABB))
+				if (ComputeSphereIntersection(sphere, pointLight))
 				{
 					InterlockedAdd(gs_LightCount, 1, index);
 					if (index < MAX_WORKGROUP_SIZE_X)
