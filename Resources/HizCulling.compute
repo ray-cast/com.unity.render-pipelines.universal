@@ -75,9 +75,14 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 		float4 centerCS = (maxCS + minCS) * 0.5;
 		float2 screen = abs(centerCS.xy);
 
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+		float linearDepth = max(maxCS.w, minCS.w);
+#else
+		float linearDepth = min(maxCS.w, minCS.w);
+#endif
+
 		float size = distance(minCS.xy, maxCS.xy);
 		float threshold = 1 + size;
-		float linearDepth = min(maxCS.w, minCS.w);
 		float distanceThreshold = 1 - saturate(linearDepth / _CameraDrawDistance);
 
 		float hash = GenerateHashedRandomFloat(worldPosition * 100);
