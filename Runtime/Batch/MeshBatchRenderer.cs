@@ -325,7 +325,7 @@ namespace UnityEngine.Rendering.Universal
                     cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._BoundMax, this._instanceMesh.bounds.max);
 
                     cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams);
-                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(32, this.maxDrawDistance, this.sensity, this.distanceCulling));
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(36, this.maxDrawDistance, this.sensity, this.distanceCulling));
                     cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix);
                     cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false) * camera.worldToCameraMatrix);
 
