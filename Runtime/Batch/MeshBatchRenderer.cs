@@ -43,6 +43,7 @@ namespace UnityEngine.Rendering.Universal
         private int _clearUniqueCounterKernel;
         private int _computeFrustumCullingKernel;
         private int _computeOcclusionCullingKernel;
+        private int _maxComputeWorkGroupSize = 64;
 
 #if UNITY_EDITOR
         public bool debugMode;
@@ -149,17 +150,19 @@ namespace UnityEngine.Rendering.Universal
                     offset++;
                 }
             }
+            
+#if UNITY_EDITOR
+            var threadGroupCount = Mathf.CeilToInt(allBatchPos.Count / _maxComputeWorkGroupSize * 2) * _maxComputeWorkGroupSize;
+#else
+            var threadGroupCount = Mathf.CeilToInt(allBatchPos.Count / _maxComputeWorkGroupSize) * _maxComputeWorkGroupSize;
+#endif
 
             if (_allBatchPositionBuffer == null || _allBatchPositionBuffer != null && _allBatchPositionBuffer.count < allBatchPos.Count)
             {
                 if (_allBatchPositionBuffer != null)
                     _allBatchPositionBuffer.Release();
 
-#if UNITY_EDITOR
-                _allBatchPositionBuffer = new ComputeBuffer(allBatchPos.Count << 1, Marshal.SizeOf<Vector3>());
-#else
-                _allBatchPositionBuffer = new ComputeBuffer(allBatchPos.Count, Marshal.SizeOf<Vector3>());
-#endif
+                _allBatchPositionBuffer = new ComputeBuffer(threadGroupCount, Marshal.SizeOf<Vector3>());
             }
 
             _allBatchPositionBuffer.SetData(allMeshPosWSSortedByCell);
@@ -169,11 +172,7 @@ namespace UnityEngine.Rendering.Universal
                 if (_allBatchDataBuffer != null)
                     _allBatchDataBuffer.Release();
 
-#if UNITY_EDITOR
-                _allBatchDataBuffer = new ComputeBuffer(allBatchPos.Count << 1, Marshal.SizeOf<BatchData>());
-#else
-                _allBatchDataBuffer = new ComputeBuffer(allBatchPos.Count, Marshal.SizeOf<BatchData>());
-#endif
+                _allBatchDataBuffer = new ComputeBuffer(threadGroupCount, Marshal.SizeOf<BatchData>());
             }
 
             _allBatchDataBuffer.SetData(allMeshDataSortedByCell);
@@ -183,11 +182,7 @@ namespace UnityEngine.Rendering.Universal
                 if (_allBatchVisibleIndexBuffer != null)
                     _allBatchVisibleIndexBuffer.Release();
 
-#if UNITY_EDITOR
-                _allBatchVisibleIndexBuffer = new ComputeBuffer(allBatchPos.Count << 1, sizeof(uint));
-#else
-                _allBatchVisibleIndexBuffer = new ComputeBuffer(allBatchPos.Count, sizeof(uint));
-#endif
+                _allBatchVisibleIndexBuffer = new ComputeBuffer(threadGroupCount, sizeof(uint));
             }
 
             var lightprobes = new SphericalHarmonicsL2[allBatchPos.Count];
@@ -361,7 +356,7 @@ namespace UnityEngine.Rendering.Universal
 
                             cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._StartOffset, memoryOffset);
                             cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._EndOffset, memoryOffset + jobLength);
-                            cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / 64f), 1, 1);
+                            cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / _maxComputeWorkGroupSize), 1, 1);
                         }
                     }
 
