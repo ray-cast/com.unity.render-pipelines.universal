@@ -65,7 +65,7 @@ namespace UnityEngine.Rendering.Universal
 
             _shouldUpdateInstanceData = true;
             _meshFilter = GetComponent<MeshFilter>();
-            _cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
+            _cullingComputeShader = Resources.Load<ComputeShader>("HizCulling");
             _clearUniqueCounterKernel = _cullingComputeShader.FindKernel("ClearIndirectArgument");
             _computeFrustumCullingKernel = _cullingComputeShader.FindKernel("ComputeFrustumCulling");
             _computeOcclusionCullingKernel = _cullingComputeShader.FindKernel("ComputeOcclusionCulling");
@@ -300,9 +300,6 @@ namespace UnityEngine.Rendering.Universal
                     cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
                     cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounterKernel, 1, 1, 1);
 
-                    var tanFov = Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad);
-                    var size = this._instanceMesh.bounds.center;
-
                     var hizRenderTarget = HizPass.GetHizTexture(ref camera);
                     var occlusionKernel = hizRenderTarget && this.isGpuCulling ? _computeOcclusionCullingKernel : _computeFrustumCullingKernel;
 
@@ -324,13 +321,15 @@ namespace UnityEngine.Rendering.Universal
                         zBufferParams.z = -zBufferParams.z;
                     }
 
-                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams);
-                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, this.maxDrawDistance, this.sensity, this.distanceCulling));
-                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix);
-                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false));
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._BoundMin, this._instanceMesh.bounds.min);
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._BoundMax, this._instanceMesh.bounds.max);
 
-                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
-                    cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allBatchPositionBuffer);
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams);
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(32, this.maxDrawDistance, this.sensity, this.distanceCulling));
+                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix);
+                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false) * camera.worldToCameraMatrix);
+
+                    cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesDataBuffer, _allBatchPositionBuffer);
                     cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
                     cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
 
@@ -422,7 +421,10 @@ namespace UnityEngine.Rendering.Universal
             public const string _renderTag = "Draw Batch Instanced";
 
             public static ProfilingSampler _profilingSampler = new ProfilingSampler(_renderTag);
-            
+
+            public static readonly int _BoundMin = Shader.PropertyToID("_BoundMin");
+            public static readonly int _BoundMax = Shader.PropertyToID("_BoundMax");
+
             public static readonly int _CameraZBufferParams = Shader.PropertyToID("_CameraZBufferParams");
             public static readonly int _CameraDrawParams = Shader.PropertyToID("_CameraDrawParams");
             public static readonly int _CameraViewMatrix = Shader.PropertyToID("_CameraViewMatrix");
@@ -438,7 +440,7 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _PivotPosWS = Shader.PropertyToID("_PivotPosWS");
             public static readonly int _PivotScaleWS = Shader.PropertyToID("_PivotScaleWS");
 
-            public static readonly int _AllInstancesPosWSBuffer = Shader.PropertyToID("_AllInstancesPosWSBuffer");
+            public static readonly int _AllInstancesDataBuffer = Shader.PropertyToID("_AllInstancesDataBuffer");
             public static readonly int _AllInstancesTransformBuffer = Shader.PropertyToID("_AllInstancesTransformBuffer");
             public static readonly int _AllInstancesIndexBuffer = Shader.PropertyToID("_AllInstancesIndexBuffer");
             public static readonly int _AllVisibleInstancesIndexBuffer = Shader.PropertyToID("_AllVisibleInstancesIndexBuffer");
