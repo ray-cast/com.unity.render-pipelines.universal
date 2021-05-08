@@ -268,13 +268,10 @@ namespace UnityEngine.Rendering.Universal
                 return;
 
             CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag);
-
-            using (new ProfilingScope(cmd, ShaderConstants._profilingSampler))
             {
                 cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounter, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
                 cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounter, 1, 1, 1);
 
-                var tanFov = Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad);
                 var size = this.flowerGroup.cachedGrassMesh.bounds.size;
 
                 var hizRenderTarget = HizPass.GetHizTexture(ref camera);
@@ -298,13 +295,16 @@ namespace UnityEngine.Rendering.Universal
                     zBufferParams.z = -zBufferParams.z;
                 }
 
+                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._BoundMin, this.flowerGroup.cachedGrassMesh.bounds.min * 1.5f);
+                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._BoundMax, this.flowerGroup.cachedGrassMesh.bounds.max * 1.5f);
+
                 cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams);
+                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(36, flowerGroup.maxDrawDistance, flowerGroup.sensity, flowerGroup.distanceCulling));
                 cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix);
-                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false));
-                cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, flowerGroup.maxDrawDistance, flowerGroup.sensity, flowerGroup.distanceCulling));
+                cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false) * camera.worldToCameraMatrix);
 
                 cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._Offset, new Vector3(0, size.y, 0));
-                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesPosWSBuffer, _allInstancesPosWSBuffer);
+                cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesDataBuffer, _allInstancesPosWSBuffer);
                 cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allVisibleInstancesIndexBuffer);
                 cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
 
@@ -343,6 +343,9 @@ namespace UnityEngine.Rendering.Universal
                     }
                 }
             }
+
+            context.ExecuteCommandBuffer(cmd);
+            CommandBufferPool.Release(cmd);
         }
 
         public void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
@@ -398,6 +401,9 @@ namespace UnityEngine.Rendering.Universal
 
             public static ProfilingSampler _profilingSampler = new ProfilingSampler(_renderTag);
 
+            public static readonly int _BoundMin = Shader.PropertyToID("_BoundMin");
+            public static readonly int _BoundMax = Shader.PropertyToID("_BoundMax");
+
             public static readonly int _CameraZBufferParams = Shader.PropertyToID("_CameraZBufferParams");
             public static readonly int _CameraDrawParams = Shader.PropertyToID("_CameraDrawParams");
             public static readonly int _CameraViewMatrix = Shader.PropertyToID("_CameraViewMatrix");
@@ -415,7 +421,7 @@ namespace UnityEngine.Rendering.Universal
 
             public static readonly int _AllColorsBuffer = Shader.PropertyToID("_AllColorsBuffer");
             public static readonly int _AllScalesBuffer = Shader.PropertyToID("_AllScalesBuffer");
-            public static readonly int _AllInstancesPosWSBuffer = Shader.PropertyToID("_AllInstancesPosWSBuffer");
+            public static readonly int _AllInstancesDataBuffer = Shader.PropertyToID("_AllInstancesDataBuffer");
             public static readonly int _AllInstancesTransformBuffer = Shader.PropertyToID("_AllInstancesTransformBuffer");
             public static readonly int _AllInstancesIndexBuffer = Shader.PropertyToID("_AllInstancesIndexBuffer");
             public static readonly int _AllVisibleInstancesIndexBuffer = Shader.PropertyToID("_AllVisibleInstancesIndexBuffer");

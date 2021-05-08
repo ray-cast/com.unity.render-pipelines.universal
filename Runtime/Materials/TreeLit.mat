@@ -8,14 +8,13 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: TreeLit
-  m_Shader: {fileID: 4800000, guid: 044caecb2eab437439b3b273168302bd, type: 3}
+  m_Shader: {fileID: 4800000, guid: 65364cf70ec284f4ba3c8e23302872d5, type: 3}
   m_ShaderKeywords: _INSTANCING_RENDERING_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 2000
-  stringTagMap:
-    RenderType: Opaque
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
   disabledShaderPasses: []
   m_SavedProperties:
     serializedVersion: 3
@@ -100,6 +99,7 @@ Material:
     - _GlossyReflections: 1
     - _HeadBlendHeight: 0.067
     - _HeadStrength: 0
+    - _Height: 1
     - _InstancingRendering: 1
     - _Metallic: 0
     - _Mode: 0
@@ -122,6 +122,7 @@ Material:
     - _Surface: 0
     - _UVSec: 0
     - _UseAlphaCutoff: 0
+    - _Width: 1
     - _WindAFrequency: 1
     - _WindAIntensity: 1
     - _WindHightlightIntensity: 2

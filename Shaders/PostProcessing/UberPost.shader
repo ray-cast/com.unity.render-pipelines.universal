@@ -175,7 +175,8 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
                 }
 
                 #if _BLOOM_GLOW
-                    bloom.xyz = saturate(bloom.xyz - DecodeRGBM(SAMPLE_TEXTURE2D_X(_CameraGlowTexture, sampler_LinearClamp, uv)));
+                    float3 glow = DecodeRGBM(SAMPLE_TEXTURE2D_X(_CameraGlowTexture, sampler_LinearClamp, uv));
+                    bloom.xyz = saturate(bloom.xyz - glow * 65535);
                 #endif
 
                 bloom.xyz *= BloomIntensity;

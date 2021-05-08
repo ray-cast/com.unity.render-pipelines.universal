@@ -481,6 +481,7 @@ namespace UnityEngine.Rendering.Universal
 			{
                 VolumeManager.instance.Update(trigger, layerMask);
                 SwitcherManager.instance.Update(trigger, layerMask);
+                SkyManager.instance.UpdateEnvironment(camera);
             }
         }
 

@@ -18,7 +18,7 @@ struct GbufferData
     half3 albedo;
     half3 normalWS;
     half3 emission;
-    half  specular;
+    half3 specular;
     half  metallic;
     half  smoothness;
     half  occlusion;
@@ -79,7 +79,7 @@ FragmentOutput EncodeGbuffer(GbufferData data)
 {
 	FragmentOutput output = (FragmentOutput)0;
 	output.color0 = float4(data.albedo, data.occlusion);
-	output.color1 = float4(data.metallic, data.specular, 0, data.smoothness);
+	output.color1 = float4(data.metallic, dot(data.specular, half3(0.25, 0.5, 0.25)), 0, data.smoothness);
 	output.color2 = float4(PackNormalMaxComponent(data.normalWS), 0);
 	output.color3 = EncodeRGBT(data.emission);
 
@@ -119,6 +119,16 @@ GbufferData LoadGbufferTextures(uint2 uv)
 	fragment.color3 = LOAD_TEXTURE2D_LOD(_CameraGBufferTexture3, uv, 0);
 
 	return DecodeGbuffer(fragment);
+}
+
+float3 SampleSceneGbufferNormal(float2 uv)
+{
+    return UnpackNormalMaxComponent(SAMPLE_TEXTURE2D_LOD(_CameraGBufferTexture2, sampler_CameraGBufferTexture2, uv, 0).rgb);
+}
+
+float3 LoadSceneGbufferNormal(uint2 uv)
+{
+    return UnpackNormalMaxComponent(LOAD_TEXTURE2D_X(_CameraGBufferTexture2, uv).rgb);
 }
 
 #endif

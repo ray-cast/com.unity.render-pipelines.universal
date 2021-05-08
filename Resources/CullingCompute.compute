@@ -4,24 +4,27 @@
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
+float3 _BoundMin;
+float3 _BoundMax;
+
 float4 _CameraDrawParams;
 float4 _CameraZBufferParams;
-float4x4 _CameraViewMatrix;
 float4x4 _CameraViewProjection;
+
+float4x4 _PivotMatrixWS;
 
 uint _StartOffset;
 uint _EndOffset;
-float3 _Offset;
 
 float4 _HizTexture_TexelSize;
 Texture2D<float> _HizTexture;
 
-StructuredBuffer<float3> _AllInstancesPosWSBuffer;
+StructuredBuffer<float3> _AllInstancesDataBuffer;
 
 RWStructuredBuffer<uint> _RWVisibleInstancesIndexBuffer;
 RWStructuredBuffer<uint> _RWVisibleIndirectArgumentBuffer;
 
-#define _CameraFov _CameraDrawParams.x
+#define _CameraMipScale _CameraDrawParams.x
 #define _CameraDrawDistance _CameraDrawParams.y
 #define _CameraDrawSensity _CameraDrawParams.z
 #define _CameraDrawDistanceSensity _CameraDrawParams.w
@@ -38,12 +41,11 @@ void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
 	uint instanceIndex = id.x + _StartOffset;
 	if (instanceIndex < _EndOffset)
 	{
-		float3 worldPosition = _AllInstancesPosWSBuffer[instanceIndex] + _Offset;
-		float4 viewPosition = mul(_CameraViewMatrix, float4(worldPosition, 1.0));
-		float4 positionCS = mul(_CameraViewProjection, viewPosition);
+		float3 worldPosition = _AllInstancesDataBuffer[instanceIndex];
+		float4 positionCS = mul(_CameraViewProjection, float4(worldPosition, 1.0));
 		positionCS.xy /= positionCS.w;
 
-		float linearDepth = abs(viewPosition.z);
+		float linearDepth = positionCS.w;
 		float3 frustum = float3(abs(positionCS.xy), 1 - saturate(linearDepth / _CameraDrawDistance));
 		float hash = GenerateHashedRandomFloat(worldPosition * 100);
 		hash = lerp(0, hash, saturate(positionCS.w / (_CameraDrawDistance * _CameraDrawDistanceSensity) - 1));
@@ -63,21 +65,35 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 	uint instanceIndex = id.x + _StartOffset;
 	if (instanceIndex < _EndOffset)
 	{
-		float3 worldPosition = _AllInstancesPosWSBuffer[instanceIndex] + _Offset;
-		float4 viewPosition = mul(_CameraViewMatrix, float4(worldPosition, 1.0));
-		float4 positionCS = mul(_CameraViewProjection, viewPosition);
-		positionCS.xy /= positionCS.w;
+		float3 worldPosition = _AllInstancesDataBuffer[instanceIndex];
 
-		float linearDepth = abs(viewPosition.z);
-		float3 frustum = float3(abs(positionCS.xy), 1 - saturate(linearDepth / _CameraDrawDistance));
+		float4 minCS = mul(_CameraViewProjection, float4(worldPosition + _BoundMin, 1.0));
+		float4 maxCS = mul(_CameraViewProjection, float4(worldPosition + _BoundMax, 1.0));
+
+		minCS.xy /= minCS.w;
+		maxCS.xy /= maxCS.w;
+
+		float4 centerCS = (maxCS + minCS) * 0.5;
+		float2 screen = abs(centerCS.xy);
+
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+		float linearDepth = max(maxCS.w, minCS.w);
+#else
+		float linearDepth = min(maxCS.w, minCS.w);
+#endif
+
+		float size = distance(minCS.xy, maxCS.xy);
+		float threshold = 1 + size;
+		float distanceThreshold = 1 - saturate(linearDepth / _CameraDrawDistance);
+
 		float hash = GenerateHashedRandomFloat(worldPosition * 100);
-		hash = lerp(0, hash, saturate(positionCS.w / (_CameraDrawDistance * _CameraDrawDistanceSensity) - 1));
+		hash = lerp(0, hash, saturate(centerCS.w / (_CameraDrawDistance * _CameraDrawDistanceSensity) - 1));
 
-		if (frustum.x < 1.1f && frustum.y < 1.1f && frustum.z < 1.0f && hash < frustum.z && hash < _CameraDrawSensity)
+		if (screen.x < threshold && screen.y < threshold && distanceThreshold < 1.0f && hash < distanceThreshold && hash < _CameraDrawSensity)
 		{
-			uint mips = clamp(log2(linearDepth * linearDepth * _CameraFov / 1024), 0, 6);
+			uint mips = clamp(size * _CameraMipScale, 0, 6);
 			uint scale = 1 << mips;
-			uint2 uv = (positionCS.xy * 0.5f + 0.5f) * _HizTexture_TexelSize.xy / scale;
+			uint2 uv = (centerCS.xy * 0.5f + 0.5f) * _HizTexture_TexelSize.xy / scale;
 
 			float4 depth;
 			depth.x = _HizTexture.mips[mips][uv];

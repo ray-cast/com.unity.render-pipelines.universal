@@ -15,6 +15,7 @@ namespace UnityEngine.Rendering.Universal
 
         public float sensity = 1.0f;
         public float distanceCulling = 0.8f;
+        public float mipScaleLevel = 32;
         public float maxDrawDistance = 100;
 
         public Material instanceMaterial;
@@ -26,6 +27,8 @@ namespace UnityEngine.Rendering.Universal
         private const float _chunkSizeX = 10;
         private const float _chunkSizeZ = 10;
         private Bounds _boundingBox = new Bounds();
+        private Bounds _worldBoundingBox;
+        private Matrix4x4 _localToWorldMatrix = Matrix4x4.zero;
 
         private MaterialPropertyBlock _materialProperties;
 
@@ -66,13 +69,13 @@ namespace UnityEngine.Rendering.Universal
 
             _shouldUpdateInstanceData = true;
             _meshFilter = GetComponent<MeshFilter>();
-            _cullingComputeShader = Resources.Load<ComputeShader>("HizCulling");
+            _cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
             _clearUniqueCounterKernel = _cullingComputeShader.FindKernel("ClearIndirectArgument");
             _computeFrustumCullingKernel = _cullingComputeShader.FindKernel("ComputeFrustumCulling");
             _computeOcclusionCullingKernel = _cullingComputeShader.FindKernel("ComputeOcclusionCulling");
 
-            RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
             RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
+            RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
 #if UNITY_EDITOR
             RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
 #endif
@@ -152,9 +155,9 @@ namespace UnityEngine.Rendering.Universal
             }
             
 #if UNITY_EDITOR
-            var threadGroupCount = Mathf.CeilToInt(allBatchPos.Count / _maxComputeWorkGroupSize * 2) * _maxComputeWorkGroupSize;
+            var threadGroupCount = Mathf.CeilToInt(allBatchPos.Count / (float)_maxComputeWorkGroupSize * 2) * _maxComputeWorkGroupSize;
 #else
-            var threadGroupCount = Mathf.CeilToInt(allBatchPos.Count / _maxComputeWorkGroupSize) * _maxComputeWorkGroupSize;
+            var threadGroupCount = Mathf.CeilToInt(allBatchPos.Count / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize;
 #endif
 
             if (_allBatchPositionBuffer == null || _allBatchPositionBuffer != null && _allBatchPositionBuffer.count < allBatchPos.Count)
@@ -246,18 +249,103 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        public void InitializeWorldBoundingBox()
+		{
+            if (transform.localToWorldMatrix != _localToWorldMatrix)
+			{
+                _localToWorldMatrix = transform.localToWorldMatrix;
+
+                var m = _localToWorldMatrix.transpose;
+                _worldBoundingBox.SetMinMax(new Vector3(m.m30, m.m31, m.m32), new Vector3(m.m30, m.m31, m.m32));
+
+                for (int i = 0; i < 3; i++)
+                {
+                    for (int j = 0; j < 3; j++)
+                    {
+                        float e = m[j * 4 + i] * _boundingBox.min[j];
+                        float f = m[j * 4 + i] * _boundingBox.max[j];
+
+                        var min = _worldBoundingBox.min;
+                        var max = _worldBoundingBox.max;
+
+                        if (e < f)
+                        {
+                            min[i] += e;
+                            max[i] += f;
+                        }
+                        else
+                        {
+                            min[i] += f;
+                            max[i] += e;
+                        }
+
+                        _worldBoundingBox.min = min;
+                        _worldBoundingBox.max = max;
+                    }
+                }
+            }
+		}
+
+        public void OnBeginFrameRendering(ScriptableRenderContext context, Camera[] cameras)
+        {
+            ref var allBatchPos = ref instanceBatchData.instanceData;
+
+            this.InitializeInstanceMesh();
+            this.InitializeAllInstanceTransformBufferIfNeeded();
+            this.InitializeWorldBoundingBox();
+
+            foreach (var camera in cameras)
+            {
+                int mask = camera.cullingMask & (1 << gameObject.layer);
+                if (mask == 0)
+                    return;
+
+                if (instanceMaterial != null && _argsBuffer != null && allBatchPos.Count > 0)
+                {
+                    instanceMaterial.SetVector(ShaderConstants._PivotPosWS, transform.position);
+                    instanceMaterial.SetVector(ShaderConstants._PivotScaleWS, transform.lossyScale);
+                    instanceMaterial.SetMatrix(ShaderConstants._PivotMatrixWS, transform.localToWorldMatrix);
+
+#if UNITY_EDITOR
+                    instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allBatchDataBuffer);
+                    instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
+#endif
+
+                    Graphics.DrawMeshInstancedIndirect(
+                            _instanceMesh,
+                            0,
+                            instanceMaterial,
+                            _worldBoundingBox,
+                            _argsBuffer,
+                            0,
+                            _materialProperties,
+                            ShadowCastingMode.Off,
+                            false,
+                            this.gameObject.layer,
+                            camera,
+                            LightProbeUsage.CustomProvided
+                        );
+                }
+            }
+        }
+
         void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
         {
 #if UNITY_EDITOR
-            if (EditorApplication.isPlaying && camera != Camera.main)
+            if (EditorApplication.isPlaying && camera.cameraType != CameraType.Game)
                 return;
 #endif
 
-            if (_instanceMesh != null && _cullingComputeShader != null && instanceBatchData.instanceData.Count > 0)
+            int mask = camera.cullingMask & (1 << gameObject.layer);
+            if (mask == 0)
+                return;
+
+            if (_instanceMesh != null && _cullingComputeShader != null && instanceBatchData.instanceData.Count > 0 && _chunks != null)
             {
-                float cameraOriginalFarPlane = camera.farClipPlane;
+                var cameraOriginalFarPlane = camera.farClipPlane;
                 camera.farClipPlane = maxDrawDistance;
-                GeometryUtility.CalculateFrustumPlanes(camera, _cameraFrustumPlanes);
+                var cullingMatrix = GL.GetGPUProjectionMatrix(camera.projectionMatrix, false) * camera.worldToCameraMatrix * transform.localToWorldMatrix;
+                GeometryUtility.CalculateFrustumPlanes(cullingMatrix, _cameraFrustumPlanes);
                 camera.farClipPlane = cameraOriginalFarPlane;
 
                 if (!GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, _boundingBox))
@@ -283,9 +371,8 @@ namespace UnityEngine.Rendering.Universal
                 if (_visibleChunkList.Count == 0)
                     return;
 
-                using (CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag))
+                CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._configureTag);
 				{
-                    cmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
                     cmd.SetComputeBufferParam(_cullingComputeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
                     cmd.DispatchCompute(_cullingComputeShader, _clearUniqueCounterKernel, 1, 1, 1);
 
@@ -314,9 +401,8 @@ namespace UnityEngine.Rendering.Universal
                     cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._BoundMax, this._instanceMesh.bounds.max);
 
                     cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraZBufferParams, zBufferParams);
-                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(36, this.maxDrawDistance, this.sensity, this.distanceCulling));
-                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewMatrix, camera.worldToCameraMatrix);
-                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, GL.GetGPUProjectionMatrix(camera.projectionMatrix, false) * camera.worldToCameraMatrix);
+                    cmd.SetComputeVectorParam(_cullingComputeShader, ShaderConstants._CameraDrawParams, new Vector4(this.mipScaleLevel, this.maxDrawDistance, this.sensity, this.distanceCulling));
+                    cmd.SetComputeMatrixParam(_cullingComputeShader, ShaderConstants._CameraViewProjection, cullingMatrix);
 
                     cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._AllInstancesDataBuffer, _allBatchPositionBuffer);
                     cmd.SetComputeBufferParam(_cullingComputeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
@@ -350,12 +436,13 @@ namespace UnityEngine.Rendering.Universal
 
                             cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._StartOffset, memoryOffset);
                             cmd.SetComputeIntParam(_cullingComputeShader, ShaderConstants._EndOffset, memoryOffset + jobLength);
-                            cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / _maxComputeWorkGroupSize), 1, 1);
+                            cmd.DispatchCompute(_cullingComputeShader, occlusionKernel, Mathf.CeilToInt(jobLength / (float)_maxComputeWorkGroupSize), 1, 1);
                         }
                     }
-
-                    context.ExecuteCommandBufferAsync(cmd, ComputeQueueType.Background);
                 }
+
+                context.ExecuteCommandBuffer(cmd);
+                CommandBufferPool.Release(cmd);
             }
         }
 
@@ -370,40 +457,6 @@ namespace UnityEngine.Rendering.Universal
 #endif
         }
 
-        public void OnBeginFrameRendering(ScriptableRenderContext context, Camera[] camera)
-        {
-            ref var allBatchPos = ref instanceBatchData.instanceData;
-
-            this.InitializeInstanceMesh();
-            this.InitializeAllInstanceTransformBufferIfNeeded();
-
-            if (instanceMaterial != null && _argsBuffer != null && allBatchPos.Count > 0)
-			{
-                instanceMaterial.SetVector(ShaderConstants._PivotPosWS, transform.position);
-                instanceMaterial.SetVector(ShaderConstants._PivotScaleWS, transform.lossyScale);
-
-#if UNITY_EDITOR
-                instanceMaterial.SetBuffer(ShaderConstants._AllInstancesTransformBuffer, _allBatchDataBuffer);
-                instanceMaterial.SetBuffer(ShaderConstants._AllVisibleInstancesIndexBuffer, _allBatchVisibleIndexBuffer);
-#endif
-
-                Graphics.DrawMeshInstancedIndirect(
-                        _instanceMesh,
-                        0,
-                        instanceMaterial,
-                        _boundingBox,
-                        _argsBuffer,
-                        0,
-                        _materialProperties,
-                        ShadowCastingMode.Off,
-                        false,
-                        this.gameObject.layer,
-                        null,
-                        LightProbeUsage.CustomProvided
-                    );
-            }
-        }
-
         static class ShaderConstants
         {
             public const string _configureTag = "Setup Batch Constants";
@@ -416,7 +469,6 @@ namespace UnityEngine.Rendering.Universal
 
             public static readonly int _CameraZBufferParams = Shader.PropertyToID("_CameraZBufferParams");
             public static readonly int _CameraDrawParams = Shader.PropertyToID("_CameraDrawParams");
-            public static readonly int _CameraViewMatrix = Shader.PropertyToID("_CameraViewMatrix");
             public static readonly int _CameraViewProjection = Shader.PropertyToID("_CameraViewProjection");
 
             public static readonly int _HizTexture = Shader.PropertyToID("_HizTexture");
@@ -428,6 +480,7 @@ namespace UnityEngine.Rendering.Universal
 
             public static readonly int _PivotPosWS = Shader.PropertyToID("_PivotPosWS");
             public static readonly int _PivotScaleWS = Shader.PropertyToID("_PivotScaleWS");
+            public static readonly int _PivotMatrixWS = Shader.PropertyToID("_PivotMatrixWS");
 
             public static readonly int _AllInstancesDataBuffer = Shader.PropertyToID("_AllInstancesDataBuffer");
             public static readonly int _AllInstancesTransformBuffer = Shader.PropertyToID("_AllInstancesTransformBuffer");

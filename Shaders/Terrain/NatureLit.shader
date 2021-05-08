@@ -32,10 +32,11 @@
         _WindATiling("风的持续", Vector) = (0.1,0.1,0)
         _WindAWrap("风产生的弯曲", Vector) = (0.5,0.5,0)
 
-        _WindScatter("风场扩散范围", Vector) = (20, 20, 1, 1)
+        [Space(20)]
+        _WindScatter("风场高光扩散范围", Vector) = (20, 20, 1, 1)
         _WindHightlightSpeed("风场高光扰动速率", Float) = 1
         _WindHightlightIntensity("风场高光扰动强度", Float) = 2
-
+        [HDR]_WindHightlightColor("风场高光扰动颜色", Color) = (1,1,1)
         [NoScaleOffset]_WindNoiseMap("风场扰动贴图(示例:gradient_beam_007)", 2D) = "black" {}
 
         _RandomNormal("法线扰动", Range(0, 1)) = 0.1
@@ -106,6 +107,7 @@
 
             float3 _PivotPosWS;
             float3 _PivotScaleWS;
+            float4x4 _PivotMatrixWS;
 
             float _RootBlendHeight;
             float _RootStrength;
@@ -130,6 +132,7 @@
             float2 _WindScatter;
             float _WindHightlightSpeed;
             float _WindHightlightIntensity;
+            float3 _WindHightlightColor;
 
             float _BendStrength;//按压弯曲程度
         CBUFFER_END
@@ -175,6 +178,7 @@
                     0,0,scale.z, positionWS.z,
                     0,0,0,1
                 );
+            UNITY_MATRIX_M = mul(_PivotMatrixWS, UNITY_MATRIX_M);
         #endif
 
             float3 pivotPositionWS = float3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
@@ -192,12 +196,14 @@
 
             float3 cameraTransformRightWS = UNITY_MATRIX_V[0].xyz;
             float3 cameraTransformForwardWS = -UNITY_MATRIX_V[2].xyz;
-            half3 randomAddToN = (_RandomNormal * sin(pivotPositionWS.x * 82.32523 + pivotPositionWS.z)) * cameraTransformRightWS;
+
+            half radnom = sin(pivotPositionWS.x * 82.32523 + pivotPositionWS.z);
+            half3 randomAddToN = cameraTransformRightWS * radnom * _RandomNormal;
 
             half3 N = normalize(half3(0, 1, 0) + randomAddToN);
 
             float rootBlend = lerp(1, smoothstep(_RootBlendHeight, _RootBlendHeight + (1 - _HeadBlendHeight), sqrt(input.positionOS.y)), _RootStrength);
-            float headBlend = lerp(0, lerp(1, ObjectPosRand01(pivotPositionWS), _HeadColor.a), _HeadStrength);
+            float headBlend = lerp(0, lerp(1, radnom, _HeadColor.a), _HeadStrength);
 
             output.positionWS = float4(TransformObjectToWorld(positionOS), rootBlend);
             output.normalWS = float4(N, headBlend);
@@ -212,14 +218,14 @@
 
         FragmentOutput LitPassFragment(Varyings input)
         {
-        #if _ALBEDOMAP
+        #ifdef _ALBEDOMAP
             half4 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv);
             albedo.rgb *= input.color.rgb;
         #else
             half4 albedo = half4(input.color.rgb, 1);
         #endif
 
-        #if _ALPHATEST_ON
+        #ifdef _ALPHATEST_ON
             input.screenPos /= input.screenPos.w;
             input.screenPos.xy *= _ScreenParams.xy;
 
@@ -230,21 +236,22 @@
             StippleAlpha(alpha, input.screenPos.xy);
         #endif
 
-        #if _ROOTMAP
+        #ifdef _ROOTMAP
             half3 rootColor = SAMPLE_TEXTURE2D_LOD(_RootTex, sampler_RootTex, GetColorMapUV(input.positionWS.xyz, _RootCenter, _RootSize), 0);
         #else
             half3 rootColor = albedo.xyz;
         #endif
 
-        #if _HEADMAP
-            half3 headColor = SAMPLE_TEXTURE2D_LOD(_HeadTex, sampler_HeadTex, GetColorMapUV(input.positionWS.xyz, _HeadCenter, _HeadSize), 0);
-            headColor = lerp(albedo.xyz, headColor * _HeadColor.rgb, input.normalWS.a);
+        #ifdef _HEADMAP
+            half4 headColor = SAMPLE_TEXTURE2D_LOD(_HeadTex, sampler_HeadTex, GetColorMapUV(input.positionWS.xyz, _HeadCenter, _HeadSize), 0);
+            headColor.rgb = lerp(albedo.xyz, headColor.rgb * _HeadColor.rgb, input.normalWS.a * headColor.a);
         #else
             half3 headColor = lerp(albedo.xyz, _HeadColor.rgb, input.normalWS.a);
         #endif
 
             GbufferData data;
-            data.albedo = lerp(rootColor, headColor, input.positionWS.a) * (1 + input.color.a);
+            data.albedo = lerp(rootColor, headColor.rgb, input.positionWS.a);
+            data.albedo = lerp(data.albedo, data.albedo * _WindHightlightColor, input.color.a);
             data.normalWS = input.normalWS.xyz;
             data.specular = 0.5;
             data.metallic = 0;
@@ -273,10 +280,11 @@
                     0,0,scale.z, positionWS.z,
                     0,0,0,1
                 );
+            UNITY_MATRIX_M = mul(_PivotMatrixWS, UNITY_MATRIX_M);
         #endif
 
-            float3 pivotPositionWS = float3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
             half3 direction = SafeNormalize(_WindDirection);
+            half3 pivotPositionWS = half3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
             half2 windTexcoord = (pivotPositionWS.xz + input.positionOS.xz) / _WindScatter;
             half2 windWindTexcoord = windTexcoord - direction.xz * _WindHightlightSpeed * _Time.x;
             half wind = SAMPLE_TEXTURE2D_LOD(_WindNoiseMap, sampler_WindNoiseMap, windWindTexcoord, 0).r;
@@ -296,6 +304,12 @@
         half4 DepthOnlyFragment(VaryingsLean input) : SV_TARGET
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+        #if defined(_ALPHATEST_ON) && defined(_ALBEDOMAP)
+            half4 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv);
+            clip(albedo.a - _Cutoff);
+        #endif
+
             return 0;
         }
     ENDHLSL

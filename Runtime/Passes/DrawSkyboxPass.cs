@@ -35,30 +35,45 @@ namespace UnityEngine.Rendering.Universal
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             ref CameraData cameraData = ref renderingData.cameraData;
+            
+            VolumeStack stack = VolumeManager.instance.stack;
 
-            var hdriSky = VolumeManager.instance.stack.GetComponent<HDRISky>();
-            if (hdriSky && hdriSky.IsActive())
-            {
-                CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
+            var env = stack.GetComponent<VisualEnvironment>();
+            if (env.IsActive())
+			{
+                var skyLightingMode = env.sky.value;
+                if (skyLightingMode == SkyMode.HDRISky)
+                {
+                    var hdriSky = stack.GetComponent<HDRISky>();
+                    if (hdriSky.IsActive())
+                    {
+                        var camera = renderingData.cameraData.camera;
+                        Matrix4x4 matrix = Matrix4x4.Scale(new Vector3(camera.farClipPlane, camera.farClipPlane, camera.farClipPlane));
+                        matrix.SetColumn(3, new Vector4(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z, 1));
 
-                var camera = renderingData.cameraData.camera;
-                Matrix4x4 matrix = Matrix4x4.Scale(new Vector3(camera.farClipPlane, camera.farClipPlane, camera.farClipPlane));
-                matrix.SetColumn(3, new Vector4(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z, 1));
+                        this.hdriMaterial.SetTexture(ShaderConstants._Tex, hdriSky.HdriSky.value);
+                        this.hdriMaterial.SetFloat(ShaderConstants._Exposure, hdriSky.exposure.value);
+                        this.hdriMaterial.SetFloat(ShaderConstants._Rotation, hdriSky.rotation.value);
+                        this.hdriMaterial.SetColor(ShaderConstants._Tint, hdriSky.color.value);
 
-                this.hdriMaterial.SetTexture(ShaderConstants._Tex, hdriSky.HdriSky.value);
-                this.hdriMaterial.SetFloat(ShaderConstants._Exposure, hdriSky.exposure.value);
-                this.hdriMaterial.SetFloat(ShaderConstants._Rotation, hdriSky.rotation.value);
-                this.hdriMaterial.SetColor(ShaderConstants._Tint, hdriSky.color.value);
+                        RenderSettings.skybox = this.hdriMaterial;
 
-                cmd.Clear();
-                cmd.DrawMesh(this.icoskyboxMesh, matrix, this.hdriMaterial);
+                        CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
+                        cmd.Clear();
+                        cmd.DrawMesh(this.icoskyboxMesh, matrix, this.hdriMaterial);
 
-                context.ExecuteCommandBuffer(cmd);
+                        context.ExecuteCommandBuffer(cmd);
 
-                CommandBufferPool.Release(cmd);
+                        CommandBufferPool.Release(cmd);
+                    }
+                    else
+                    {
+                        RenderSettings.skybox = null;
+                    }
+                }
             }
             else
-            {
+			{
                 bool isRequireSkybox = RenderSettings.skybox != null;
                 if (!isRequireSkybox)
                 {

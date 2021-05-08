@@ -1,4 +1,6 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
+using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -68,9 +70,23 @@ namespace UnityEditor.Rendering.Universal
 
                 var instanceMaterial = (Material)EditorGUILayout.ObjectField("材质", _renderer.instanceMaterial, typeof(Material), true);
 
+                if (_renderer.instanceMaterial && !AssetDatabase.IsMainAsset(_renderer.instanceMaterial))
+				{
+                    if (GUILayout.Button("保存材质"))
+                    {
+                        string path = EditorUtility.SaveFilePanelInProject("Save material", instanceMaterial.name.Substring(instanceMaterial.name.LastIndexOf("/") + 1), "mat", "Please enter a file name to save the material to");
+                        if (path.Length != 0)
+                        {
+                            Undo.RecordObject(_renderer.instanceMaterial, "material");
+                            AssetDatabase.CreateAsset(_renderer.instanceMaterial, path);
+                            AssetDatabase.Refresh();
+                        }
+                    }
+                }
+
                 if (EditorGUI.EndChangeCheck())
                 {
-                    if (_renderer.instanceMaterial && instanceMaterial)
+                    if (_renderer.instanceMaterial && instanceMaterial && _renderer.instanceMaterial != instanceMaterial)
                         instanceMaterial.CopyPropertiesFromMaterial(_renderer.instanceMaterial);
 
                     _renderer.instanceMaterial = instanceMaterial;
@@ -153,7 +169,7 @@ namespace UnityEditor.Rendering.Universal
             {
                 _materialEditor.DrawHeader();
 
-                bool isDefaultMaterial = AssetDatabase.GetAssetPath(_renderer.instanceMaterial).StartsWith("Assets");
+                bool isDefaultMaterial = AssetDatabase.GetAssetPath(_renderer.instanceMaterial).StartsWith("Packages/com.unity.render-pipelines.universal");
 
                 using (new EditorGUI.DisabledGroupScope(isDefaultMaterial))
                     _materialEditor.OnInspectorGUI();
@@ -241,7 +257,7 @@ namespace UnityEditor.Rendering.Universal
         }
 
         [MenuItem("GameObject/GPU Driven/Nature", priority = CoreUtils.gameObjectMenuPriority)]
-        static void CreateGrass(MenuCommand menuCommand)
+        static void CreateNature(MenuCommand menuCommand)
         {
             var go = CoreEditorUtils.CreateGameObject("GPU Driven Nature", menuCommand.context);
 
@@ -267,8 +283,6 @@ namespace UnityEditor.Rendering.Universal
         {
             Transform[] transforms = Selection.GetTransforms(SelectionMode.Deep | SelectionMode.ExcludePrefab | SelectionMode.Editable);
 
-            Undo.RecordObjects(transforms, "Place Selection On Surface");
-
             Dictionary<Mesh, List<Transform>> meshClassify = new Dictionary<Mesh, List<Transform>>();
 
             foreach (Transform t in transforms)
@@ -286,6 +300,10 @@ namespace UnityEditor.Rendering.Universal
                 }
             }
 
+            string resourcePath = AssetDatabase.GUIDToAssetPath(UniversalRenderPipelineAsset.editorResourcesGUID);
+            var objs = InternalEditorUtility.LoadSerializedFileAndForget(resourcePath);
+            var editorResourcesAsset = objs != null && objs.Length > 0 ? objs.First() as UniversalRenderPipelineEditorResources : null;
+
             foreach (var group in meshClassify)
 			{
                 var go = CoreEditorUtils.CreateGameObject(Selection.activeGameObject, "GPU Driven Tree");
@@ -294,26 +312,25 @@ namespace UnityEditor.Rendering.Universal
                 meshFilter.sharedMesh = group.Key;
 
                 var batchRenderer = go.AddComponent<MeshBatchRenderer>();
+                batchRenderer.instanceMaterial = Material.Instantiate(editorResourcesAsset.materials.treeLit);
 
-                if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
-                {
-                    var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-                    batchRenderer.instanceMaterial = Material.Instantiate(pipeline.m_EditorResourcesAsset.materials.treeLit);
-                    batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
-                    batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
-
+                if (batchRenderer.instanceMaterial)
+				{
                     if (group.Value[0].TryGetComponent<MeshRenderer>(out var renderer))
                     {
                         var material = renderer.sharedMaterial;
                         if (material)
                         {
+                            batchRenderer.instanceMaterial.CopyPropertiesFromMaterial(material);
                             batchRenderer.instanceMaterial.color = material.color;
                             batchRenderer.instanceMaterial.mainTexture = material.mainTexture;
                             batchRenderer.instanceMaterial.mainTextureOffset = material.mainTextureOffset;
                             batchRenderer.instanceMaterial.mainTextureScale = material.mainTextureScale;
-                            batchRenderer.instanceMaterial.CopyPropertiesFromMaterial(material);
                         }
                     }
+
+                    batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
+                    batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
                 }
 
                 foreach (var item in group.Value)
@@ -334,8 +351,6 @@ namespace UnityEditor.Rendering.Universal
         {
             Transform[] transforms = Selection.GetTransforms(SelectionMode.Deep | SelectionMode.ExcludePrefab | SelectionMode.Editable);
 
-            Undo.RecordObjects(transforms, "Place Selection On Surface");
-
             Dictionary<Mesh, List<Transform>> meshClassify = new Dictionary<Mesh, List<Transform>>();
 
             foreach (Transform t in transforms)
@@ -353,6 +368,10 @@ namespace UnityEditor.Rendering.Universal
                 }
             }
 
+            string resourcePath = AssetDatabase.GUIDToAssetPath(UniversalRenderPipelineAsset.editorResourcesGUID);
+            var objs = InternalEditorUtility.LoadSerializedFileAndForget(resourcePath);
+            var editorResourcesAsset = objs != null && objs.Length > 0 ? objs.First() as UniversalRenderPipelineEditorResources : null;
+
             foreach (var group in meshClassify)
             {
                 var go = CoreEditorUtils.CreateGameObject(Selection.activeGameObject, "GPU Driven Nature");
@@ -361,26 +380,25 @@ namespace UnityEditor.Rendering.Universal
                 meshFilter.sharedMesh = group.Key;
 
                 var batchRenderer = go.AddComponent<MeshBatchRenderer>();
+                batchRenderer.instanceMaterial = Material.Instantiate(editorResourcesAsset.materials.natureLit);
 
-                if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset)
+                if (batchRenderer.instanceMaterial)
 				{
-                    var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-                    batchRenderer.instanceMaterial = Material.Instantiate(pipeline.m_EditorResourcesAsset.materials.natureLit);
-                    batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
-                    batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
-
                     if (group.Value[0].TryGetComponent<MeshRenderer>(out var renderer))
                     {
                         var material = renderer.sharedMaterial;
                         if (material)
                         {
+                            batchRenderer.instanceMaterial.CopyPropertiesFromMaterial(material);
                             batchRenderer.instanceMaterial.color = material.color;
                             batchRenderer.instanceMaterial.mainTexture = material.mainTexture;
                             batchRenderer.instanceMaterial.mainTextureOffset = material.mainTextureOffset;
                             batchRenderer.instanceMaterial.mainTextureScale = material.mainTextureScale;
-                            batchRenderer.instanceMaterial.CopyPropertiesFromMaterial(material);
                         }
                     }
+
+                    batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
+                    batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
                 }
 
                 foreach (var item in group.Value)

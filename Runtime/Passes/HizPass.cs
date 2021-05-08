@@ -105,7 +105,6 @@ namespace UnityEngine.Rendering.Universal
 
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
-            cmd.SetExecutionFlags(CommandBufferExecutionFlags.AsyncCompute);
 
             int width = hizRenderTarget.width;
             int height = hizRenderTarget.height;
@@ -134,7 +133,7 @@ namespace UnityEngine.Rendering.Universal
                 height = Mathf.Max(1, height >> 1);
             }
 
-            context.ExecuteCommandBufferAsync(cmd, ComputeQueueType.Background);
+            context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
 
