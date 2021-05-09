@@ -4,6 +4,7 @@ namespace UnityEngine.Rendering.Universal
     {
         static Mesh _icoskyboxMesh = null;
         static Material _hdriMaterial = null;
+        static Material _gradientMaterial = null;
 
         Mesh icoskyboxMesh
 		{
@@ -26,6 +27,17 @@ namespace UnityEngine.Rendering.Universal
                 return _hdriMaterial;
             }
 		}
+
+        Material gradientMaterial
+        {
+            get
+            {
+                if (_gradientMaterial == null)
+                    _gradientMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Hidden/Universal Render Pipeline/Sky/GradientSky"));
+
+                return _gradientMaterial;
+            }
+        }
 
         public DrawSkyboxPass(RenderPassEvent evt)
         {
@@ -71,6 +83,36 @@ namespace UnityEngine.Rendering.Universal
                         RenderSettings.skybox = null;
                     }
                 }
+                else if (skyLightingMode == SkyMode.GradientSky)
+				{
+                    var gradientSky = stack.GetComponent<GradientSky>();
+                    if (gradientSky.IsActive())
+                    {
+                        var camera = renderingData.cameraData.camera;
+                        Matrix4x4 matrix = Matrix4x4.Scale(new Vector3(camera.farClipPlane, camera.farClipPlane, camera.farClipPlane));
+                        matrix.SetColumn(3, new Vector4(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z, 1));
+
+                        this.gradientMaterial.SetColor(ShaderConstants._GradientTop, gradientSky.top.value);
+                        this.gradientMaterial.SetColor(ShaderConstants._GradientMiddle, gradientSky.middle.value);
+                        this.gradientMaterial.SetColor(ShaderConstants._GradientBottom, gradientSky.bottom.value);
+                        this.gradientMaterial.SetFloat(ShaderConstants._GradientDiffusion, gradientSky.gradientDiffusion.value);
+                        this.gradientMaterial.SetFloat(ShaderConstants._SkyIntensity, gradientSky.exposure.value);
+
+                        RenderSettings.skybox = this.gradientMaterial;
+
+                        CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
+                        cmd.Clear();
+                        cmd.DrawMesh(this.icoskyboxMesh, matrix, this.gradientMaterial, 0, 0);
+
+                        context.ExecuteCommandBuffer(cmd);
+
+                        CommandBufferPool.Release(cmd);
+                    }
+                    else
+                    {
+                        RenderSettings.skybox = null;
+                    }
+                }
             }
             else
 			{
@@ -94,6 +136,13 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _Tint = Shader.PropertyToID("_Tint");
             public static readonly int _Exposure = Shader.PropertyToID("_Exposure");
             public static readonly int _Rotation = Shader.PropertyToID("_Rotation");
+
+            public static readonly int _GradientBottom = Shader.PropertyToID("_GradientBottom");
+            public static readonly int _GradientMiddle = Shader.PropertyToID("_GradientMiddle");
+            public static readonly int _GradientTop = Shader.PropertyToID("_GradientTop");
+            public static readonly int _GradientDiffusion = Shader.PropertyToID("_GradientDiffusion");
+
+            public static readonly int _SkyIntensity = Shader.PropertyToID("_SkyIntensity");
         }
     }
 }
