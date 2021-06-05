@@ -11,7 +11,10 @@ Shader "Universal Render Pipeline/Deferred Lit"
 
         [Space(20)]
         [Toggle(_STIPPLETEST_ON)]_UseStippleCutoff("启用点阵像素剔除", int) = 0
+        _StippleAlpha("点阵化透明程度", Range(0.0, 1.0)) = 1
+        [ToggleOff(_STIPPLETEST_VIEW_OFF)] _ViewStippleCutoff("相机范围剔除", Float) = 1.0
         _CameraRangeCutoff("相机剔除范围", Range(0.01, 10.0)) = 1
+        [ToggleOff(_STIPPLETEST_TARGET_OFF)] _TargetStippleCutoff("目标范围剔除", Float) = 1.0
         _TargetRangeCutoff("目标剔除范围", Range(0.01, 10.0)) = 1
         _TargetPosition("目标世界位置", Vector) = (0, 0, 0)
 
@@ -22,11 +25,11 @@ Shader "Universal Render Pipeline/Deferred Lit"
         [Space(20)]
         _Metallic("金属程度", Range(0.0, 1.0)) = 0.0
         _Smoothness("光滑度", Range(0.0, 1.0)) = 0.5
+        _Translucency("透射程度", Range(0.0, 1.0)) = 0.0
+        _SpecColor("镜面颜色", Color) = (0.2, 0.2, 0.2)
         _OcclusionStrength("遮蔽强度", Range(0.0, 1.0)) = 1.0
         [NoScaleOffset][TexToggle(_METALLICSPECGLOSSMAP)]_MetallicGlossMap("材质复合贴图", 2D) = "white" {}
 
-        _SpecColor("镜面颜色", Color) = (0.2, 0.2, 0.2)
-        [NoScaleOffset]_SpecGlossMap("镜面贴图", 2D) = "white" {}
 
         [Space(20)]
         [KeywordEnum(None, Color, Albedo, Texture)]
@@ -50,6 +53,11 @@ Shader "Universal Render Pipeline/Deferred Lit"
         [Space(20)]
         _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
         _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
+
+        [Space(20)]
+        [Toggle(_WIND_ON)]_UseWind("启用风场", int) = 0
+        _WindWeight("风场影响程度", Range(0.0, 1.0)) = 1.0
+        _WindStormWeight("风浪影响程度", Range(0.0, 1.0)) = 1.0
 
         [Space(20)]
         [Toggle]_DepthPrepass("深度预渲染", Float) = 0
@@ -93,7 +101,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
             Name "DeferredLit"
             Tags{"LightMode" = "Deferred"}
 
-            Blend[_SrcBlend][_DstBlend]
+            Blend Off
             ZWrite[_ZWrite]
             Cull[_Cull]
 
@@ -120,6 +128,8 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma shader_feature _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature _ENVIRONMENTREFLECTIONS_OFF
             #pragma shader_feature _RECEIVE_SHADOWS_OFF
+
+            #pragma shader_feature_local _WIND_ON
             #pragma shader_feature_local _SPECULAR_ANTIALIASING
 
             #pragma multi_compile_local _ _STIPPLETEST_ON
@@ -170,7 +180,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
             // -------------------------------------
             // Material Keywords
             #pragma shader_feature _ALPHATEST_ON
-
+            #pragma shader_feature_local _WIND_ON
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
@@ -206,6 +216,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
             // Material Keywords
             #pragma shader_feature _ALPHATEST_ON
             #pragma shader_feature _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+            #pragma shader_feature_local _WIND_ON
 
             #pragma multi_compile_local _ _STIPPLETEST_ON
 
@@ -240,6 +251,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
             // Material Keywords
             #pragma shader_feature _ALPHATEST_ON
             #pragma shader_feature _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+            #pragma shader_feature_local _WIND_ON
 
             #pragma multi_compile_local _ _STIPPLETEST_ON
 
@@ -272,8 +284,6 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma shader_feature _METALLICSPECGLOSSMAP
             #pragma shader_feature _ALPHATEST_ON
             #pragma shader_feature _ _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
-
-            #pragma shader_feature _SPECGLOSSMAP
 
             #include "DeferredLitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitMetaPass.hlsl"

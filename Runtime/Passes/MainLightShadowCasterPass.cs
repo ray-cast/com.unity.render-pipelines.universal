@@ -18,6 +18,7 @@ namespace UnityEngine.Rendering.Universal
             public static int _ShadowOffset2;
             public static int _ShadowOffset3;
             public static int _ShadowmapSize;
+            public static int _ShadowCascadesSplit;
         }
 
         const int k_MaxCascades = 4;
@@ -52,17 +53,19 @@ namespace UnityEngine.Rendering.Universal
             MainLightShadowConstantBuffer._CascadeShadowSplitSpheres2 = Shader.PropertyToID("_CascadeShadowSplitSpheres2");
             MainLightShadowConstantBuffer._CascadeShadowSplitSpheres3 = Shader.PropertyToID("_CascadeShadowSplitSpheres3");
             MainLightShadowConstantBuffer._CascadeShadowSplitSphereRadii = Shader.PropertyToID("_CascadeShadowSplitSphereRadii");
+
             MainLightShadowConstantBuffer._ShadowOffset0 = Shader.PropertyToID("_MainLightShadowOffset0");
             MainLightShadowConstantBuffer._ShadowOffset1 = Shader.PropertyToID("_MainLightShadowOffset1");
             MainLightShadowConstantBuffer._ShadowOffset2 = Shader.PropertyToID("_MainLightShadowOffset2");
             MainLightShadowConstantBuffer._ShadowOffset3 = Shader.PropertyToID("_MainLightShadowOffset3");
             MainLightShadowConstantBuffer._ShadowmapSize = Shader.PropertyToID("_MainLightShadowmapSize");
+            MainLightShadowConstantBuffer._ShadowCascadesSplit = Shader.PropertyToID("_MainLightShadowCascadesSplit");
 
             _mainLightShadowmap.Init("_MainLightShadowmapTexture");
             _supportsBoxFilterForShadows = Application.isMobilePlatform || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Switch;
         }
 
-        public bool Setup(ref RenderingData renderingData)
+        public bool Setup(ref RenderingData renderingData, float maxLinearDepth)
         {
             if (!renderingData.shadowData.supportsMainLightShadows)
                 return false;
@@ -88,18 +91,36 @@ namespace UnityEngine.Rendering.Universal
 
             _shadowCasterCascadesCount = renderingData.shadowData.mainLightShadowCascadesCount;
 
-            int shadowResolution = ShadowUtils.GetMaxTileResolutionInAtlas(renderingData.shadowData.mainLightShadowmapWidth,
-                renderingData.shadowData.mainLightShadowmapHeight, _shadowCasterCascadesCount);
+            int shadowResolution = ShadowUtils.GetMaxTileResolutionInAtlas(renderingData.shadowData.mainLightShadowmapWidth, renderingData.shadowData.mainLightShadowmapHeight, _shadowCasterCascadesCount);
             _shadowmapWidth = renderingData.shadowData.mainLightShadowmapWidth;
-            _shadowmapHeight = (_shadowCasterCascadesCount == 2) ?
-                renderingData.shadowData.mainLightShadowmapHeight >> 1 :
-                renderingData.shadowData.mainLightShadowmapHeight;
+            _shadowmapHeight = (_shadowCasterCascadesCount == 2) ? renderingData.shadowData.mainLightShadowmapHeight >> 1 :renderingData.shadowData.mainLightShadowmapHeight;
+
+            if (_shadowCasterCascadesCount == 2)
+			{
+                var maxShadowDistance = renderingData.cameraData.maxShadowDistance;
+                var minCascadesDistance = maxShadowDistance * renderingData.shadowData.mainLightShadowCascadesSplit.x;
+                var maxCascadesDistance = minCascadesDistance * 2;
+                var shadowDistance = Mathf.Max(maxCascadesDistance, Mathf.Min(maxLinearDepth, maxShadowDistance));
+                renderingData.shadowData.mainLightShadowCascadesSplit.x = minCascadesDistance / shadowDistance;
+                renderingData.shadowData.mainLightShadowCascadesSplit.y = 1.0f;
+            }
 
             for (int cascadeIndex = 0; cascadeIndex < _shadowCasterCascadesCount; ++cascadeIndex)
             {
-                bool success = ShadowUtils.ExtractDirectionalLightMatrix(ref renderingData.cullResults, ref renderingData.shadowData,
-                    shadowLightIndex, cascadeIndex, _shadowmapWidth, _shadowmapHeight, shadowResolution, light.shadowNearPlane,
-                    out _cascadeSplitDistances[cascadeIndex], out _cascadeSlices[cascadeIndex], out _cascadeSlices[cascadeIndex].viewMatrix, out _cascadeSlices[cascadeIndex].projectionMatrix);
+                bool success = ShadowUtils.ExtractDirectionalLightMatrix(
+                            ref renderingData.cullResults, 
+                            ref renderingData.shadowData,
+                            shadowLightIndex, 
+                            cascadeIndex, 
+                            _shadowmapWidth, 
+                            _shadowmapHeight, 
+                            shadowResolution, 
+                            light.shadowNearPlane,
+                            out _cascadeSplitDistances[cascadeIndex], 
+                            out _cascadeSlices[cascadeIndex], 
+                            out _cascadeSlices[cascadeIndex].viewMatrix, 
+                            out _cascadeSlices[cascadeIndex].projectionMatrix
+                        );
 
                 if (!success)
                     return false;
@@ -110,8 +131,8 @@ namespace UnityEngine.Rendering.Universal
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
-            _mainLightShadowmapTexture = ShadowUtils.GetTemporaryShadowTexture(_shadowmapWidth,
-                    _shadowmapHeight, k_ShadowmapBufferBits);
+            _mainLightShadowmapTexture = ShadowUtils.GetTemporaryShadowTexture(_shadowmapWidth, _shadowmapHeight, k_ShadowmapBufferBits);
+
             ConfigureTarget(new RenderTargetIdentifier(_mainLightShadowmapTexture));
             ConfigureClear(ClearFlag.All, Color.black);
         }
@@ -169,8 +190,7 @@ namespace UnityEngine.Rendering.Universal
                     settings.splitData = splitData;
                     Vector4 shadowBias = ShadowUtils.GetShadowBias(ref shadowLight, shadowLightIndex, ref shadowData, _cascadeSlices[cascadeIndex].projectionMatrix, _cascadeSlices[cascadeIndex].resolution);
                     ShadowUtils.SetupShadowCasterConstantBuffer(cmd, ref shadowLight, shadowBias);
-                    ShadowUtils.RenderShadowSlice(cmd, ref context, ref _cascadeSlices[cascadeIndex],
-                        ref settings, _cascadeSlices[cascadeIndex].projectionMatrix, _cascadeSlices[cascadeIndex].viewMatrix);
+                    ShadowUtils.RenderShadowSlice(cmd, ref context, ref _cascadeSlices[cascadeIndex], ref settings, _cascadeSlices[cascadeIndex].projectionMatrix, _cascadeSlices[cascadeIndex].viewMatrix);
                 }
 
                 bool softShadows = shadowLight.light.shadows == LightShadows.Soft && shadowData.supportsSoftShadows;
@@ -178,14 +198,14 @@ namespace UnityEngine.Rendering.Universal
                 CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.MainLightShadowCascades, shadowData.mainLightShadowCascadesCount > 1);
                 CoreUtils.SetKeyword(cmd, ShaderKeywordStrings.SoftShadows, softShadows);
 
-                SetupMainLightShadowReceiverConstants(cmd, shadowLight, softShadows);
+                SetupMainLightShadowReceiverConstants(cmd, shadowLight, ref shadowData, softShadows);
             }
 
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
         }
 
-        void SetupMainLightShadowReceiverConstants(CommandBuffer cmd, VisibleLight shadowLight, bool softShadows)
+        void SetupMainLightShadowReceiverConstants(CommandBuffer cmd, VisibleLight shadowLight, ref ShadowData shadowData, bool softShadows)
         {
             Light light = shadowLight.light;
 
@@ -206,6 +226,7 @@ namespace UnityEngine.Rendering.Universal
             cmd.SetGlobalTexture(_mainLightShadowmap.id, _mainLightShadowmapTexture);
             cmd.SetGlobalMatrixArray(MainLightShadowConstantBuffer._WorldToShadow, _mainLightShadowMatrices);
             cmd.SetGlobalVector(MainLightShadowConstantBuffer._ShadowParams, new Vector4(light.shadowStrength, softShadowsProp, 0.0f, 0.0f));
+            cmd.SetGlobalVector(MainLightShadowConstantBuffer._ShadowCascadesSplit, shadowData.mainLightShadowCascadesSplit);
 
             if (_shadowCasterCascadesCount > 1)
             {

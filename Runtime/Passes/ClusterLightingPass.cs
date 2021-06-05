@@ -4,6 +4,7 @@ namespace UnityEngine.Rendering.Universal
     {
         private Material _lightingMaterial;
 
+        private RenderTargetHandle _depthAttachmentHandle { get; set; }
         private RenderTargetHandle _colorAttachmentHandle { get; set; }
 
         public ClusterLightingPass(RenderPassEvent evt, Material lightingMaterial)
@@ -12,27 +13,24 @@ namespace UnityEngine.Rendering.Universal
             this._lightingMaterial = lightingMaterial;
         }
 
-        public void Setup(RenderTargetHandle colorAttachmentHandle)
+        public void Setup(RenderTargetHandle colorAttachmentHandle, RenderTargetHandle depthAttachmentHandle)
         {
+            this._depthAttachmentHandle = depthAttachmentHandle;
             this._colorAttachmentHandle = colorAttachmentHandle;
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
-            ConfigureTarget(_colorAttachmentHandle.Identifier());
-            ConfigureClear(ClearFlag.None, Color.black);
+            ConfigureTarget(_colorAttachmentHandle.Identifier(), _depthAttachmentHandle.Identifier());
+            ConfigureClear(ClearFlag.None, Color.clear);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
 
-            var flipSign = renderingData.cameraData.IsCameraProjectionMatrixFlipped() ? -1.0f : 1.0f;
-            var scaleBias = flipSign < 0.0f ? new Vector4(flipSign, 1.0f, -1.0f, 1.0f) : new Vector4(flipSign, 0.0f, 1.0f, 1.0f);
-
             cmd.Clear();
-            cmd.ClearRenderTarget(false, true, new Color(0, 0, 0, 0));
-            cmd.SetGlobalVector(ShaderConstants._scaleBiasId, scaleBias);
+            cmd.ClearRenderTarget(false, true, Color.clear);
 
             if (renderingData.lightData.mainLightIndex >= 0)
                 cmd.DrawProcedural(Matrix4x4.identity, _lightingMaterial, 0, MeshTopology.Triangles, 3);
@@ -47,8 +45,6 @@ namespace UnityEngine.Rendering.Universal
         static class ShaderConstants
         {
             public const string _profilerTag = "Cluster Lighting";
-
-            public static readonly int _scaleBiasId = Shader.PropertyToID("_ScaleBiasRT");
         }
     }
 }

@@ -14,11 +14,15 @@ half4 _SpecColor;
 half4 _EmissionColor;
 half _EmissionIntensity;
 half _Cutoff;
+half _StippleAlpha;
 half _CameraRangeCutoff;
 half _TargetRangeCutoff;
 half3 _TargetPosition;
 half _Smoothness;
+half _WindWeight;
+half _WindStormWeight;
 half _Metallic;
+half _Translucency;
 half _BumpScale;
 half _DetialBumpMapScale;
 half _OcclusionStrength;
@@ -29,7 +33,6 @@ CBUFFER_END
 
 TEXTURE2D(_OcclusionMap);       SAMPLER(sampler_OcclusionMap);
 TEXTURE2D(_MetallicGlossMap);   SAMPLER(sampler_MetallicGlossMap);
-TEXTURE2D(_SpecGlossMap);       SAMPLER(sampler_SpecGlossMap);
 TEXTURE2D(_WetnessMap);         SAMPLER(sampler_WetnessMap);
 TEXTURE2D(_DetailMap);          SAMPLER(sampler_DetailMap);
 TEXTURE2D(_DetailBumpMap);      SAMPLER(sampler_DetailBumpMap);

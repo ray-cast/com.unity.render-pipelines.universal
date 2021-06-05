@@ -114,6 +114,8 @@ Shader "Universal Render Pipeline/GPUTerrainLit"
             //--------------------------------------
             // GPU Instancing
             #pragma multi_compile_instancing
+            #pragma multi_compile PROCEDURAL_INSTANCING_ON
+            #pragma instancing_options procedural:SetupTerrainInstancing
 
             #pragma vertex LitPassVertex
             #pragma fragment LitPassFragment

@@ -2,29 +2,33 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
 {
     Properties
     {
-        _ControlInt("Control : 0-普通 1-沙漠 2-草 3-雪 4-水", Int) = 0 //注意跟EnumGroundType对应
-        _Control("Control", 2D) = "white" {}
+        _ControlInt("材质ID : 0-普通 1-沙漠 2-草 3-雪 4-水", Int) = 0 //注意跟EnumGroundType对应
+        _Control("ID贴图", 2D) = "white" {}
         _Splat0("基本颜色 1", 2D) = "white" {}
         _Splat1("基本颜色 2", 2D) = "white" {}
         _Splat2("基本颜色 3", 2D) = "white" {}
         _Splat3("基本颜色 4", 2D) = "white" {}
         [Toggle(_NORMALMAP)]_UseNormal("启用法线", int) = 1
-        _Normal0("法线贴图 1", 2D) = "bump" {}
-        _Normal1("法线贴图 2", 2D) = "bump" {}
-        _Normal2("法线贴图 3", 2D) = "bump" {}
-        _Normal3("法线贴图 4", 2D) = "bump" {}
+        [NoScaleOffset]_Normal0("法线贴图 1", 2D) = "bump" {}
+        _BumpScale0("法线强度 1", Range(0, 10)) = 1.0
+        [NoScaleOffset]_Normal1("法线贴图 2", 2D) = "bump" {}
+        _BumpScale1("法线强度 2", Range(0, 10)) = 1.0
+        [NoScaleOffset]_Normal2("法线贴图 3", 2D) = "bump" {}
+        _BumpScale2("法线强度 3", Range(0, 10)) = 1.0
+        [NoScaleOffset]_Normal3("法线贴图 4", 2D) = "bump" {}
+        _BumpScale3("法线强度 4", Range(0, 10)) = 1.0
         [TexToggle(_USE_WETNESSMAP1)]_WetnessMap0("积水贴图 1", 2D) = "black" {}
         [TexToggle(_USE_WETNESSMAP2)]_WetnessMap1("积水贴图 2", 2D) = "black" {}
         [TexToggle(_USE_WETNESSMAP3)]_WetnessMap2("积水贴图 3", 2D) = "black" {}
         [TexToggle(_USE_WETNESSMAP4)]_WetnessMap3("积水贴图 4", 2D) = "black" {}
-        _Metallic0("金属程度 1", Range(0 , 1)) = 0
-        _Metallic1("金属程度 2", Range(0 , 1)) = 0
-        _Metallic2("金属程度 3", Range(0 , 1)) = 0
-        _Metallic3("金属程度 4", Range(0 , 1)) = 0
-        _Smoothness0("光滑度 1", Range(0 , 1)) = 0.5
-        _Smoothness1("光滑度 2", Range(0 , 1)) = 0.5
-        _Smoothness2("光滑度 3", Range(0 , 1)) = 0.5
-        _Smoothness3("光滑度 4", Range(0 , 1)) = 0.5
+        _Metallic0("金属程度 1", Range(0, 1)) = 0
+        _Metallic1("金属程度 2", Range(0, 1)) = 0
+        _Metallic2("金属程度 3", Range(0, 1)) = 0
+        _Metallic3("金属程度 4", Range(0, 1)) = 0
+        _Smoothness0("光滑度 1", Range(0, 1)) = 0.5
+        _Smoothness1("光滑度 2", Range(0, 1)) = 0.5
+        _Smoothness2("光滑度 3", Range(0, 1)) = 0.5
+        _Smoothness3("光滑度 4", Range(0, 1)) = 0.5
 
         [Space(20)]
         [Toggle(_SPECULAR_ANTIALIASING)] _UseSpecularHighlights("启用镜面抗锯齿", Float) = 0
@@ -33,15 +37,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
         [Space(20)]
         _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
         _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
-
-        [Space(20)]
-        [Toggle(_STIPPLETEST_ON)]_UseStippleCutoff("启用点阵像素剔除", int) = 0
-        _CameraRangeCutoff("相机剔除范围", Range(0.01, 10.0)) = 1
-        _TargetRangeCutoff("目标剔除范围", Range(0.01, 10.0)) = 1
-        _TargetPosition("目标世界位置", Vector) = (0, 0, 0)
-
-        [Space(20)]
-        [Toggle]_DepthPrepass("深度预渲染", Float) = 0
 
         [HideInInspector] [MainColor] _BaseColor("基本颜色", Color) = (1,1,1,1)
         [HideInInspector] [MainTexture] _BaseMap("基本贴图", 2D) = "white" {}
@@ -86,7 +81,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             Name "DeferredLit"
             Tags{"LightMode" = "Deferred"}
 
-            Blend[_SrcBlend][_DstBlend]
             ZWrite[_ZWrite]
             Cull[_Cull]
 
@@ -110,7 +104,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma shader_feature _ENVIRONMENTREFLECTIONS_OFF
             #pragma shader_feature _RECEIVE_SHADOWS_OFF
 
-            #pragma multi_compile_local _ _STIPPLETEST_ON
             // -------------------------------------
             // Universal Pipeline keywords
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS
@@ -127,7 +120,8 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
 
             //--------------------------------------
             // GPU Instancing
-            #pragma multi_compile_instancing
+            #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+            #pragma instancing_options procedural:SetupTerrainInstancing
 
             #pragma vertex LitPassVertex
             #pragma fragment LitPassFragment
@@ -154,33 +148,8 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma vertex ShadowPassVertex
             #pragma fragment ShadowPassFragment
 
-            #pragma multi_compile_instancing
-            #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
-
-            #include "DeferredTerrainLitInput.hlsl"
-            #include "DeferredTerrainLitPasses.hlsl"
-            ENDHLSL
-        }
-
-        Pass
-        {
-            Name "PrepassDepth"
-            Tags{"LightMode" = "PrepassDepth"}
-
-            ZWrite On
-            ColorMask 0
-
-            HLSLPROGRAM
-            // Required to compile gles 2.0 with standard srp library
-            #pragma prefer_hlslcc gles
-            #pragma exclude_renderers d3d11_9x
-            #pragma target 2.0
-
-            #pragma vertex DepthOnlyVertex
-            #pragma fragment DepthOnlyFragment
-
-            #pragma multi_compile_local _ _STIPPLETEST_ON
-            #pragma multi_compile_instancing
+            #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+            #pragma instancing_options procedural:SetupTerrainInstancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
             #include "DeferredTerrainLitInput.hlsl"
@@ -205,8 +174,8 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma vertex DepthOnlyVertex
             #pragma fragment DepthOnlyFragment
 
-            #pragma multi_compile_local _ _STIPPLETEST_ON
-            #pragma multi_compile_instancing
+            #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+            #pragma instancing_options procedural:SetupTerrainInstancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
             #include "DeferredTerrainLitInput.hlsl"

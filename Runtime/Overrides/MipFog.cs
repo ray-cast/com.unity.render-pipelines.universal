@@ -18,7 +18,7 @@ namespace UnityEngine.Rendering.Universal
         }
     }
 
-    [Serializable, VolumeComponentMenu("Post-processing/Fog/MipFog")]
+    [Serializable, VolumeComponentMenu("Fog/MipFog")]
     public class MipFog : VolumeComponent, IPostProcessComponent
     {
         [Tooltip("雾气模式")]

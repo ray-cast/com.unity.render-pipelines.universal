@@ -2,12 +2,6 @@ Shader "Hidden/Universal Render Pipeline/Sky/GradientSky"
 {
     HLSLINCLUDE
 
-    #pragma vertex Vert
-
-    #pragma editor_sync_compilation
-    #pragma target 4.5
-    #pragma only_renderers d3d11 ps4 xboxone vulkan metal switch
-
     #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
 	float4 _GradientBottom;
@@ -25,25 +19,20 @@ Shader "Hidden/Universal Render Pipeline/Sky/GradientSky"
     struct Varyings
     {
         float4 positionCS : SV_POSITION;
-        float3 viewDirWS  : TEXCOORD0;
+        float3 viewdir  : TEXCOORD0;
         UNITY_VERTEX_OUTPUT_STEREO
     };
 
-    Varyings Vert(Attributes input)
+    Varyings VertRender(uint id : SV_VERTEXID)
     {
-        Varyings output = (Varyings)0;
+		float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(GetFullScreenTriangleTexCoord(id), 1));
+		hpositionWS /= hpositionWS.w;
 
-        UNITY_SETUP_INSTANCE_ID(input);
-        UNITY_TRANSFER_INSTANCE_ID(input, output);
-        UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+		Varyings o;
+		o.positionCS = GetFullScreenTriangleVertexPosition(id, UNITY_RAW_FAR_CLIP_VALUE);
+		o.viewdir = GetCameraPositionWS() - hpositionWS.xyz;
 
-        VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
-
-        float3 viewDirWS = GetCameraPositionWS() - vertexInput.positionWS;
-        output.viewDirWS = viewDirWS;
-        output.positionCS = vertexInput.positionCS;
-
-        return output;
+		return o;
     }
 
     float4 FragRender(Varyings input) : SV_Target
@@ -51,7 +40,7 @@ Shader "Hidden/Universal Render Pipeline/Sky/GradientSky"
         UNITY_SETUP_INSTANCE_ID(input);
         UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-        float3 viewDirWS = normalize(input.viewDirWS);
+        float3 viewDirWS = normalize(input.viewdir);
         float verticalGradient = viewDirWS.y * _GradientDiffusion;
         float topLerpFactor = saturate(-verticalGradient);
         float bottomLerpFactor = saturate(verticalGradient);
@@ -67,12 +56,15 @@ Shader "Hidden/Universal Render Pipeline/Sky/GradientSky"
     {
         Pass
         {
-            ZWrite Off
-            ZTest Less
+            ZTest LEqual ZWrite Off
             Blend Off
             Cull Off
 
             HLSLPROGRAM
+                #pragma target 3.5
+                #pragma editor_sync_compilation
+
+                #pragma vertex VertRender
                 #pragma fragment FragRender
             ENDHLSL
 

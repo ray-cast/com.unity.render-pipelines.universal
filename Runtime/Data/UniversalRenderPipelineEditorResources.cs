@@ -44,8 +44,11 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Runtime/Materials/TerrainLit.mat")]
             public Material terrainLit;
 
-            [Reload("Runtime/Materials/TreeLit.mat")]
-            public Material treeLit;
+            [Reload("Runtime/Materials/TerrainBatchLit.mat")]
+            public Material terrainBatchLit;
+
+            [Reload("Runtime/Materials/FlowerLit.mat")]
+            public Material flowerLit;
 
             [Reload("Runtime/Materials/NatureLit.mat")]
             public Material natureLit;

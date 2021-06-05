@@ -73,6 +73,9 @@ namespace UnityEngine.Rendering.Universal
 
             [Reload("Textures/SMAA/SearchTex.tga")]
             public Texture2D smaaSearchTex;
+
+            [Reload("Textures/Skin/shadowLUT.bmp")]
+            public Texture2D shadowTex;
         }
 
         public ShaderResources shaders;

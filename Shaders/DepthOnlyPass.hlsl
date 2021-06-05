@@ -2,10 +2,12 @@
 #define UNIVERSAL_DEPTH_ONLY_PASS_INCLUDED
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Wind.hlsl"
 
 struct Attributes
 {
-    float4 position     : POSITION;
+    float4 positionOS   : POSITION;
+    float3 color        : COLOR;
     float2 texcoord     : TEXCOORD0;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
@@ -28,7 +30,14 @@ Varyings DepthOnlyVertex(Attributes input)
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.position.xyz);
+#ifdef _WIND_ON
+    Wind wind = GetMainWind(unity_ObjectToWorld._14_24_34 + input.positionOS.xyz, _WindStormWeight);
+    wind.intensity *= input.color.r * _WindWeight;
+    
+    VertexPositionInputs vertexInput = GetWindVertexPositionInputs(wind, input.positionOS.xyz);
+#else
+    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+#endif
 
     output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
     output.positionCS = vertexInput.positionCS;
@@ -49,9 +58,13 @@ half4 DepthOnlyFragment(Varyings input) : SV_TARGET
     input.screenPos /= input.screenPos.w;
     input.screenPos.xy *= _ScreenParams.xy;
 
-    float alpha = 1;
+    float alpha = _StippleAlpha;
+#ifndef _STIPPLETEST_TARGET_OFF
     alpha *= saturate(distance(input.positionWS, _TargetPosition) / _TargetRangeCutoff);
+#endif
+#ifndef _STIPPLETEST_VIEW_OFF
     alpha *= saturate(distance(input.positionWS, GetCameraPositionWS()) / _CameraRangeCutoff);
+#endif
 
     StippleAlpha(alpha, input.screenPos);
 #endif

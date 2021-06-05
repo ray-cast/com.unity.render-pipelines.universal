@@ -51,12 +51,12 @@
                     context.ExecuteCommandBuffer(cmd);
                     cmd.Clear();
 
-                    var occluderCount = OccluderManager.instance.occluders.Count;
+                    var occluderCount = CapsuleOccluderManager.instance.occluders.Count;
                     if (occluderCount > 0)
                     {
                         for (int i = 0; i < occluderCount; i++)
                         {
-                            var occluder = OccluderManager.instance.occluders[i];
+                            var occluder = CapsuleOccluderManager.instance.occluders[i];
                             var position = occluder.position;
 
                             _additionalOccluderPositions[i].Set(position.x, position.y, position.z, occluder.radius * 2);

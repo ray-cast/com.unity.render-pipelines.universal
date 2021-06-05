@@ -33,5 +33,6 @@ MonoBehaviour:
     lit: {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
     particleLit: {fileID: 2100000, guid: e823cd5b5d27c0f4b8256e7c12ee3e6d, type: 2}
     terrainLit: {fileID: 2100000, guid: 594ea882c5a793440b60ff72d896021e, type: 2}
-    treeLit: {fileID: 2100000, guid: 38013bafe46e6924a98ee59d1d990201, type: 2}
+    terrainBatchLit: {fileID: 2100000, guid: fad023f0b83738c468dcefa10fb8dcca, type: 2}
+    flowerLit: {fileID: 2100000, guid: 38013bafe46e6924a98ee59d1d990201, type: 2}
     natureLit: {fileID: 2100000, guid: b465e5f1cb4dfc944a2940ef1e35b2c6, type: 2}

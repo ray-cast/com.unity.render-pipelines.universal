@@ -61,9 +61,9 @@ namespace UnityEngine.Rendering.Universal
             return null;
         }
 
-        public void CollectNodeInfo(Vector2 center, List<TerrainPatch> pacthes)
+        public void CollectNodeInfo(Vector2 center, float factor, List<TerrainPatch> pacthes)
         {
-            if (mip >= 0 && (mip == 0 || (center - rect.center).magnitude >= 100 * Mathf.Pow(2, mip)))
+            if (mip >= 0 && (mip == 0 || (center - rect.center).magnitude >= (factor * Mathf.Pow(2, mip))))
             {
                 this.index = pacthes.Count;
                 pacthes.Add(this.patch);
@@ -73,7 +73,7 @@ namespace UnityEngine.Rendering.Universal
                 this.index = -1;
                 foreach (var child in children)
                 {
-                    child.CollectNodeInfo(center, pacthes);
+                    child.CollectNodeInfo(center, factor, pacthes);
                 }
             }
         }

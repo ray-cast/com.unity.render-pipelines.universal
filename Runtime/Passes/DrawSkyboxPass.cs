@@ -4,6 +4,7 @@ namespace UnityEngine.Rendering.Universal
     {
         static Mesh _icoskyboxMesh = null;
         static Material _hdriMaterial = null;
+        static Material _skyboxMaterial = null;
         static Material _gradientMaterial = null;
 
         Mesh icoskyboxMesh
@@ -17,12 +18,23 @@ namespace UnityEngine.Rendering.Universal
             }
 		}
 
+        Material skyboxMaterial
+        {
+            get
+            {
+                if (_skyboxMaterial == null)
+                    _skyboxMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Skybox/Cubemap"));
+
+                return _skyboxMaterial;
+            }
+        }
+
         Material hdriMaterial
 		{
             get
 			{
                 if (_hdriMaterial == null)
-                    _hdriMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Skybox/Cubemap"));
+                    _hdriMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Hidden/Universal Render Pipeline/Sky/HDRi Sky"));
 
                 return _hdriMaterial;
             }
@@ -59,20 +71,22 @@ namespace UnityEngine.Rendering.Universal
                     var hdriSky = stack.GetComponent<HDRISky>();
                     if (hdriSky.IsActive())
                     {
-                        var camera = renderingData.cameraData.camera;
-                        Matrix4x4 matrix = Matrix4x4.Scale(new Vector3(camera.farClipPlane, camera.farClipPlane, camera.farClipPlane));
-                        matrix.SetColumn(3, new Vector4(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z, 1));
+                        var phi = -Mathf.Deg2Rad * hdriSky.rotation.value;
 
-                        this.hdriMaterial.SetTexture(ShaderConstants._Tex, hdriSky.HdriSky.value);
-                        this.hdriMaterial.SetFloat(ShaderConstants._Exposure, hdriSky.exposure.value);
-                        this.hdriMaterial.SetFloat(ShaderConstants._Rotation, hdriSky.rotation.value);
+                        this.skyboxMaterial.SetTexture(ShaderConstants._Tex, hdriSky.HdriSky.value);
+                        this.skyboxMaterial.SetFloat(ShaderConstants._Exposure, hdriSky.exposure.value);
+                        this.skyboxMaterial.SetFloat(ShaderConstants._Rotation, hdriSky.rotation.value);
+                        this.skyboxMaterial.SetColor(ShaderConstants._Tint, hdriSky.color.value);
+
+                        this.hdriMaterial.SetTexture(ShaderConstants._Cubemap, hdriSky.HdriSky.value);
                         this.hdriMaterial.SetColor(ShaderConstants._Tint, hdriSky.color.value);
+                        this.hdriMaterial.SetVector(ShaderConstants._SkyParam, new Vector4(hdriSky.exposure.value, 0, Mathf.Cos(phi), Mathf.Sin(phi)));
 
-                        RenderSettings.skybox = this.hdriMaterial;
+                        RenderSettings.skybox = this.skyboxMaterial;
 
                         CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
                         cmd.Clear();
-                        cmd.DrawMesh(this.icoskyboxMesh, matrix, this.hdriMaterial);
+                        cmd.DrawProcedural(Matrix4x4.identity, this.hdriMaterial, 0, MeshTopology.Triangles, 3);
 
                         context.ExecuteCommandBuffer(cmd);
 
@@ -102,7 +116,7 @@ namespace UnityEngine.Rendering.Universal
 
                         CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
                         cmd.Clear();
-                        cmd.DrawMesh(this.icoskyboxMesh, matrix, this.gradientMaterial, 0, 0);
+                        cmd.DrawProcedural(Matrix4x4.identity, this.gradientMaterial, 0, MeshTopology.Triangles, 3);
 
                         context.ExecuteCommandBuffer(cmd);
 
@@ -141,6 +155,9 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _GradientMiddle = Shader.PropertyToID("_GradientMiddle");
             public static readonly int _GradientTop = Shader.PropertyToID("_GradientTop");
             public static readonly int _GradientDiffusion = Shader.PropertyToID("_GradientDiffusion");
+
+            public static readonly int _Cubemap = Shader.PropertyToID("_Cubemap");
+            public static readonly int _SkyParam = Shader.PropertyToID("_SkyParam");
 
             public static readonly int _SkyIntensity = Shader.PropertyToID("_SkyIntensity");
         }

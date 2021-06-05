@@ -1,8 +1,10 @@
-#pragma kernel CSMain
+#pragma kernel HzbBuild
+#pragma kernel HzbMipBuild
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 
 uint _MipScale;
+uint _MipLevel;
 float2 _DepthTex_TexelSize;
 
 Texture2D<float> _DepthTexture;
@@ -13,8 +15,17 @@ SAMPLER(sampler_LinearRepeat);
 SAMPLER(sampler_PointClamp);
 SAMPLER(sampler_PointRepeat);
 
+float HzbTest(float a, float b)
+{
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+	return max(a, b);
+#else
+	return min(a, b);
+#endif
+}
+
 [numthreads(16, 8, 1)]
-void CSMain(uint3 id : SV_DispatchThreadID)
+void HzbBuild(uint3 id : SV_DispatchThreadID)
 {
 #if defined(PLATFORM_SUPPORT_GATHER)
 	float4 depth = GATHER_TEXTURE2D(_DepthTexture, sampler_PointClamp, id.xy * _DepthTex_TexelSize.xy + float2(0.5, 0.5) * _DepthTex_TexelSize.xy);
@@ -27,9 +38,40 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 	depth.w = _DepthTexture[uv + uint2(1, 1)];
 #endif
 
-#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
-	_RWHizTexture[id.xy] = max(depth.x, max(depth.y, max(depth.z, depth.w)));
-#else
-	_RWHizTexture[id.xy] = min(depth.x, min(depth.y, min(depth.z, depth.w)));
-#endif
+	float maxDepth = UNITY_NEAR_CLIP_VALUE;
+
+	if (depth.x != UNITY_RAW_FAR_CLIP_VALUE)
+		maxDepth = HzbTest(maxDepth, depth.x);
+	if (depth.y != UNITY_RAW_FAR_CLIP_VALUE)
+		maxDepth = HzbTest(maxDepth, depth.y);
+	if (depth.z != UNITY_RAW_FAR_CLIP_VALUE)
+		maxDepth = HzbTest(maxDepth, depth.z);
+	if (depth.w != UNITY_RAW_FAR_CLIP_VALUE)
+		maxDepth = HzbTest(maxDepth, depth.w);
+
+	_RWHizTexture[id.xy] = maxDepth;
+}
+
+[numthreads(16, 8, 1)]
+void HzbMipBuild(uint3 id : SV_DispatchThreadID)
+{
+	uint2 uv = id.xy * _MipScale;
+	float4 depth;
+	depth.x = _DepthTexture.mips[_MipLevel][uv];
+	depth.y = _DepthTexture.mips[_MipLevel][uv + uint2(1, 0)];
+	depth.z = _DepthTexture.mips[_MipLevel][uv + uint2(0, 1)];
+	depth.w = _DepthTexture.mips[_MipLevel][uv + uint2(1, 1)];
+
+	float maxDepth = UNITY_NEAR_CLIP_VALUE;
+
+	if (depth.x != UNITY_RAW_FAR_CLIP_VALUE)
+		maxDepth = HzbTest(maxDepth, depth.x);
+	if (depth.y != UNITY_RAW_FAR_CLIP_VALUE)
+		maxDepth = HzbTest(maxDepth, depth.y);
+	if (depth.z != UNITY_RAW_FAR_CLIP_VALUE)
+		maxDepth = HzbTest(maxDepth, depth.z);
+	if (depth.w != UNITY_RAW_FAR_CLIP_VALUE)
+		maxDepth = HzbTest(maxDepth, depth.w);
+
+	_RWHizTexture[id.xy] = maxDepth;
 }

@@ -5,11 +5,15 @@
         const int k_DepthStencilBufferBits = 32;
         const string k_CreateCameraTextures = "Create Camera Texture";
 
+        GlobalSettingsPass _globalSettingsPass;
+
         DepthOnlyPass _depthOnlyPass;
         DepthPrePass _depthPrePass;
         HizPass _hizPass;
         MainLightShadowCasterPass _mainLightShadowCasterPass;
         AdditionalLightsShadowCasterPass _additionalLightsShadowCasterPass;
+        ScreenSpaceShadowResolvePass _screenSpaceShadowResolvePass;
+        ScreenSpaceOcclusionResolvePass _screenSpaceOcclusionResolvePass;
         GbufferDepthPass _renderGbufferDepthPass;
         GbufferPreparePass _renderOpaqueGbufferPass;
         CopyDepthPass _copyGbufferDepthPass;
@@ -22,7 +26,7 @@
         CopyColorPass _copyTransparentColorPass;
         CopyDepthPass _copyDepthPass;
         TransparentSettingsPass _transparentSettingsPass;
-        TransparentPreDepth _renderTransparentDepthPass;
+        TransparentDepthPrepass _renderTransparentDepthPass;
         DrawObjectsPass _renderTransparentForwardPass;
         InvokeOnRenderObjectCallbackPass _onRenderObjectCallbackPass;
         ColorGradingLutPass _colorGradingLutPass;
@@ -60,6 +64,8 @@
         Material _copyDepthMaterial;
         Material _clusterLightingMaterial;
         Material _lightingMaterial;
+        Material _screenSpaceShadowMaterial;
+        Material _screenSpaceOcclusionMaterial;
         Material _samplingMaterial;
         Material _debugCluster;
         Material _heatMapCluster;
@@ -73,6 +79,8 @@
             _samplingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.samplingPS);
             _clusterLightingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.clusterLightingPS);
             _lightingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.lightingPS);
+            _screenSpaceShadowMaterial = CoreUtils.CreateEngineMaterial(data.shaders.screenSpaceShadowPS);
+            _screenSpaceOcclusionMaterial = CoreUtils.CreateEngineMaterial(data.shaders.capsuleShadowPS);
 
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             _debugCluster = CoreUtils.CreateEngineMaterial(data.shaders.clusterGS);
@@ -91,7 +99,10 @@
 
             _forwardLights = new ForwardLights();
 
+            _globalSettingsPass = new GlobalSettingsPass(RenderPassEvent.BeforeRendering, data.postProcessData);
             _mainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
+            _screenSpaceShadowResolvePass = new ScreenSpaceShadowResolvePass(RenderPassEvent.BeforeRenderingOpaques, _screenSpaceShadowMaterial);
+            _screenSpaceOcclusionResolvePass = new ScreenSpaceOcclusionResolvePass(RenderPassEvent.BeforeRenderingOpaques, _screenSpaceOcclusionMaterial);
             _additionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
             _depthOnlyPass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, RenderQueueRange.opaque, data.opaqueLayerMask);
             _depthPrePass = new DepthPrePass(RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask);
@@ -106,7 +117,7 @@
             _copyOpaqueColorPass = new CopyColorPass(RenderPassEvent.AfterRenderingSkybox, _samplingMaterial);
             _copyTransparentColorPass = new CopyColorPass(RenderPassEvent.BeforeRenderingTransparents, _samplingMaterial);
             _transparentSettingsPass = new TransparentSettingsPass(RenderPassEvent.BeforeRenderingTransparents, data.shadowTransparentReceive);
-            _renderTransparentDepthPass = new TransparentPreDepth(RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask);
+            _renderTransparentDepthPass = new TransparentDepthPrepass(RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask);
             _renderTransparentForwardPass = new DrawObjectsPass("Render Transparents", false, RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask, _defaultStencilState, stencilData.stencilReference);
             _onRenderObjectCallbackPass = new InvokeOnRenderObjectCallbackPass(RenderPassEvent.BeforeRenderingPostProcessing);
             _colorGradingLutPass = new ColorGradingLutPass(RenderPassEvent.BeforeRenderingPrepasses, data.postProcessData);
@@ -160,6 +171,7 @@
             CoreUtils.Destroy(_blitMaterial);
             CoreUtils.Destroy(_copyDepthMaterial);
             CoreUtils.Destroy(_lightingMaterial);
+            CoreUtils.Destroy(_screenSpaceShadowMaterial);
             CoreUtils.Destroy(_clusterLightingMaterial);
             CoreUtils.Destroy(_samplingMaterial);
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
@@ -205,7 +217,9 @@
             bool requiresForwardPrepass = true;
             bool isStereoEnabled = cameraData.isStereoEnabled;
 
-            bool mainLightShadows = _mainLightShadowCasterPass.Setup(ref renderingData);
+            EnqueuePass(_globalSettingsPass);
+
+            bool mainLightShadows = _mainLightShadowCasterPass.Setup(ref renderingData, HizPass.GetAverageLinearDepth(ref camera));
             if (mainLightShadows)
                 EnqueuePass(_mainLightShadowCasterPass);
 
@@ -266,35 +280,47 @@
                 EnqueuePass(_depthOnlyPass);
             }
 
+            _depthPrePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment);
+            EnqueuePass(_depthPrePass);
+
             if (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled)
             {
-                _depthPrePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment);
-                EnqueuePass(_depthPrePass);
-
                 _renderOpaqueGbufferPass.Setup(cameraTargetDescriptor, _cameraGbufferAttachments, _activeCameraDepthAttachment);
                 EnqueuePass(_renderOpaqueGbufferPass);
 
+                if (!requiresDepthOnlyPass && renderingData.cameraData.requiresDepthTexture && createDepthTexture)
+                {
+                    _copyGbufferDepthPass.Setup(_activeCameraDepthAttachment, _cameraDepthTexture);
+                    EnqueuePass(_copyGbufferDepthPass);
+                }
+            }
+
+            if (requiresDepthOnlyPass || createDepthTexture)
+			{
+                if (_screenSpaceOcclusionResolvePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment))
+                    EnqueuePass(_screenSpaceOcclusionResolvePass);
+
+                _screenSpaceShadowResolvePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment);
+                EnqueuePass(_screenSpaceShadowResolvePass);
+            }
+
+            if (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled)
+			{
                 bool requireClusterLighting = _supportsClusterLighting;
                 requireClusterLighting &= renderingData.lightData.visibleLights.Length > 5;
                 requireClusterLighting &= cameraData.deferredLightingMode == DeferredRenderingMode.PerCluster;
-
+                
                 if (requireClusterLighting)
-				{
+                {
                     _clusterSettingPass.Setup(cameraData.requireDrawCluster);
                     EnqueuePass(_clusterSettingPass);
 
-                    _clusterOpaqueLightingPass.Setup(_activeCameraColorAttachment);
+                    _clusterOpaqueLightingPass.Setup(_activeCameraColorAttachment, _activeCameraDepthAttachment);
                     EnqueuePass(_clusterOpaqueLightingPass);
                 }
-				else
-				{
-                    if (!requiresDepthOnlyPass && renderingData.cameraData.requiresDepthTexture && createDepthTexture)
-                    {
-                        _copyGbufferDepthPass.Setup(_activeCameraDepthAttachment, _cameraDepthTexture);
-                        EnqueuePass(_copyGbufferDepthPass);
-                    }
-
-                    _deferredLightingPass.Setup(cameraTargetDescriptor, _activeCameraColorAttachment, _activeCameraDepthAttachment);
+                else
+                {
+                    _deferredLightingPass.Setup(_activeCameraColorAttachment, _activeCameraDepthAttachment);
                     EnqueuePass(_deferredLightingPass);
                 }
             }
@@ -461,7 +487,7 @@
             }
 
             cullingParameters.maximumVisibleLights = UniversalRenderPipeline.maxVisibleAdditionalLights + 1;
-            cullingParameters.shadowDistance = cameraData.maxShadowDistance;
+            cullingParameters.shadowDistance = Mathf.Min(HizPass.GetAverageLinearDepth(ref cameraData.camera), cameraData.maxShadowDistance);
         }
 
         public override void FinishRendering(CommandBuffer cmd)

@@ -5,7 +5,8 @@ namespace UnityEngine.Rendering.Universal
     public enum SkyMode
     {
         None,
-        HDRISky
+        HDRISky,
+        GradientSky
     }
 
     public enum AmbientLightingMode

@@ -1,6 +1,6 @@
 ﻿namespace UnityEngine.Rendering.Universal
 {
-    [System.Serializable, VolumeComponentMenu("Post-processing/Gradient Sky")]
+    [System.Serializable, VolumeComponentMenu("Sky/Gradient Sky")]
     public class GradientSky : VolumeComponent, IPostProcessComponent
     {
         [Tooltip("天空颜色")]
@@ -12,6 +12,7 @@
         [Tooltip("地面颜色")]
         public ColorParameter bottom = new ColorParameter(new Color(1.0f, 0.75f, 0.5f), true, true, true);
 
+        [Tooltip("地面与天空的混合比例")]
         public MinFloatParameter gradientDiffusion = new MinFloatParameter(1.0f, 0.0f);
 
         [Tooltip("曝光强度")]

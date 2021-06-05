@@ -77,3 +77,4 @@ MonoBehaviour:
     - {fileID: 2800000, guid: b6c0dca0594de5c4b8bcba85e9243b32, type: 3}
     smaaAreaTex: {fileID: 2800000, guid: 9676ac8ae4daac04eb42e59a8696d5db, type: 3}
     smaaSearchTex: {fileID: 2800000, guid: e343e503fc20597468c210249730db00, type: 3}
+    shadowTex: {fileID: 2800000, guid: f72ccdc1773d91c4b85532fa7f60f9f7, type: 3}

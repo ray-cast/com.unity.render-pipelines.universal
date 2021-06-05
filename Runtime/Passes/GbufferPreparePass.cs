@@ -83,7 +83,7 @@ namespace UnityEngine.Rendering.Universal
             this._colorAttachments[3] = _colorAttachmentHandle[3].Identifier();
 
             ConfigureTarget(_colorAttachments, _depthAttachmentHandle.Identifier());
-            ConfigureClear(ClearFlag.Color, ShaderConstants.clearColor);
+            ConfigureClear(ClearFlag.Color, Color.clear);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -92,8 +92,6 @@ namespace UnityEngine.Rendering.Universal
 
             using (new ProfilingScope(cmd, _profilingSampler))
             {
-                cmd.SetGlobalVector(ShaderConstants._DrawObjectPassDataPropID, ShaderConstants.drawObjectPassData);
-
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
@@ -120,14 +118,6 @@ namespace UnityEngine.Rendering.Universal
         {
             for (int i = 0; i < _colorAttachmentHandle.Length; i++)
                 cmd.ReleaseTemporaryRT(_colorAttachmentHandle[i].id);
-        }
-
-        static class ShaderConstants
-        {
-            public static readonly int _DrawObjectPassDataPropID = Shader.PropertyToID("_DrawObjectPassData");
-
-            public static readonly Color clearColor = new Color(0.0f, 0.0f, 0.0f, 0.0f);
-            public static readonly Vector4 drawObjectPassData = new Vector4(0.0f, 0.0f, 0.0f, 1.0f);
         }
     }
 }

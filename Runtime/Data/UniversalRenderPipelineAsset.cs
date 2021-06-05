@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Linq;
+using UnityEngine.Serialization;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -31,7 +32,8 @@ namespace UnityEngine.Rendering.Universal
         _512 = 512,
         _1024 = 1024,
         _2048 = 2048,
-        _4096 = 4096
+        _4096 = 4096,
+        _8192 = 8192
     }
 
     public enum MsaaQuality
@@ -142,6 +144,8 @@ namespace UnityEngine.Rendering.Universal
         Shader m_DefaultShader;
         ScriptableRenderer[] m_Renderers = new ScriptableRenderer[1];
 
+        [SerializeField] RenderPipelineSettings m_RenderPipelineSettings = RenderPipelineSettings.NewDefault();
+
         // Default values set when a new UniversalRenderPipeline asset is created
         [SerializeField] int k_AssetVersion = 5;
         [SerializeField] int k_AssetPreviousVersion = 5;
@@ -245,6 +249,7 @@ namespace UnityEngine.Rendering.Universal
 
             // Initialize default Renderer
             instance.m_EditorResourcesAsset = instance.editorResources;
+            
 
             return instance;
         }
@@ -533,6 +538,8 @@ namespace UnityEngine.Rendering.Universal
                 return list;
             }
         }
+
+        public RenderPipelineSettings currentPlatformRenderPipelineSettings => m_RenderPipelineSettings;
 
         public bool supportsCameraDepthTexture
         {

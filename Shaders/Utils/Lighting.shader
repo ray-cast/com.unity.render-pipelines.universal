@@ -7,7 +7,6 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
 		half4 _LightParams;
-		half4 _ScaleBiasRT;
 
 		struct Attributes
 		{
@@ -25,9 +24,8 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		Varyings TiledLightingVertex(uint id : SV_VERTEXID)
 		{
 			Varyings output = (Varyings)0;
-			output.uv = float4(float2(id / 2, id % 2) * 2, 0, 1);
-			output.positionCS = float4(output.uv.xy * 2 - 1, 0, 1);
-			output.positionCS.y *= _ScaleBiasRT.x;
+			output.uv = float4(GetFullScreenTriangleTexCoord(id), 0, 1);
+			output.positionCS = GetFullScreenTriangleVertexPosition(id, UNITY_RAW_FAR_CLIP_VALUE);
 
 			float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(output.uv.xy, 1));
 			hpositionWS /= hpositionWS.w;
@@ -66,10 +64,10 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, unity_MatrixInvVP);
 #endif
 
-#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
-			return float4(surface.emission, any(1 - deviceDepth));
+#ifdef _CAPSULE_SHADOWS
+			return float4(surface.emission * SampleScreenSpaceOcclusionMap(input.uv.xy), 1);
 #else
-			return float4(surface.emission, any(deviceDepth));
+			return float4(surface.emission, 1);
 #endif
 		}
 
@@ -90,21 +88,17 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, unity_MatrixInvVP);
 #endif
 
-			float3 lighting = surface.emission;
-
-#if _MAIN_LIGHT_SHADOWS
-			float4 shadowCoord = TransformWorldToShadowCoord(worldPosition);
-			Light mainLight = GetMainLight(shadowCoord);
-#else
 			Light mainLight = GetMainLight();
-#endif
-			lighting += LightingPhysicallyBased(brdfData, mainLight, n, v);
+			mainLight.distanceAttenuation = 1;
+			mainLight.shadowAttenuation = SampleScreenSpaceShadowMap(input.uv.xy);
 
-#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
-			return float4(lighting, any(1 - deviceDepth));
-#else
-			return float4(lighting, any(deviceDepth));
+			float3 lighting = surface.emission;
+#ifdef _CAPSULE_SHADOWS
+			lighting *= SampleScreenSpaceOcclusionMap(input.uv.xy);
 #endif
+			lighting += LightingWrappedPhysicallyBased(brdfData, mainLight, n, v, surface.translucency);
+
+			return float4(lighting, 1);
 		}
 
 		float4 AdditionalLightingFragment(Varyings input) : SV_Target
@@ -121,12 +115,12 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 
 			float deviceDepth = SampleSceneDepth(input.uv.xy);
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
-            deviceDepth = 2 * deviceDepth - 1;
+			deviceDepth = 2 * deviceDepth - 1;
 #endif
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, unity_MatrixInvVP);
 
 			Light light = GetAdditionalPerObjectLight(uint(_LightParams.x), worldPosition);
-			float3 lighting = LightingPhysicallyBased(brdfData, light, n, v);
+			float3 lighting = LightingWrappedPhysicallyBased(brdfData, light, n, v, surface.translucency);
 
 			return float4(lighting, 0);
 		}
@@ -136,26 +130,54 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 	{
 		Pass
 		{
-			ZTest Off ZWrite Off
+			// Emission Only
+			ZTest Greater ZWrite Off
+			Blend Off
 			Cull Off
 
 			HLSLPROGRAM
+                #pragma target 3.5
+                #pragma prefer_hlslcc gles
+                #pragma exclude_renderers d3d11_9x
+                #pragma editor_sync_compilation
+
+				#pragma vertex TiledLightingVertex
+				#pragma fragment EmissionLightingFragment
+			ENDHLSL
+		}
+		Pass
+		{
+			// Main Lighting
+			ZTest Greater ZWrite Off
+			Blend Off
+			Cull Off
+
+			HLSLPROGRAM
+                #pragma target 3.5
+                #pragma prefer_hlslcc gles
+                #pragma exclude_renderers d3d11_9x
+                #pragma editor_sync_compilation
+
 				#pragma vertex TiledLightingVertex
 				#pragma fragment MainLightingFragment
 
-				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
-				#pragma multi_compile _ _SHADOWS_SOFT
+				#pragma multi_compile _ _CAPSULE_SHADOWS
 				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
 			ENDHLSL
 		}
 		Pass
 		{
-			ZTest Off ZWrite Off
+			// Additional Directional Light
+			ZTest Greater ZWrite Off
 			Cull Off
 			Blend One One
 
 			HLSLPROGRAM
+                #pragma target 3.5
+                #pragma prefer_hlslcc gles
+                #pragma exclude_renderers d3d11_9x
+                #pragma editor_sync_compilation
+
 				#pragma vertex TiledLightingVertex
 				#pragma fragment AdditionalLightingFragment
 
@@ -167,12 +189,17 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		}
 		Pass
 		{
-			// inside volume
+			// Inside Volume Lighting
 			ZTest Greater ZWrite Off
 			Cull Front
 			Blend One One
 
 			HLSLPROGRAM
+                #pragma target 3.5
+                #pragma prefer_hlslcc gles
+                #pragma exclude_renderers d3d11_9x
+                #pragma editor_sync_compilation
+
 				#pragma vertex VolumeLightingVertex
 				#pragma fragment AdditionalLightingFragment
 
@@ -184,33 +211,23 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		}
 		Pass
 		{
-			// outside volume
+			// Outside Volume Lighting
 			ZTest Lequal ZWrite Off
 			Cull Back
 			Blend One One
 
 			HLSLPROGRAM
+                #pragma target 3.5
+                #pragma prefer_hlslcc gles
+                #pragma exclude_renderers d3d11_9x
+                #pragma editor_sync_compilation
+
 				#pragma vertex VolumeLightingVertex
 				#pragma fragment AdditionalLightingFragment
 
 				#pragma multi_compile _ _SHADOWS_SOFT
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
-				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
-			ENDHLSL
-		}
-		Pass
-		{
-			ZTest Off ZWrite Off
-			Cull Off
-
-			HLSLPROGRAM
-				#pragma vertex TiledLightingVertex
-				#pragma fragment EmissionLightingFragment
-
-				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
-				#pragma multi_compile _ _SHADOWS_SOFT
 				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
 			ENDHLSL
 		}

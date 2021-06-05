@@ -76,6 +76,20 @@ half3 SampleNormal(float2 uv, TEXTURE2D_PARAM(bumpMap, sampler_bumpMap), half sc
 #endif
 }
 
+half3 SampleNormal(float2 uv, TEXTURE2D_PARAM(bumpMap, sampler_bumpMap), half scale, half lod)
+{
+#ifdef _NORMALMAP
+    half4 n = SAMPLE_TEXTURE2D_LOD(bumpMap, sampler_bumpMap, uv, lod);
+    #if BUMP_SCALE_NOT_SUPPORTED
+        return UnpackNormal(n);
+    #else
+        return UnpackNormalScale(n, scale);
+    #endif
+#else
+    return half3(0.0h, 0.0h, 1.0h);
+#endif
+}
+
 half3 SampleEmission(float2 uv, half3 emissionColor, TEXTURE2D_PARAM(emissionMap, sampler_emissionMap))
 {
 #ifndef _EMISSION

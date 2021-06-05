@@ -1,6 +1,6 @@
 ﻿namespace UnityEngine.Rendering.Universal
 {
-    [System.Serializable, VolumeComponentMenu("Post-processing/HDRI Sky")]
+    [System.Serializable, VolumeComponentMenu("Sky/HDRI Sky")]
     public class HDRISky : VolumeComponent, IPostProcessComponent
     {
         [Tooltip("天空图")]

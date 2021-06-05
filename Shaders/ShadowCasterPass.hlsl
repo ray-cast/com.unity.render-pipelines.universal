@@ -6,9 +6,6 @@
 
 float3 _LightDirection;
 
-float _ShadowDepthBias;
-float _ShadowNormalBias;
-
 struct Attributes
 {
     float4 positionOS   : POSITION;
@@ -45,21 +42,14 @@ Varyings ShadowPassVertex(Attributes input)
     Varyings output;
     UNITY_SETUP_INSTANCE_ID(input);
 
+#if _SHADOW_CUSTOM_BIAS
+    float2 shadowBias = float2(_ShadowDepthBias, _ShadowNormalBias);
+    output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
+    output.positionCS = GetShadowPositionHClip(input, shadowBias);
+#else
     output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
     output.positionCS = GetShadowPositionHClip(input, float2(1, 1));
-    return output;
-}
-
-Varyings ShadowBiasPassVertex(Attributes input)
-{
-    Varyings output;
-    UNITY_SETUP_INSTANCE_ID(input);
-    float2 shadowBias = float2(_ShadowDepthBias, _ShadowNormalBias);
-
-#if _ALPHATEST_ON
-    output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
 #endif
-    output.positionCS = GetShadowPositionHClip(input, shadowBias);
 
     return output;
 }

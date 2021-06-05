@@ -27,6 +27,7 @@ namespace UnityEngine.Rendering.Universal
             public static int _CosTime;
             public static int unity_DeltaTime;
             public static int _TimeParameters;
+            public static int _Frame;
         }
 
         // These limits have to match same limits in Input.hlsl
@@ -37,6 +38,7 @@ namespace UnityEngine.Rendering.Universal
         public const string k_RenderCameraTag = "Render Camera";
 
         static ProfilingSampler _CameraProfilingSampler = new ProfilingSampler(k_RenderCameraTag);
+
 
         public static float maxShadowBias
         {
@@ -87,6 +89,21 @@ namespace UnityEngine.Rendering.Universal
             get => 8;
         }
 
+        internal UniversalRenderPipelineAsset _asset;
+
+        internal RenderPipelineSettings currentPlatformRenderPipelineSettings { get { return _asset.currentPlatformRenderPipelineSettings; } }
+
+        static internal GlobalLightingQualitySettings GetLightingQualitySettings()
+        {
+            var pipeline = (UniversalRenderPipeline)RenderPipelineManager.currentPipeline;
+            if (pipeline != null)
+            {
+                return pipeline.currentPlatformRenderPipelineSettings.lightingQualitySettings;
+            }
+
+            return null;
+        }
+
         public UniversalRenderPipeline(UniversalRenderPipelineAsset asset)
         {
             SetSupportedRenderingFeatures();
@@ -99,8 +116,10 @@ namespace UnityEngine.Rendering.Universal
             PerFrameBuffer._CosTime = Shader.PropertyToID("_CosTime");
             PerFrameBuffer.unity_DeltaTime = Shader.PropertyToID("unity_DeltaTime");
             PerFrameBuffer._TimeParameters = Shader.PropertyToID("_TimeParameters");
+            PerFrameBuffer._Frame = Shader.PropertyToID("_Frame");
 
             // In QualitySettings.antiAliasing disabled state uses value 0, where in URP 1
+            _asset = asset;
             int qualitySettingsMsaaSampleCount = QualitySettings.antiAliasing > 0 ? QualitySettings.antiAliasing : 1;
             bool msaaSampleCountNeedsUpdate = qualitySettingsMsaaSampleCount != asset.msaaSampleCount;
 

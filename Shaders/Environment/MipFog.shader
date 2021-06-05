@@ -8,16 +8,14 @@
 	}
 
 	HLSLINCLUDE
-		#define InvPIE 0.318309886142f
-
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
 		struct Varyings
 		{
-			float2 uv : TEXCOORD0;
-			float3 viewVec : TEXCOORD1;
-			float4 vertex : SV_POSITION;
+			float2 uv      : TEXCOORD0;
+			float3 viewdir : TEXCOORD1;
+			float4 vertex  : SV_POSITION;
 		};
 
 #if	_MIPFOG_MAP
@@ -27,9 +25,6 @@
 
 		half4 _MipFogParams;
 		half4 _MipFogFactorParams;
-		half4 _HeightFogDeepColor;
-		half4 _HeightFogShallowColor;
-		half3 _HeightFogParams;
 
 		half3 rotate(half3 normal, half theta)
 		{
@@ -46,6 +41,7 @@
 
 		float2 SampleLatlong(float3 normal)
 		{
+			static float InvPIE = 0.318309886142f;
 			normal = clamp(normal, -1.0, 1.0);
 			float2 coord = float2((atan2(normal.x, normal.z) * InvPIE * 0.5f + 0.5f), 1.0f - acos(normal.y) * InvPIE);
 			return coord;
@@ -81,24 +77,22 @@
 		    return fogIntensity;
 		}
 
-		Varyings FogVertex(uint id : SV_VERTEXID)
+		Varyings MipFogVertex(uint id : SV_VERTEXID)
 		{
 			Varyings o;
-			o.uv = float2(id / 2, id % 2) * 2;
-			o.vertex = float4(o.uv * 2 - 1, 0, 1);
+			o.uv = GetFullScreenTriangleTexCoord(id);
+			o.vertex = GetFullScreenTriangleVertexPosition(id);
 
-			#if UNITY_UV_STARTS_AT_TOP
-				o.uv.y = 1 - o.uv.y;
-				o.viewVec = mul(unity_CameraInvProjection, float4(o.vertex.x, -o.vertex.y, 0, 1)).xyz;
-			#else
-				o.viewVec = mul(unity_CameraInvProjection, float4(o.vertex.x, o.vertex.y, 0, 1)).xyz;
-			#endif
+			float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(o.uv, 1));
+			hpositionWS /= hpositionWS.w;
+			
+			o.viewdir = GetCameraPositionWS() - hpositionWS.xyz;
 
 			return o;
 		}
 
 		float4 MipFogFragment(Varyings i) : SV_Target
-		{
+		{		
 			float deviceDepth = SampleSceneDepth(i.uv);
 			float linearDepth = LinearEyeDepth(deviceDepth, _ZBufferParams);
 
@@ -107,41 +101,24 @@
 #endif
 			float3 worldPosition = ComputeWorldSpacePosition(i.uv, deviceDepth, unity_MatrixInvVP);
 
-#if _MIPFOG
-			half mipLevel = (1 - saturate((linearDepth - _ProjectionParams.y) / (_ProjectionParams.z - _ProjectionParams.y))) * 6;
-
 			real fogFactor = ComputeMipFogFactor(linearDepth);
 			real fogIntensity = ComputeMipFogIntensity(fogFactor);
 
-			half mipFogFactor = 1.0h - lerp(fogIntensity, 1, step(mipLevel, 0.1h) * _MipFogFactorParams.y);
-			half3 mipFogColor = _MipFogParams.xyz;
+			real mipFogFactor = 1.0h - fogIntensity;
+
+			UNITY_BRANCH
+			if (deviceDepth == UNITY_RAW_FAR_CLIP_VALUE)
+				mipFogFactor = 1.0h - lerp(fogIntensity, 1.0h, _MipFogFactorParams.y);
+
+			real3 mipFogColor = _MipFogParams.xyz;
 
 #	if _MIPFOG_MAP
-			half3 normal = rotate(normalize(worldPosition), _MipFogParams.w);
-			mipFogColor *= pow(SAMPLE_TEXTURE2D_LOD(_MipFogMap, sampler_MipFogMap, SampleLatlong(normal), mipLevel).xyz, 1.0f / 2.2f);
+			real3 normal = rotate(normalize(worldPosition), _MipFogParams.w);
+			real mipLevel = (1 - saturate((linearDepth - _ProjectionParams.y) / (_ProjectionParams.z - _ProjectionParams.y))) * 6;
+			mipFogColor *= pow(SAMPLE_TEXTURE2D_LOD(_MipFogMap, sampler_MipFogMap, SampleLatlong(normal), mipLevel).xyz, 1.0h / 2.2h);
 #	endif
-#endif
 
-#if _HEIGHTFOG
-#	if _HEIGHTFOG_CAMERA_HEIGHT
-			float height = max(0, GetCameraPositionWS().y +  _HeightFogParams.z - worldPosition.y);
-#	else
-			float height = max(0, _HeightFogParams.z - worldPosition.y);
-#	endif
-			float heightFogFactor = saturate((1 - exp(-_HeightFogParams.y * height)) * _HeightFogParams.x);
-			float3 heightFogColor = lerp(_HeightFogDeepColor.xyz, _HeightFogShallowColor, heightFogFactor);
-#endif
-
-#if _HEIGHTFOG & _MIPFOG
-			float3 fogColor = lerp(mipFogColor, heightFogColor, heightFogFactor);
-			return float4(fogColor, max(mipFogFactor, heightFogFactor));
-#elif _HEIGHTFOG
-			return float4(heightFogColor, heightFogFactor);
-#elif _MIPFOG
 			return float4(mipFogColor, mipFogFactor);
-#else
-			return 0;
-#endif
 		}
 	ENDHLSL
 
@@ -156,14 +133,16 @@
 			Blend SrcAlpha OneMinusSrcAlpha, Zero One
 
 			HLSLPROGRAM
-				#pragma vertex FogVertex
+                #pragma target 3.5
+                #pragma prefer_hlslcc gles
+                #pragma exclude_renderers d3d11_9x
+                #pragma editor_sync_compilation
+
+				#pragma vertex MipFogVertex
 				#pragma fragment MipFogFragment
 
 				#pragma multi_compile_local _ _FOG_LINEAR _FOG_EXP _FOG_EXP2
-				#pragma multi_compile_local _ _MIPFOG
 				#pragma multi_compile_local _ _MIPFOG_MAP
-				#pragma multi_compile_local _ _HEIGHTFOG
-				#pragma multi_compile_local _ _HEIGHTFOG_CAMERA_HEIGHT
 			ENDHLSL
 		}
 	}

@@ -22,6 +22,7 @@ struct GbufferData
     half  metallic;
     half  smoothness;
     half  occlusion;
+    half  translucency;
 };
 
 struct FragmentOutput
@@ -79,7 +80,7 @@ FragmentOutput EncodeGbuffer(GbufferData data)
 {
 	FragmentOutput output = (FragmentOutput)0;
 	output.color0 = float4(data.albedo, data.occlusion);
-	output.color1 = float4(data.metallic, dot(data.specular, half3(0.25, 0.5, 0.25)), 0, data.smoothness);
+	output.color1 = float4(data.metallic, dot(data.specular, half3(0.25, 0.5, 0.25)), data.translucency, data.smoothness);
 	output.color2 = float4(PackNormalMaxComponent(data.normalWS), 0);
 	output.color3 = EncodeRGBT(data.emission);
 
@@ -93,6 +94,7 @@ GbufferData DecodeGbuffer(FragmentOutput fragment)
 	data.occlusion = fragment.color0.a;
 	data.metallic = fragment.color1.r;
 	data.specular = fragment.color1.g;
+	data.translucency = fragment.color1.b;
 	data.smoothness = fragment.color1.a;
 	data.normalWS = UnpackNormalMaxComponent(fragment.color2.rgb);
 	data.emission = DecodeRGBT(fragment.color3);

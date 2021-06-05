@@ -173,7 +173,7 @@ namespace UnityEngine.Rendering.Universal
 				cmd.DispatchCompute(_clusterCompute, _clearClusterBuffersKernel, _clusterData.clusterThreadGroup, 1, 1);
 
 			using (new ProfilingScope(cmd, ProfilingSampler.Get(ClusterProfileId.DispatchCompute)))
-				cmd.DispatchCompute(_clusterCompute, _clearLightIndexListKernel, _clusterData.clusterThreadGroup, 1, 1);
+				cmd.DispatchCompute(_clusterCompute, _clearLightIndexListKernel, _clusterData.clusterThreadGroup * renderingData.lightData.maxPerClusterAdditionalLightsCount, 1, 1);
 		}
 
 		void InitializeLightConstants(NativeArray<VisibleLight> lights, int lightIndex, out Vector4 lightPos, out Vector4 lightColor, out Vector4 lightAttenuation, out Vector4 lightSpotDir, out Vector4 lightOcclusionProbeChannel)
@@ -392,7 +392,7 @@ namespace UnityEngine.Rendering.Universal
 				ShaderData.instance.CreateUniqueCounterBuffer(1);
 				ShaderData.instance.CreateLightDataBuffer(UniversalRenderPipeline.maxVisibleAdditionalLights);
 				ShaderData.instance.CreateLightIndexCountBuffer(1);
-				ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize);
+				ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize * renderingData.lightData.maxPerClusterAdditionalLightsCount);
 
 				this.ClearLightGirdIndexCounter(ref cmd, ref renderingData);
 

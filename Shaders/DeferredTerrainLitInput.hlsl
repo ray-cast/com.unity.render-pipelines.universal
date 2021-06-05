@@ -2,21 +2,23 @@
 #define UNIVERSAL_DEFERRED_TERRAIN_LIT_INPUT_INCLUDED
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Terrain.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
 
 CBUFFER_START(UnityPerMaterial)
     float4 _MainTex_ST;
     half4 _BaseColor;
     half _Cutoff;
-CBUFFER_END
-
-CBUFFER_START(_Terrain)
     float4 _Control_ST;
     float4 _Splat0_ST;
     float4 _Splat1_ST;
     float4 _Splat2_ST;
     float4 _Splat3_ST;
+    half _BumpScale0;
+    half _BumpScale1;
+    half _BumpScale2;
+    half _BumpScale3;
     half _Metallic0;
     half _Metallic1;
     half _Metallic2;
@@ -25,26 +27,21 @@ CBUFFER_START(_Terrain)
     half _Smoothness1;
     half _Smoothness2;
     half _Smoothness3;
-    half _CameraRangeCutoff;
-    half _TargetRangeCutoff;
-    half3 _TargetPosition;
     half _specularAntiAliasingThreshold;
+    half _ShadowDepthBias;
+    half _ShadowNormalBias;
 CBUFFER_END
 
-CBUFFER_START(_TerrainShadow)
-    float _ShadowDepthBias;
-    float _ShadowNormalBias;
-    float3 _LightDirection;
-CBUFFER_END
+float3 _LightDirection;
 
-TEXTURE2D(_Control);
+TEXTURE2D(_Control); SAMPLER(sampler_Control);
 
-TEXTURE2D(_Splat0);
+TEXTURE2D(_Splat0); SAMPLER(sampler_Splat0);
 TEXTURE2D(_Splat1);
 TEXTURE2D(_Splat2);
 TEXTURE2D(_Splat3);
 
-TEXTURE2D(_Normal0);
+TEXTURE2D(_Normal0); SAMPLER(sampler_Normal0);
 TEXTURE2D(_Normal1);
 TEXTURE2D(_Normal2);
 TEXTURE2D(_Normal3);
@@ -54,13 +51,6 @@ TEXTURE2D(_WetnessMap1);
 TEXTURE2D(_WetnessMap2);
 TEXTURE2D(_WetnessMap3);
 
-SAMPLER(sampler_LinearClamp);
-SAMPLER(sampler_LinearRepeat);
-SAMPLER(sampler_TrilinearClamp);
-SAMPLER(sampler_TrilinearRepeat);
-SAMPLER(sampler_PointClamp);
-SAMPLER(sampler_PointRepeat);
-
 inline void InitializeStandardLitSurfaceData(float2 uv, out SurfaceData outSurfaceData)
 {
     float2 uv_Control = uv * _Control_ST.xy + _Control_ST.zw;
@@ -69,14 +59,14 @@ inline void InitializeStandardLitSurfaceData(float2 uv, out SurfaceData outSurfa
     float2 uv0_Splat2 = uv * _Splat2_ST.xy + _Splat2_ST.zw;
     float2 uv0_Splat3 = uv * _Splat3_ST.xy + _Splat3_ST.zw;
 
-    float4 classify = SAMPLE_TEXTURE2D(_Control, sampler_LinearRepeat, uv_Control);
+    float4 classify = SAMPLE_TEXTURE2D(_Control, sampler_Control, uv_Control);
     float classify_weight = 1 / dot(1, classify);
 
     float4 albedo =
-        classify.x * SAMPLE_TEXTURE2D(_Splat0, sampler_LinearRepeat, uv0_Splat0) + 
-        classify.y * SAMPLE_TEXTURE2D(_Splat1, sampler_LinearRepeat, uv0_Splat1) +
-        classify.z * SAMPLE_TEXTURE2D(_Splat2, sampler_LinearRepeat, uv0_Splat2) + 
-        classify.w * SAMPLE_TEXTURE2D(_Splat3, sampler_LinearRepeat, uv0_Splat3);
+        classify.x * SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv0_Splat0) + 
+        classify.y * SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uv0_Splat1) +
+        classify.z * SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uv0_Splat2) + 
+        classify.w * SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uv0_Splat3);
 
     albedo *= classify_weight;
 
@@ -85,10 +75,10 @@ inline void InitializeStandardLitSurfaceData(float2 uv, out SurfaceData outSurfa
 
 #if _NORMALMAP
     float3 normal = 
-        classify.x * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal0, sampler_LinearRepeat, uv0_Splat0), 1.0f) +
-        classify.y * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal1, sampler_LinearRepeat, uv0_Splat1), 1.0f) +
-        classify.z * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal2, sampler_LinearRepeat, uv0_Splat2), 1.0f) +
-        classify.w * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_LinearRepeat, uv0_Splat3), 1.0f);
+        classify.x * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal0, sampler_Normal0, uv0_Splat0), _BumpScale0) +
+        classify.y * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal1, sampler_Normal0, uv0_Splat1), _BumpScale1) +
+        classify.z * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal2, sampler_Normal0, uv0_Splat2), _BumpScale2) +
+        classify.w * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_Normal0, uv0_Splat3), _BumpScale3);
 
     normal *= classify_weight;
 

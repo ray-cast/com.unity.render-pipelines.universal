@@ -5,12 +5,14 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Gbuffer.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Wind.hlsl"
 
 struct Attributes
 {
     float4 positionOS   : POSITION;
     float3 normalOS     : NORMAL;
     float4 tangentOS    : TANGENT;
+    float3 color        : COLOR;
     float2 texcoord     : TEXCOORD0;
     float2 lightmapUV   : TEXCOORD1;
     UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -35,6 +37,8 @@ struct Varyings
     float4 shadowCoord              : TEXCOORD7;
 #endif
 
+    float3 color                    : TEXCOORD8;
+
     float4 positionCS               : SV_POSITION;
     UNITY_VERTEX_INPUT_INSTANCE_ID
     UNITY_VERTEX_OUTPUT_STEREO
@@ -44,6 +48,7 @@ struct AttributesLean
 {
     float4 position     : POSITION;
     float3 normalOS     : NORMAL;
+    float3 color        : COLOR;
 #ifdef _ALPHATEST_ON
     float2 texcoord     : TEXCOORD0;
 #endif
@@ -102,8 +107,15 @@ Varyings LitPassVertex(Attributes input)
     UNITY_TRANSFER_INSTANCE_ID(input, output);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+#ifdef _WIND_ON
+    Wind wind = GetMainWind(unity_ObjectToWorld._14_24_34 + input.positionOS.xyz, _WindStormWeight);
+    wind.intensity *= input.color.r * _WindWeight;
     
+    VertexPositionInputs vertexInput = GetWindVertexPositionInputs(wind, input.positionOS.xyz);
+#else
+    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+#endif
+
     // normalWS and tangentWS already normalize.
     // this is required to avoid skewing the direction during interpolation
     // also required for per-vertex lighting and SH evaluation
@@ -125,6 +137,7 @@ Varyings LitPassVertex(Attributes input)
     OUTPUT_LIGHTMAP_UV(input.lightmapUV, unity_LightmapST, output.lightmapUV);
     OUTPUT_SH(output.normalWS.xyz, output.vertexSH);
     
+    output.color = input.color;
     output.screenPos = ComputeScreenPos(vertexInput.positionCS);
     output.positionWS = vertexInput.positionWS;
 
@@ -167,14 +180,15 @@ FragmentOutput LitPassFragment(Varyings input)
     surfaceData.smoothness = GeometricNormalFiltering(surfaceData.smoothness, inputData.normalWS, _specularAntiAliasingThreshold, 2);
 #endif
 
-    GbufferData data;
+    GbufferData data = (GbufferData)0;
     data.albedo = surfaceData.albedo;
     data.normalWS = inputData.normalWS;
     data.emission = surfaceData.emission;
-    data.specular = surfaceData.specular.x;
+    data.specular = surfaceData.specular;
     data.metallic = surfaceData.metallic;
     data.smoothness = surfaceData.smoothness;
     data.occlusion = surfaceData.occlusion;
+    data.translucency = _Translucency;
 
     return EncodeGbuffer(data);
 }
@@ -183,7 +197,15 @@ float3 _LightDirection;
 
 float4 GetShadowPositionHClip(AttributesLean input, float2 shadowBias)
 {
+#ifdef _WIND_ON
+    Wind wind = GetMainWind(unity_ObjectToWorld._14_24_34 + input.position.xyz, _WindStormWeight);
+    wind.intensity *= input.color.r * _WindWeight;
+    
+    float3 positionWS = TransformObjectToWindWorld(wind, input.position.xyz);
+#else
     float3 positionWS = TransformObjectToWorld(input.position.xyz);
+#endif
+    
     float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
 
     float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection, shadowBias));

@@ -21,6 +21,9 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/Utils/ScreenSpaceShadows.shader")]
             public Shader screenSpaceShadowPS;
 
+            [Reload("Shaders/Utils/CapsuleShadow.shader")]
+            public Shader capsuleShadowPS;
+
             [Reload("Shaders/Utils/Sampling.shader")]
             public Shader samplingPS;
 
@@ -51,6 +54,9 @@ namespace UnityEngine.Rendering.Universal
 
             [Reload("Shaders/Environment/MipFog.shader")]
             public Shader mipFogPS;
+
+            [Reload("Shaders/Environment/HeightFog.shader")]
+            public Shader heightFogPS;
         }
 
         [Reload("Runtime/Data/PostProcessData.asset")]

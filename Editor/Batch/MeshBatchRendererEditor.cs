@@ -66,7 +66,7 @@ namespace UnityEditor.Rendering.Universal
             _materialSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_materialSettingsFoldout.value, Styles.materialSettingsText);
             if (_materialSettingsFoldout.value)
             {
-                 EditorGUI.BeginChangeCheck();
+                EditorGUI.BeginChangeCheck();
 
                 var instanceMaterial = (Material)EditorGUILayout.ObjectField("材质", _renderer.instanceMaterial, typeof(Material), true);
 
@@ -123,8 +123,8 @@ namespace UnityEditor.Rendering.Universal
 
                 EditorGUILayout.Space();
 
-                _renderer.sensity = EditorGUILayout.Slider("全局密度", _renderer.sensity, 0.0f, 1.0f);
                 _renderer.maxDrawDistance = EditorGUILayout.Slider("最大可视距离", _renderer.maxDrawDistance, 1.0f, 150f);
+                _renderer.mipScaleLevel = EditorGUILayout.Slider("遮蔽剔除检测范围", _renderer.mipScaleLevel, 1.0f, 64f);
                 _renderer.distanceCulling = EditorGUILayout.Slider("可视距离剔除权重", _renderer.distanceCulling, 0f, 1f);
                 _renderer.isCpuCulling = EditorGUILayout.Toggle("启用区域剔除（CPU）", _renderer.isCpuCulling);
                 _renderer.isGpuCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driver）", _renderer.isGpuCulling);
@@ -194,15 +194,6 @@ namespace UnityEditor.Rendering.Universal
 
             HandleUtility.AddDefaultControl(0);
 
-            if (e.type == EventType.KeyDown && e.keyCode == KeyCode.KeypadPlus)
-            {
-                FutureTerrainWindow.brushSize += 1;
-            }
-            else if (e.type == EventType.KeyDown && e.keyCode == KeyCode.KeypadMinus)
-            {
-                FutureTerrainWindow.brushSize -= 1;
-            }
-
             if (Physics.Raycast(ray, out var raycastHit, Mathf.Infinity, layerMask))
             {
                 if (!e.shift)
@@ -267,18 +258,16 @@ namespace UnityEditor.Rendering.Universal
             {
                 var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
                 batchRenderer.instanceMaterial = Material.Instantiate(pipeline.m_EditorResourcesAsset.materials.natureLit);
-                batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
-                batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
             }
         }
 
-        [MenuItem("GameObject/GPU Driven/Combine/Tree Batch", true)]
+        [MenuItem("GameObject/GPU Driven/Combine/Flower Batch", true)]
         static bool ValidateConvertTree()
         {
             return Selection.activeGameObject != null && PrefabUtility.GetPrefabInstanceHandle(Selection.activeGameObject) == null;
         }
 
-        [MenuItem("GameObject/GPU Driven/Combine/Tree Batch", priority = CoreUtils.gameObjectMenuPriority)]
+        [MenuItem("GameObject/GPU Driven/Combine/Flower Batch", priority = CoreUtils.gameObjectMenuPriority)]
         static void ConvertTree(MenuCommand menuCommand)
         {
             Transform[] transforms = Selection.GetTransforms(SelectionMode.Deep | SelectionMode.ExcludePrefab | SelectionMode.Editable);
@@ -306,13 +295,13 @@ namespace UnityEditor.Rendering.Universal
 
             foreach (var group in meshClassify)
 			{
-                var go = CoreEditorUtils.CreateGameObject(Selection.activeGameObject, "GPU Driven Tree");
+                var go = CoreEditorUtils.CreateGameObject(Selection.activeGameObject, "GPU Driven Flower");
 
                 var meshFilter = go.AddComponent<MeshFilter>();
                 meshFilter.sharedMesh = group.Key;
 
                 var batchRenderer = go.AddComponent<MeshBatchRenderer>();
-                batchRenderer.instanceMaterial = Material.Instantiate(editorResourcesAsset.materials.treeLit);
+                batchRenderer.instanceMaterial = Material.Instantiate(editorResourcesAsset.materials.flowerLit);
 
                 if (batchRenderer.instanceMaterial)
 				{
@@ -328,9 +317,6 @@ namespace UnityEditor.Rendering.Universal
                             batchRenderer.instanceMaterial.mainTextureScale = material.mainTextureScale;
                         }
                     }
-
-                    batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
-                    batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
                 }
 
                 foreach (var item in group.Value)
@@ -396,9 +382,6 @@ namespace UnityEditor.Rendering.Universal
                             batchRenderer.instanceMaterial.mainTextureScale = material.mainTextureScale;
                         }
                     }
-
-                    batchRenderer.instanceMaterial.SetInt("_InstancingRendering", 1);
-                    batchRenderer.instanceMaterial.EnableKeyword("_INSTANCING_RENDERING_ON");
                 }
 
                 foreach (var item in group.Value)

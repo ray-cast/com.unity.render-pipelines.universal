@@ -8,12 +8,14 @@
         {
             MipFog _mipFog;
             HeightFog _heightFog;
+
             Material _fogMaterial;
+            Material _heightFogMaterial;
 
             RenderTargetIdentifier _colorAttachment;
             RenderTargetIdentifier _depthAttachment;
 
-            Material mipForMaterial
+            Material mipFogMaterial
 			{
                 get
 				{
@@ -24,13 +26,30 @@
                 }
 			}
 
+            Material heightFogMaterial
+            {
+                get
+                {
+                    if (_heightFogMaterial == null)
+                        _heightFogMaterial = CoreUtils.CreateEngineMaterial("Hidden/Universal Render Pipeline/Fog/HeightFog");
+
+                    return _heightFogMaterial;
+                }
+            }
+
             public MipFogRenderPass()
             {
             }
 
             public bool Setup(RenderTargetIdentifier colorAttachment, RenderTargetIdentifier depthAttachment)
 			{
-                if (this.mipForMaterial == null)
+                if (this.mipFogMaterial == null)
+                {
+                    UnityEngine.Debug.LogError("材质没找到！");
+                    return false;
+                }
+
+                if (this.heightFogMaterial == null)
                 {
                     UnityEngine.Debug.LogError("材质没找到！");
                     return false;
@@ -55,14 +74,22 @@
                 ConfigureTarget(_colorAttachment, _depthAttachment);
             }
 
+            float ScaleHeightFromLayerDepth(float d)
+            {
+                // Exp[-d / H] = 0.001
+                // -d / H = Log[0.001]
+                // H = d / -Log[0.001]
+                return d * 0.144765f;
+            }
+
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
                 var cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
 
-                _fogMaterial.shaderKeywords = null;
-
                 if (_mipFog != null && _mipFog.IsActive())
 				{
+                    _fogMaterial.shaderKeywords = null;
+
                     if (_mipFog.mode.value == MipFogMode.Linear)
                         _fogMaterial.EnableKeyword("_FOG_LINEAR");
                     else if (_mipFog.mode.value == MipFogMode.Exponential)
@@ -91,27 +118,36 @@
 					{
                         _fogMaterial.SetVector(ShaderConstants._MipFogFactorParams, new Vector4(_mipFog.density.value, 1 - _mipFog.skyDensity.value, 0, 0));
                     }
-                }
-                else
-				{
-                    _fogMaterial.DisableKeyword("_MIPFOG");
+
+                    cmd.DrawProcedural(Matrix4x4.identity, _fogMaterial, 0, MeshTopology.Triangles, 3, 1);
                 }
 
                 if (_heightFog != null && _heightFog.IsActive())
 				{
-                    CoreUtils.SetKeyword(_fogMaterial, "_HEIGHTFOG_CAMERA_HEIGHT", _heightFog.followCamera.value);
+                    var color = _heightFog.tint.value.linear;
+                    var baseHeight = _heightFog.baseHeight.value;
+                    var maximumHeight = _heightFog.maximumHeight.value;
+                    if (_heightFog.relativeRendering.value)
+					{
+                        baseHeight += renderingData.cameraData.camera.transform.position.y;
+                        maximumHeight += renderingData.cameraData.camera.transform.position.y;
+                    }
+                    else
+					{
+                        baseHeight -= renderingData.cameraData.camera.transform.position.y;
+                        maximumHeight -= renderingData.cameraData.camera.transform.position.y;
+                    }
 
-                    _fogMaterial.EnableKeyword("_HEIGHTFOG");
-                    _fogMaterial.SetVector(ShaderConstants._HeightFogDeepColor, _heightFog.deepColor.value.linear);
-                    _fogMaterial.SetVector(ShaderConstants._HeightFogShallowColor, _heightFog.shallowColor.value.linear);
-                    _fogMaterial.SetVector(ShaderConstants._HeightFogParams, new Vector4(_heightFog.density.value, _heightFog.heightFalloff.value, _heightFog.height.value, 0));
-                }
-                else
-                {
-                    _fogMaterial.DisableKeyword("_HEIGHTFOG");
-                }
+                    var extinction = 1.0f / _heightFog.fogAttenuationDistance.value;
+                    var layerDepth = Mathf.Max(0.01f, maximumHeight - baseHeight);
+                    var H = ScaleHeightFromLayerDepth(layerDepth);
+                    var heightFogExponents = new Vector2(1.0f / H, H);
 
-                cmd.DrawProcedural(Matrix4x4.identity, _fogMaterial, 0, MeshTopology.Triangles, 3, 1);
+                    _heightFogMaterial.SetVector(ShaderConstants._HeightFogColor, new Vector4(color.r, color.g, color.b, _heightFog.heightDensity.value));
+                    _heightFogMaterial.SetVector(ShaderConstants._HeightFogParams, new Vector4(heightFogExponents.x, heightFogExponents.y, extinction, baseHeight));
+
+                    cmd.DrawProcedural(Matrix4x4.identity, _heightFogMaterial, 0, MeshTopology.Triangles, 3, 1);
+                }
 
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
@@ -126,8 +162,8 @@
                 public static readonly int _MipFogFactorParams = Shader.PropertyToID("_MipFogFactorParams");
 
                 public static readonly int _HeightFogParams = Shader.PropertyToID("_HeightFogParams");
-                public static readonly int _HeightFogDeepColor = Shader.PropertyToID("_HeightFogDeepColor");
-                public static readonly int _HeightFogShallowColor = Shader.PropertyToID("_HeightFogShallowColor");
+                public static readonly int _HeightFogColor = Shader.PropertyToID("_HeightFogColor");
+                public static readonly int _HeightFogBaseScattering = Shader.PropertyToID("_HeightFogBaseScattering");
             }
         }
 

@@ -23,7 +23,7 @@
 #	define MAX_WORKGROUP_SIZE_X 128
 #endif
 
-#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthAttachment.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Input.hlsl"
 
 struct AABB
@@ -79,7 +79,8 @@ groupshared uint gs_LightList[MAX_WORKGROUP_SIZE_X];
 bool ComputeSphereIntersection(Sphere a, Sphere b)
 {
 	float3 v = b.center - a.center;
-	return dot(v, v) <= (a.radius * a.radius + b.radius * b.radius);
+	float radius = a.radius + b.radius;
+	return dot(v, v) <= radius * radius;
 }
 
 bool ComputeSphereConeIntersection(Sphere sphere, Cone cone)
@@ -300,7 +301,7 @@ void SetupClusterFlags(uint3 id : SV_DispatchThreadID)
 {
 	uint2 texCoord = id.xy;
 
-	float depth = LoadDepthAttachment(texCoord).x;
+	float depth = LoadSceneDepth(texCoord).x;
 	uint3 clusterIndex3D = ComputeClusterIndex3D(texCoord, LinearEyeDepth(depth, _ClusterZBufferParams));
 	uint clusterIndex1D = ComputeClusterIndex1D(clusterIndex3D);
 	_RWClusterFlagBuffer[clusterIndex1D] = 1;

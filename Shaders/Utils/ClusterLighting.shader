@@ -4,16 +4,8 @@
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Gbuffer.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthAttachment.hlsl"
-
-		half4 _ScaleBiasRT;
-		half4 _ScreenRect;
-
-		struct Attributes
-		{
-			uint   id : SV_VERTEXID;
-			UNITY_VERTEX_INPUT_INSTANCE_ID
-		};
+		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/CloudShadow.hlsl"
+		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
 		struct Varyings
 		{
@@ -24,22 +16,16 @@
 			UNITY_VERTEX_OUTPUT_STEREO
 		};
 
-		Varyings ClusterLightingVertex(Attributes input)
+		Varyings ClusterLightingVertex(uint id : SV_VERTEXID)
 		{
-			Varyings output;
-			UNITY_SETUP_INSTANCE_ID(input);
-			UNITY_TRANSFER_INSTANCE_ID(input, output);
-			UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+			Varyings output = (Varyings)0;
+			output.uv = GetFullScreenTriangleTexCoord(id).xyxy;
+			output.positionCS = GetFullScreenTriangleVertexPosition(id, UNITY_RAW_FAR_CLIP_VALUE);
 
-			output.uv = float4(float2(input.id / 2, input.id % 2) * 2, 0, 1);
-			output.positionCS = float4(output.uv.xy * 2 - 1, 0, 1);
-			output.positionCS.y *= _ScaleBiasRT.x;
-			
-			float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(output.uv, 1));
+			float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(output.uv.xy, 1));
 			hpositionWS /= hpositionWS.w;
-
+			
 			output.viewdir = GetCameraPositionWS() - hpositionWS.xyz;
-			output.uv = UnityStereoTransformScreenSpaceTex(output.uv.xy).xyxy;
 
 			return output;
 		}
@@ -54,7 +40,7 @@
 			float3 n = surface.normalWS;
 			float3 v = normalize(input.viewdir);
 
-			float deviceDepth = SampleDepthAttachment(input.uv.xy);
+			float deviceDepth = SampleSceneDepth(input.uv.xy);
 			float linearDepth = LinearEyeDepth(deviceDepth, _ZBufferParams);
 
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
@@ -62,23 +48,23 @@
 #endif
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.zw, deviceDepth, unity_MatrixInvVP);
 
-			float3 lighting = surface.emission;
-
-#if _MAIN_LIGHT_SHADOWS
-			float4 shadowCoord = TransformWorldToShadowCoord(worldPosition);
-			Light mainLight = GetMainLight(shadowCoord);
-#else
 			Light mainLight = GetMainLight();
+			mainLight.distanceAttenuation = 1;
+			mainLight.shadowAttenuation = SampleScreenSpaceShadowMap(input.uv.xy);
+
+			float3 lighting = surface.emission;
+#ifdef _CAPSULE_SHADOWS
+			lighting *= SampleScreenSpaceOcclusionMap(input.uv.xy);
 #endif
-			lighting += LightingPhysicallyBased(brdfData, mainLight, n, v);
+			lighting += LightingWrappedPhysicallyBased(brdfData, mainLight, n, v, surface.translucency);
 
 			uint2 cullingLightIndex = GetCullingLightIndex(ComputeClusterClipSpacePosition(input.uv.xy), linearDepth);
 
-			[loop]
+			UNITY_LOOP
 			for (uint i = 0; i < cullingLightIndex.y; i++)
 			{
 				Light light = GetClusterAdditionalLight(cullingLightIndex.x + i, worldPosition);
-				lighting += LightingPhysicallyBased(brdfData, light, n, v);
+				lighting += LightingWrappedPhysicallyBased(brdfData, light, n, v, surface.translucency);
 			}
 
 			return float4(lighting, 1);
@@ -94,7 +80,7 @@
 			float3 n = surface.normalWS;
 			float3 v = normalize(input.viewdir);
 
-			float deviceDepth = SampleDepthAttachment(input.uv.xy);
+			float deviceDepth = SampleSceneDepth(input.uv.xy);
 			float linearDepth = LinearEyeDepth(deviceDepth, _ZBufferParams);
 
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
@@ -103,14 +89,16 @@
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.zw, deviceDepth, unity_MatrixInvVP);
 
 			float3 lighting = surface.emission;
-
+#ifdef _CAPSULE_SHADOWS
+			lighting *= SampleScreenSpaceOcclusionMap(input.uv.xy);
+#endif
 			uint2 cullingLightIndex = GetCullingLightIndex(ComputeClusterClipSpacePosition(input.uv.xy), linearDepth);
 
-			[loop]
+			UNITY_LOOP
 			for (uint i = 0; i < cullingLightIndex.y; i++)
 			{
 				Light light = GetClusterAdditionalLight(cullingLightIndex.x + i, worldPosition);
-				lighting += LightingPhysicallyBased(brdfData, light, n, v);
+				lighting += LightingWrappedPhysicallyBased(brdfData, light, n, v, surface.translucency);
 			}
 
 			return float4(lighting, 1);
@@ -119,17 +107,22 @@
 
 	SubShader
 	{
-		ZTest Off ZWrite Off
+		ZTest Greater ZWrite Off
+		Blend Off
 		Cull Off
 
 		Pass
 		{
 			HLSLPROGRAM
+                #pragma target 3.5
+                #pragma prefer_hlslcc gles
+                #pragma exclude_renderers d3d11_9x
+                #pragma editor_sync_compilation
+
 				#pragma vertex ClusterLightingVertex
 				#pragma fragment ClusterLightingFragment
 
-				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
+				#pragma multi_compile _ _CAPSULE_SHADOWS
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 				#pragma multi_compile _ _SHADOWS_SOFT
@@ -139,11 +132,15 @@
 		Pass
 		{
 			HLSLPROGRAM
+                #pragma target 3.5
+                #pragma prefer_hlslcc gles
+                #pragma exclude_renderers d3d11_9x
+                #pragma editor_sync_compilation
+
 				#pragma vertex ClusterLightingVertex
 				#pragma fragment ClusterAdditionalLightingFragment
 
-				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
+				#pragma multi_compile _ _CAPSULE_SHADOWS
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 				#pragma multi_compile _ _SHADOWS_SOFT

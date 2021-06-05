@@ -1,27 +1,30 @@
 ﻿namespace UnityEngine.Rendering.Universal
 {
-    [System.Serializable, VolumeComponentMenu("Post-processing/Fog/HeightFog")]
+    [System.Serializable, VolumeComponentMenu("Fog/HeightFog")]
     public class HeightFog : VolumeComponent, IPostProcessComponent
     {
-        [Tooltip("雾气深处颜色")]
-        public ColorParameter deepColor = new ColorParameter(Color.white, false, false, true); //0.77647f, 0.84705f, 0.98039f
-
-        [Tooltip("雾气浅处颜色")]
-        public ColorParameter shallowColor = new ColorParameter(Color.white, false, false, true); //0.77647f, 0.84705f, 0.98039f
-
-        [Tooltip("雾气浓度")]
-        public MinFloatParameter density = new MinFloatParameter(0f, 0f);
+        [Tooltip("启用")]
+        public BoolParameter enable = new BoolParameter(false);
 
         [Tooltip("雾气高度衰减")]
-        public ClampedFloatParameter heightFalloff = new ClampedFloatParameter(0f, 0f, 1f);
+        public MinFloatParameter fogAttenuationDistance = new MinFloatParameter(400.0f, 1.0f);
 
-        [Tooltip("雾气开始高度")]
-        public FloatParameter height = new FloatParameter(0f);
+        [Tooltip("雾气基本高度")]
+        public FloatParameter baseHeight = new FloatParameter(0f);
 
-        [Tooltip("雾气根据相机位置衰减")]
-        public BoolParameter followCamera = new BoolParameter(false);
+        [Tooltip("雾气最高高度")]
+        public FloatParameter maximumHeight = new FloatParameter(500f);
 
-        public bool IsActive() => density.value > 0f;
+        [Tooltip("雾气底部浓度")]
+        public MinFloatParameter heightDensity = new MinFloatParameter(0.0f, 0.0f);
+
+        [Tooltip("雾气颜色叠加")]
+        public ColorParameter tint = new ColorParameter(Color.white, false, false, true); //0.77647f, 0.84705f, 0.98039f
+
+        [Tooltip("雾气的高度相对于相机位置")]
+        public BoolParameter relativeRendering = new BoolParameter(false);
+
+        public bool IsActive() => enable.value;
 
         public bool IsTileCompatible() => false;
     }

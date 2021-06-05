@@ -72,6 +72,7 @@ namespace UnityEngine.Rendering.Universal
                         this.hdriMaterial.SetColor(ShaderConstants._Tint, hdriSky.color.value);
 
                         RenderSettings.skybox = this.hdriMaterial;
+                        RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
                     }
                     else
                     {

@@ -10,6 +10,10 @@
         _Cutoff("透明剔除", Range(0.0, 1.0)) = 0.5
 
         [Space(20)]
+        _Smoothness("光滑度", Range(0.0, 1.0)) = 0.0
+        _Specular("镜面反射系数", Range(0.0, 1.0)) = 0.5
+
+        [Space(20)]
         [TexToggle(_ROOTMAP)][NoScaleOffset]_RootTex("根部贴图", 2D) = "white" {}
         _RootSize("根部区域大小", Vector) = (0,0,1)
         _RootCenter("根部区域中心", Vector) = (0,0,0)
@@ -25,45 +29,29 @@
         _HeadBlendHeight("尖部高度混合", Range(0, 1)) = 1
 
         [Space(20)]
-        _WindDirection("风的朝向", Vector) = (1.0, 0.0, 0.0)
-        _WindAIntensity("风的强度", Float) = 1
-        _WindAFrequency("风的频率", Float) = 1
-        _WindRange("风场运动范围", Float) = 20
-        _WindATiling("风的持续", Vector) = (0.1,0.1,0)
-        _WindAWrap("风产生的弯曲", Vector) = (0.5,0.5,0)
+        [HDR]_WindHightlightColor("风场高光扰动颜色", Color) = (1,1,1)
+        _WindWeight("风场影响程度", Range(0.0, 1.0)) = 1.0
+        _WindStormWeight("风浪影响程度", Range(0.0, 1.0)) = 1.0
 
         [Space(20)]
-        _WindScatter("风场高光扩散范围", Vector) = (20, 20, 1, 1)
-        _WindHightlightSpeed("风场高光扰动速率", Float) = 1
-        _WindHightlightIntensity("风场高光扰动强度", Float) = 2
-        [HDR]_WindHightlightColor("风场高光扰动颜色", Color) = (1,1,1)
-        [NoScaleOffset]_WindNoiseMap("风场扰动贴图(示例:gradient_beam_007)", 2D) = "black" {}
-
         _RandomNormal("法线扰动", Range(0, 1)) = 0.1
 
-        [Space(20)]
-        [Toggle(_INSTANCING_RENDERING_ON)]_InstancingRendering("启用实例批次渲染", int) = 0
-
         [HideInInspector]_BendStrength("_BendStrength", Float) = 0.2
-
-        //make SRP batcher happy
-        [HideInInspector]_PivotPosWS("_PivotPosWS", Vector) = (0,0,0,0)
-        [HideInInspector]_PivotScaleWS("_PivotScaleWS", Vector) = (1,1,0)
     }
     HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Gbuffer.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Wind.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/InstancingRendering.hlsl"
         #include "VegetationCommon.cginc"
 
         struct Attributes
         {
             float4 positionOS : POSITION;//草顶点的模型空间坐标
             float2 uv : TEXCOORD0;
-        #if _INSTANCING_RENDERING_ON
-            uint instanceID : SV_InstanceID;
-        #endif
+            UNITY_VERTEX_INPUT_INSTANCE_ID
         };
 
         struct Varyings
@@ -75,14 +63,12 @@
             float2 uv          : TEXCOORD4;
             float4 color       : TEXCOORD5;
             float4 screenPos   : TEXCOORD6;
+            UNITY_VERTEX_INPUT_INSTANCE_ID
         };
 
         struct AttributesLean
         {
             float4 positionOS   : POSITION;
-        #if _INSTANCING_RENDERING_ON
-            uint instanceID : SV_InstanceID;
-        #endif
             UNITY_VERTEX_INPUT_INSTANCE_ID
         };
 
@@ -94,19 +80,11 @@
             UNITY_VERTEX_OUTPUT_STEREO
         };
 
-        struct BatchData
-        {
-            float4 position;
-            float4 scale;
-        };
-
         CBUFFER_START(UnityPerMaterial)
             half3 _MainColor;
             half4 _MainTex_TexelSize;
             half _Cutoff;
 
-            float3 _PivotPosWS;
-            float3 _PivotScaleWS;
             float4x4 _PivotMatrixWS;
 
             float _RootBlendHeight;
@@ -120,18 +98,14 @@
             float3 _HeadSize;
             float4 _HeadColor;
 
+            float _Specular;
+            float _Smoothness;
+
+            float _WindWeight;
+            float _WindStormWeight;
+
             float _RandomNormal;
 
-            float _WindAIntensity;
-            float _WindAFrequency;
-            float _WindRange;
-            float2 _WindATiling;
-            float2 _WindAWrap;
-            float3 _WindDirection;
-
-            float2 _WindScatter;
-            float _WindHightlightSpeed;
-            float _WindHightlightIntensity;
             float3 _WindHightlightColor;
 
             float _BendStrength;//按压弯曲程度
@@ -140,10 +114,6 @@
         TEXTURE2D(_MainTex);       SAMPLER(sampler_MainTex);
         TEXTURE2D(_RootTex);       SAMPLER(sampler_RootTex);
         TEXTURE2D(_HeadTex);       SAMPLER(sampler_HeadTex);
-        TEXTURE2D(_WindNoiseMap);  SAMPLER(sampler_WindNoiseMap);
-
-        StructuredBuffer<BatchData> _AllInstancesTransformBuffer;
-        StructuredBuffer<uint> _AllVisibleInstancesIndexBuffer;
 
         float2 BoundsToWorldUV(in float3 wPos, in half4 b)
         {
@@ -168,31 +138,15 @@
             UNITY_TRANSFER_INSTANCE_ID(input, output);
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-        #ifdef _INSTANCING_RENDERING_ON
-            uint index = _AllVisibleInstancesIndexBuffer[input.instanceID];
-            float3 positionWS = _AllInstancesTransformBuffer[index].position.xyz;
-            float3 scale = _AllInstancesTransformBuffer[index].scale.xyz;
-            UNITY_MATRIX_M = float4x4(
-                    scale.x,0,0, positionWS.x,
-                    0,scale.y,0, positionWS.y,
-                    0,0,scale.z, positionWS.z,
-                    0,0,0,1
-                );
+        #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
             UNITY_MATRIX_M = mul(_PivotMatrixWS, UNITY_MATRIX_M);
         #endif
 
-            float3 pivotPositionWS = float3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
-            half3 direction = SafeNormalize(_WindDirection);
-            half2 windTexcoord = (pivotPositionWS.xz + input.positionOS.xz) / _WindScatter;
-            half2 windWindTexcoord = windTexcoord - direction.xz * _WindHightlightSpeed * _Time.x;
-            half wind = SAMPLE_TEXTURE2D_LOD(_WindNoiseMap, sampler_WindNoiseMap, windWindTexcoord, 0).r;
-
-            float distanceThreadhold = 1 - saturate(distance(pivotPositionWS, GetCameraPositionWS()) / _WindRange);
+            half3 pivotPositionWS = half3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
 
             float3 positionOS = input.positionOS.xyz;
             positionOS = ApplyRotationAndScale(positionOS, pivotPositionWS, 1, 1, 1);
             positionOS = ApplyBending(positionOS, pivotPositionWS, _BendStrength);
-            positionOS = ApplyWind(positionOS, pivotPositionWS, direction, _WindAFrequency, _WindATiling, _WindAWrap, (_WindAIntensity + wind * _WindHightlightIntensity) * distanceThreadhold);
 
             float3 cameraTransformRightWS = UNITY_MATRIX_V[0].xyz;
             float3 cameraTransformForwardWS = -UNITY_MATRIX_V[2].xyz;
@@ -205,13 +159,21 @@
             float rootBlend = lerp(1, smoothstep(_RootBlendHeight, _RootBlendHeight + (1 - _HeadBlendHeight), sqrt(input.positionOS.y)), _RootStrength);
             float headBlend = lerp(0, lerp(1, radnom, _HeadColor.a), _HeadStrength);
 
-            output.positionWS = float4(TransformObjectToWorld(positionOS), rootBlend);
+            Wind wind = GetMainWind(pivotPositionWS, _WindStormWeight);
+            wind.intensity *= positionOS.y * _WindWeight;
+            float3 positionWS = TransformObjectToWindWorld(wind, positionOS);
+
+            output.positionWS = float4(positionWS, rootBlend);
             output.normalWS = float4(N, headBlend);
-            output.color = float4(_MainColor, wind * saturate(input.positionOS.y / 0.12));
+            output.color = float4(_MainColor, wind.storm * saturate(input.positionOS.y / 0.12));
             output.positionCS = TransformWorldToHClip(output.positionWS.xyz);
             output.screenPos = ComputeScreenPos(output.positionCS);
             output.uv = input.uv;
+        #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
+            output.bakeGI = unity_InstanceBakeGI;
+        #else
             output.bakeGI = SampleSH(N);
+        #endif
 
             return output;
         }
@@ -249,14 +211,15 @@
             half3 headColor = lerp(albedo.xyz, _HeadColor.rgb, input.normalWS.a);
         #endif
 
-            GbufferData data;
+            GbufferData data = (GbufferData)0;
             data.albedo = lerp(rootColor, headColor.rgb, input.positionWS.a);
             data.albedo = lerp(data.albedo, data.albedo * _WindHightlightColor, input.color.a);
             data.normalWS = input.normalWS.xyz;
-            data.specular = 0.5;
+            data.specular = _Specular;
             data.metallic = 0;
-            data.smoothness = 0.25;
+            data.smoothness = _Smoothness;
             data.occlusion = 1;
+            data.translucency = 0;
             data.emission = input.bakeGI * data.albedo;
 
             return EncodeGbuffer(data);
@@ -270,33 +233,21 @@
             UNITY_TRANSFER_INSTANCE_ID(input, output);
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-        #ifdef _INSTANCING_RENDERING_ON
-            uint index = _AllVisibleInstancesIndexBuffer[input.instanceID];
-            float3 positionWS = _AllInstancesTransformBuffer[index].position.xyz;
-            float3 scale = _AllInstancesTransformBuffer[index].scale.xyz;
-            UNITY_MATRIX_M = float4x4(
-                    scale.x,0,0, positionWS.x,
-                    0,scale.y,0, positionWS.y,
-                    0,0,scale.z, positionWS.z,
-                    0,0,0,1
-                );
+        #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
             UNITY_MATRIX_M = mul(_PivotMatrixWS, UNITY_MATRIX_M);
         #endif
 
-            half3 direction = SafeNormalize(_WindDirection);
             half3 pivotPositionWS = half3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
-            half2 windTexcoord = (pivotPositionWS.xz + input.positionOS.xz) / _WindScatter;
-            half2 windWindTexcoord = windTexcoord - direction.xz * _WindHightlightSpeed * _Time.x;
-            half wind = SAMPLE_TEXTURE2D_LOD(_WindNoiseMap, sampler_WindNoiseMap, windWindTexcoord, 0).r;
-
-            float distanceThreadhold = 1 - saturate(distance(pivotPositionWS, GetCameraPositionWS()) / _WindRange);
 
             float3 positionOS = input.positionOS.xyz;
             positionOS = ApplyRotationAndScale(positionOS, pivotPositionWS, 1, 1, 1);
             positionOS = ApplyBending(positionOS, pivotPositionWS, _BendStrength);
-            positionOS = ApplyWind(positionOS, pivotPositionWS, direction, _WindAFrequency, _WindATiling, _WindAWrap, (_WindAIntensity + wind * _WindHightlightIntensity) * distanceThreadhold);           
 
-            output.positionCS = TransformWorldToHClip(TransformObjectToWorld(positionOS));
+            Wind wind = GetMainWind(pivotPositionWS, _WindStormWeight);
+            wind.intensity *= positionOS.y * _WindWeight;
+            float3 positionWS = TransformObjectToWindWorld(wind, positionOS);
+
+            output.positionCS = TransformWorldToHClip(positionWS);
 
             return output;
         }
@@ -335,7 +286,8 @@
                 #pragma shader_feature_local _HEADMAP
                 #pragma shader_feature_local _ALBEDOMAP
 
-                #pragma multi_compile_local _ _INSTANCING_RENDERING_ON
+                #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+                #pragma instancing_options procedural:SetupInstancing
 
                 #pragma vertex LitPassVertex
                 #pragma fragment LitPassFragment
@@ -357,7 +309,8 @@
                 #pragma shader_feature _ALPHATEST_ON
                 #pragma shader_feature_local _ALBEDOMAP
 
-                #pragma multi_compile_local _ _INSTANCING_RENDERING_ON
+                #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+                #pragma instancing_options procedural:SetupInstancing
 
                 #pragma vertex DepthOnlyVertex
                 #pragma fragment DepthOnlyFragment

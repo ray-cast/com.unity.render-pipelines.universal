@@ -26,9 +26,7 @@
 
         static ShadowUtils()
         {
-            _shadowmapFormat = RenderingUtils.SupportsRenderTextureFormat(RenderTextureFormat.Shadowmap) && (SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES2)
-                ? RenderTextureFormat.Shadowmap
-                : RenderTextureFormat.Depth;
+            _shadowmapFormat = RenderTextureFormat.Depth;
             _forceShadowPointSampling = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal &&
                 GraphicsSettings.HasShaderDefine(Graphics.activeTier, BuiltinShaderDefine.UNITY_METAL_SHADOWS_USE_POINT_FILTERING);
         }

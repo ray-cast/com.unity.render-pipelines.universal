@@ -6,6 +6,7 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ImageBasedLighting.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/CloudShadow.hlsl"
 
 // If lightmap is not defined than we evaluate GI (ambient + probes) from SH
 // We might do it fully or partially in vertex to save shader ALU
@@ -652,6 +653,14 @@ half3 LightingSpecular(half3 lightColor, half3 lightDir, half3 normal, half3 vie
     return lightColor * specularReflection;
 }
 
+float3 LightingTranslucency(BRDFData brdfData, Light light, half3 normalWS, half3 viewDirectionWS, half distortion = 0.5)
+{
+    half nl = dot(normalWS, light.direction);
+    half lambert = saturate(nl);
+
+    return pow(saturate(dot(viewDirectionWS, -normalize(light.direction + normalWS * distortion))), 4);
+}
+
 half3 LightingPhysicallyBased(BRDFData brdfData, half3 lightColor, half3 lightDirectionWS, half lightAttenuation, half softness, half3 normalWS, half3 viewDirectionWS)
 {
     half NdotL = saturate(dot(normalWS, lightDirectionWS));
@@ -662,6 +671,15 @@ half3 LightingPhysicallyBased(BRDFData brdfData, half3 lightColor, half3 lightDi
 half3 LightingPhysicallyBased(BRDFData brdfData, Light light, half3 normalWS, half3 viewDirectionWS)
 {
     return LightingPhysicallyBased(brdfData, light.color, light.direction, light.distanceAttenuation * light.shadowAttenuation, light.softness, normalWS, viewDirectionWS);
+}
+
+half3 LightingWrappedPhysicallyBased(BRDFData brdfData, Light light, half3 normalWS, half3 viewDirectionWS, half w)
+{
+    half NdotL = lerp(ComputeWrappedDiffuseLighting(dot(normalWS, light.direction), w), 1, light.softness);
+    half3 radiance = light.color * light.distanceAttenuation * light.shadowAttenuation;
+    half3 lighting = DirectBDRF(brdfData, normalWS, light.direction, viewDirectionWS) * radiance * NdotL;
+    lighting += brdfData.diffuse * LightingTranslucency(brdfData, light, normalWS, viewDirectionWS) * radiance * w * (1 - NdotL);
+    return lighting;
 }
 
 half3 VertexLighting(float3 positionWS, half3 normalWS)
@@ -692,6 +710,7 @@ half4 UniversalFragmentPBR(InputData inputData, half3 albedo, half metallic, hal
     InitializeBRDFData(albedo, metallic, specular, smoothness, alpha, brdfData);
     
     Light mainLight = GetMainLight(inputData.shadowCoord);
+    mainLight.shadowAttenuation *= GetCloudShadow(inputData.positionWS);
     MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI, half4(0, 0, 0, 0));
 
     half3 color = GlobalIllumination(brdfData, inputData.bakedGI, occlusion, inputData.normalWS, inputData.viewDirectionWS);
