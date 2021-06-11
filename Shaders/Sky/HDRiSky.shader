@@ -46,18 +46,15 @@ Shader "Hidden/Universal Render Pipeline/Sky/HDRi Sky"
     struct Varyings
     {
         float4 positionCS : SV_POSITION;
-        float3 viewdir  : TEXCOORD0;
+        float4 viewdir  : TEXCOORD0;
         UNITY_VERTEX_OUTPUT_STEREO
     };
 
     Varyings VertRender(uint id : SV_VERTEXID)
     {
-		float4 hpositionWS = mul(unity_MatrixInvVP, ComputeClipSpacePosition(GetFullScreenTriangleTexCoord(id), 1));
-		hpositionWS /= hpositionWS.w;
-
 		Varyings o;
 		o.positionCS = GetFullScreenTriangleVertexPosition(id, UNITY_RAW_FAR_CLIP_VALUE);		
-		o.viewdir = GetCameraPositionWS() - hpositionWS.xyz;
+		o.viewdir = mul(unity_MatrixInvVP, ComputeClipSpacePosition(GetFullScreenTriangleTexCoord(id), 1));
 
 		return o;
     }
@@ -67,7 +64,7 @@ Shader "Hidden/Universal Render Pipeline/Sky/HDRi Sky"
         UNITY_SETUP_INSTANCE_ID(input);
         UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-        float3 viewDirWS = -normalize(input.viewdir);
+        float3 viewDirWS = -normalize(GetCameraPositionWS() - input.viewdir.xyz / input.viewdir.w);
 
         return float4(_Tint * GetColorWithRotation(viewDirWS, 2, _CosSinPhi).xyz, 1.0);
     }

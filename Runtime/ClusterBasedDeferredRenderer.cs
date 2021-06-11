@@ -14,6 +14,7 @@
         AdditionalLightsShadowCasterPass _additionalLightsShadowCasterPass;
         ScreenSpaceShadowResolvePass _screenSpaceShadowResolvePass;
         ScreenSpaceOcclusionResolvePass _screenSpaceOcclusionResolvePass;
+        CapsuleShadowPass _capsuleShadowResolvePass;
         GbufferDepthPass _renderGbufferDepthPass;
         GbufferPreparePass _renderOpaqueGbufferPass;
         CopyDepthPass _copyGbufferDepthPass;
@@ -30,6 +31,7 @@
         DrawObjectsPass _renderTransparentForwardPass;
         InvokeOnRenderObjectCallbackPass _onRenderObjectCallbackPass;
         ColorGradingLutPass _colorGradingLutPass;
+        ScenePostProcess _scenePostProcessPass;
         PostProcessPass _postProcessPass;
         PostProcessPass _finalPostProcessPass;
         CapturePass _capturePass;
@@ -66,6 +68,7 @@
         Material _lightingMaterial;
         Material _screenSpaceShadowMaterial;
         Material _screenSpaceOcclusionMaterial;
+        Material _capsuleShadowMaterial;
         Material _samplingMaterial;
         Material _debugCluster;
         Material _heatMapCluster;
@@ -80,7 +83,8 @@
             _clusterLightingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.clusterLightingPS);
             _lightingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.lightingPS);
             _screenSpaceShadowMaterial = CoreUtils.CreateEngineMaterial(data.shaders.screenSpaceShadowPS);
-            _screenSpaceOcclusionMaterial = CoreUtils.CreateEngineMaterial(data.shaders.capsuleShadowPS);
+            _screenSpaceOcclusionMaterial = CoreUtils.CreateEngineMaterial(data.shaders.screenSpaceOcclusionPS);
+            _capsuleShadowMaterial = CoreUtils.CreateEngineMaterial(data.shaders.capsuleShadowPS);
 
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             _debugCluster = CoreUtils.CreateEngineMaterial(data.shaders.clusterGS);
@@ -103,6 +107,7 @@
             _mainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
             _screenSpaceShadowResolvePass = new ScreenSpaceShadowResolvePass(RenderPassEvent.BeforeRenderingOpaques, _screenSpaceShadowMaterial);
             _screenSpaceOcclusionResolvePass = new ScreenSpaceOcclusionResolvePass(RenderPassEvent.BeforeRenderingOpaques, _screenSpaceOcclusionMaterial);
+            _capsuleShadowResolvePass = new CapsuleShadowPass(RenderPassEvent.BeforeRenderingOpaques, _capsuleShadowMaterial);
             _additionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
             _depthOnlyPass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, RenderQueueRange.opaque, data.opaqueLayerMask);
             _depthPrePass = new DepthPrePass(RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask);
@@ -121,6 +126,7 @@
             _renderTransparentForwardPass = new DrawObjectsPass("Render Transparents", false, RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask, _defaultStencilState, stencilData.stencilReference);
             _onRenderObjectCallbackPass = new InvokeOnRenderObjectCallbackPass(RenderPassEvent.BeforeRenderingPostProcessing);
             _colorGradingLutPass = new ColorGradingLutPass(RenderPassEvent.BeforeRenderingPrepasses, data.postProcessData);
+            _scenePostProcessPass = new ScenePostProcess(RenderPassEvent.BeforeRenderingOpaques, data.postProcessData);
             _postProcessPass = new PostProcessPass(RenderPassEvent.BeforeRenderingPostProcessing, data.postProcessData, _blitMaterial);
             _finalPostProcessPass = new PostProcessPass(RenderPassEvent.AfterRendering + 1, data.postProcessData, _blitMaterial);
             _capturePass = new CapturePass(RenderPassEvent.AfterRendering);
@@ -300,6 +306,9 @@
                 if (_screenSpaceOcclusionResolvePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment))
                     EnqueuePass(_screenSpaceOcclusionResolvePass);
 
+                if (_capsuleShadowResolvePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment))
+                    EnqueuePass(_capsuleShadowResolvePass);
+
                 _screenSpaceShadowResolvePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment);
                 EnqueuePass(_screenSpaceShadowResolvePass);
             }
@@ -340,14 +349,11 @@
                     activeRenderPassQueue.RemoveAt(i);
             }
 
-            bool generateColorGradingLUT = cameraData.postProcessEnabled;
-#if POST_PROCESSING_STACK_2_0_0_OR_NEWER
-            // PPv2 doesn't need to generate color grading LUT.
-            if (postProcessFeatureSet == PostProcessingFeatureSet.PostProcessingV2)
-                generateColorGradingLUT = false;
-#endif
-            if (generateColorGradingLUT)
+            if (cameraData.postProcessEnabled)
             {
+                if (_scenePostProcessPass.Setup(cameraTargetDescriptor, _activeCameraColorAttachment))
+                    EnqueuePass(_scenePostProcessPass);
+
                 _colorGradingLutPass.Setup(_colorGradingLut);
                 EnqueuePass(_colorGradingLutPass);
             }

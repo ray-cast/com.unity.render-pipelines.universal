@@ -2,7 +2,7 @@
 
 namespace UnityEngine.Rendering.Universal
 {
-    public class ScreenSpaceShadowResolvePass : ScriptableRenderPass
+    public sealed class ScreenSpaceShadowResolvePass : ScriptableRenderPass
     {
         const string _profilerTag = "Resolve Shadows";
 
@@ -32,7 +32,7 @@ namespace UnityEngine.Rendering.Universal
             if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R8_UNorm, FormatUsage.Linear | FormatUsage.Render))
                 _renderTextureDescriptor.graphicsFormat = GraphicsFormat.R8_UNorm;
             else
-                _renderTextureDescriptor.graphicsFormat = GraphicsFormat.B8G8R8A8_UNorm;
+                _renderTextureDescriptor.graphicsFormat = GraphicsFormat.R8G8B8A8_UNorm;
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
@@ -67,14 +67,14 @@ namespace UnityEngine.Rendering.Universal
 				{
                     cmd.SetRenderTarget(_screenSpaceShadowmapTemp.Identifier(), _depthAttachmentHandle.Identifier());
                     cmd.ClearRenderTarget(false, true, Color.clear);
-                    cmd.SetGlobalTexture("_MainTex", _screenSpaceShadowmap.Identifier());
-                    cmd.SetGlobalVector("_Offset", new Vector2(1.5f / _renderTextureDescriptor.width, 0));
+                    cmd.SetGlobalTexture(ShaderConstants._MainTex, _screenSpaceShadowmap.Identifier());
+                    cmd.SetGlobalVector(ShaderConstants._Offset, new Vector2(1.5f / _renderTextureDescriptor.width, 0));
                     cmd.DrawProcedural(Matrix4x4.identity, _screenSpaceShadowsMaterial, 1, MeshTopology.Triangles, 3);
 
                     cmd.SetRenderTarget(_screenSpaceShadowmap.Identifier(), _depthAttachmentHandle.Identifier());
                     cmd.ClearRenderTarget(false, true, Color.clear);
-                    cmd.SetGlobalTexture("_MainTex", _screenSpaceShadowmapTemp.Identifier());
-                    cmd.SetGlobalVector("_Offset", new Vector2(0, 1.5f / _renderTextureDescriptor.height));
+                    cmd.SetGlobalTexture(ShaderConstants._MainTex, _screenSpaceShadowmapTemp.Identifier());
+                    cmd.SetGlobalVector(ShaderConstants._Offset, new Vector2(0, 1.5f / _renderTextureDescriptor.height));
                     cmd.DrawProcedural(Matrix4x4.identity, _screenSpaceShadowsMaterial, 1, MeshTopology.Triangles, 3);
                 }
 
@@ -87,6 +87,12 @@ namespace UnityEngine.Rendering.Universal
         {
             cmd.ReleaseTemporaryRT(_screenSpaceShadowmap.id);
             cmd.ReleaseTemporaryRT(_screenSpaceShadowmapTemp.id);
+        }
+
+        static class ShaderConstants
+        {
+            public static readonly int _MainTex = Shader.PropertyToID("_MainTex");
+            public static readonly int _Offset = Shader.PropertyToID("_Offset");
         }
     }
 }

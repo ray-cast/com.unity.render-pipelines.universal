@@ -11,6 +11,7 @@ namespace UnityEngine.Rendering.Universal
         {
             public static int _MainLightPosition;
             public static int _MainLightColor;
+            public static int _MainLightExposure;
 
             public static int _AdditionalLightsCount;
             public static int _AdditionalLightsPosition;
@@ -58,6 +59,7 @@ namespace UnityEngine.Rendering.Universal
 
             LightConstantBuffer._MainLightPosition = Shader.PropertyToID("_MainLightPosition");
             LightConstantBuffer._MainLightColor = Shader.PropertyToID("_MainLightColor");
+            LightConstantBuffer._MainLightExposure = Shader.PropertyToID("_MainLightExposure");
             LightConstantBuffer._AdditionalLightsCount = Shader.PropertyToID("_AdditionalLightsCount");
 
             if (_useStructuredBuffer)
@@ -198,8 +200,21 @@ namespace UnityEngine.Rendering.Universal
             Vector4 lightPos, lightColor, lightAttenuation, lightSpotDir, lightOcclusionChannel;
             InitializeLightConstants(lightData.visibleLights, lightData.mainLightIndex, out lightPos, out lightColor, out lightAttenuation, out lightSpotDir, out lightOcclusionChannel);
 
-            cmd.SetGlobalVector(LightConstantBuffer._MainLightPosition, lightPos);
-            cmd.SetGlobalVector(LightConstantBuffer._MainLightColor, lightColor);
+            var exposure = VolumeManager.instance.stack.GetComponent<Exposure>();
+            if (exposure.IsActive())
+			{
+                lightColor *= exposure.mainLighting.value;
+
+                cmd.SetGlobalVector(LightConstantBuffer._MainLightPosition, lightPos);
+                cmd.SetGlobalVector(LightConstantBuffer._MainLightColor, lightColor);
+                cmd.SetGlobalFloat(LightConstantBuffer._MainLightExposure, exposure.mainLighting.value);
+            }
+            else
+			{
+                cmd.SetGlobalVector(LightConstantBuffer._MainLightPosition, lightPos);
+                cmd.SetGlobalVector(LightConstantBuffer._MainLightColor, lightColor);
+                cmd.SetGlobalFloat(LightConstantBuffer._MainLightExposure, 1.0f);
+            }
         }
 
         void SetupAdditionalLightConstants(CommandBuffer cmd, ref RenderingData renderingData)

@@ -18,11 +18,14 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/Utils/CopyDepth.shader")]
             public Shader copyDepthPS;
 
+            [Reload("Shaders/Utils/CapsuleShadow.shader")]
+            public Shader capsuleShadowPS;
+
             [Reload("Shaders/Utils/ScreenSpaceShadows.shader")]
             public Shader screenSpaceShadowPS;
 
-            [Reload("Shaders/Utils/CapsuleShadow.shader")]
-            public Shader capsuleShadowPS;
+            [Reload("Shaders/Utils/ScreenSpaceOcclusion.shader")]
+            public Shader screenSpaceOcclusionPS;
 
             [Reload("Shaders/Utils/Sampling.shader")]
             public Shader samplingPS;

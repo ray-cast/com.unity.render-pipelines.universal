@@ -45,8 +45,7 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 
 			float4 screenPos = ComputeScreenPos(output.positionCS);
 			float4 clipPos = float4(screenPos.xy / screenPos.w * 2 - 1, 1, 1);
-			float4 clipVec = clipPos;
-			output.viewdir = mul(unity_CameraInvProjection, clipVec).xyz;
+			output.viewdir = mul(unity_CameraInvProjection, clipPos).xyz;
 
 			return output;
 		}
@@ -58,8 +57,11 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 			float deviceDepth = SampleSceneDepth(input.uv.xy);
 			float linearDepth = LinearEyeDepth(deviceDepth, _ZBufferParams);
 
-			float3 viewPos = input.viewdir * linearDepth;
-			float3 worldPos = mul(UNITY_MATRIX_I_V, float4(viewPos, 1)).xyz;
+		#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+			float3 worldPos = ComputeWorldSpacePosition(input.uv.xy, deviceDepth * 2 - 1, unity_MatrixInvVP);
+		#else
+			float3 worldPos = mul(UNITY_MATRIX_I_V, float4(input.viewdir * linearDepth, 1)).xyz;
+		#endif
 
 			float4 weights;
 			float4 anotherWeights;

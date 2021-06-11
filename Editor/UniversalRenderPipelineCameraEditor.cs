@@ -653,6 +653,10 @@ namespace UnityEngine.Rendering.Universal
                     DrawHeatMap();
                     DrawDrawCluster();
                 }
+                else
+				{
+                    DrawTransparentTexture();
+                }
 
                 settings.DrawCullingMask();
                 settings.DrawOcclusionCulling();

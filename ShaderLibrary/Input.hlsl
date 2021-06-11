@@ -37,6 +37,7 @@ float4 _ScaledScreenParams;
 
 float4 _MainLightPosition;
 half4 _MainLightColor;
+half _MainLightExposure;
 
 half4 _AdditionalLightsCount;
 

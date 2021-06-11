@@ -38,6 +38,9 @@ SAMPLER(sampler_AdditionalLightsShadowmapTexture);
 SCREENSPACE_TEXTURE(_ScreenSpaceOcclusionTexture);
 SAMPLER(sampler_ScreenSpaceOcclusionTexture);
 
+SCREENSPACE_TEXTURE(_CapsuleShadowTexture);
+SAMPLER(sampler_CapsuleShadowTexture);
+
 // GLES3 causes a performance regression in some devices when using CBUFFER.
 #ifndef SHADER_API_GLES3
 CBUFFER_START(MainLightShadows)
@@ -171,6 +174,20 @@ half SampleScreenSpaceOcclusionMap(float2 shadowCoord)
     return attenuation;
 }
 
+half SampleCapsuleShadowMap(float2 shadowCoord)
+{
+    // The stereo transform has to happen after the manual perspective divide
+    shadowCoord.xy = UnityStereoTransformScreenSpaceTex(shadowCoord.xy);
+
+#if defined(UNITY_STEREO_INSTANCING_ENABLED) || defined(UNITY_STEREO_MULTIVIEW_ENABLED)
+    half attenuation = SAMPLE_TEXTURE2D_ARRAY(_CapsuleShadowTexture, sampler_CapsuleShadowTexture, shadowCoord.xy, unity_StereoEyeIndex).x;
+#else
+    half attenuation = SAMPLE_TEXTURE2D(_CapsuleShadowTexture, sampler_CapsuleShadowTexture, shadowCoord.xy).x;
+#endif
+
+    return attenuation;
+}
+
 real SampleShadowmapFiltered(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData)
 {
     real attenuation;
@@ -189,6 +206,17 @@ real SampleShadowmapFiltered(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), floa
 
     SampleShadow_ComputeSamples_Tent_5x5(samplingData.shadowmapSize, blurSize, shadowCoord.xy, fetchesWeights, fetchesUV);
 
+#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
+    attenuation = fetchesWeights[0] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[0].xy).x > shadowCoord.z);
+    attenuation += fetchesWeights[1] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[1].xy).x > shadowCoord.z);
+    attenuation += fetchesWeights[2] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[2].xy).x > shadowCoord.z);
+    attenuation += fetchesWeights[3] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[3].xy).x > shadowCoord.z);
+    attenuation += fetchesWeights[4] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[4].xy).x > shadowCoord.z);
+    attenuation += fetchesWeights[5] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[5].xy).x > shadowCoord.z);
+    attenuation += fetchesWeights[6] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[6].xy).x > shadowCoord.z);
+    attenuation += fetchesWeights[7] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[7].xy).x > shadowCoord.z);
+    attenuation += fetchesWeights[8] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[8].xy).x > shadowCoord.z);
+#else
     attenuation = fetchesWeights[0] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[0].xy).x < shadowCoord.z);
     attenuation += fetchesWeights[1] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[1].xy).x < shadowCoord.z);
     attenuation += fetchesWeights[2] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[2].xy).x < shadowCoord.z);
@@ -198,6 +226,7 @@ real SampleShadowmapFiltered(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), floa
     attenuation += fetchesWeights[6] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[6].xy).x < shadowCoord.z);
     attenuation += fetchesWeights[7] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[7].xy).x < shadowCoord.z);
     attenuation += fetchesWeights[8] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[8].xy).x < shadowCoord.z);
+#endif
 
     return attenuation;
 }

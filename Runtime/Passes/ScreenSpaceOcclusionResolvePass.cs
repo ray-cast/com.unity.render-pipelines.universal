@@ -2,24 +2,25 @@
 
 namespace UnityEngine.Rendering.Universal
 {
-	public class ScreenSpaceOcclusionResolvePass : ScriptableRenderPass
+	public sealed class ScreenSpaceOcclusionResolvePass : ScriptableRenderPass
     {
-        Material _screenSpaceOcclusionMaterial;
+        private Material _screenSpaceOcclusionMaterial;
 
-        RenderTargetHandle _screenSpaceOcclusionMap;
-        RenderTextureDescriptor _renderTextureDescriptor;
-        RenderTargetHandle _depthAttachmentHandle { get; set; }
+        private RenderTargetHandle _screenSpaceOcclusionMap;
+        private RenderTargetHandle _screenSpaceOcclusionTempMap;
 
-        private CapsuleShadow _capsuleShadow;
-        private Vector4[] _additionalOccluderPositions;
+        private RenderTextureDescriptor _renderTextureDescriptor;
+        private RenderTargetHandle _depthAttachmentHandle { get; set; }
 
-        public ScreenSpaceOcclusionResolvePass(RenderPassEvent evt, Material screenspaceOcclusionMaterial)
+        private ScreenSpaceAmbientOcclusion _ambientOcclusion;
+
+        public ScreenSpaceOcclusionResolvePass(RenderPassEvent evt, Material capsuleOcclusionMaterial)
         {
             renderPassEvent = evt;
 
-            _screenSpaceOcclusionMaterial = screenspaceOcclusionMaterial;
+            _screenSpaceOcclusionMaterial = capsuleOcclusionMaterial;
             _screenSpaceOcclusionMap.Init("_ScreenSpaceOcclusionTexture");
-            _additionalOccluderPositions = new Vector4[UniversalRenderPipeline.maxVisibleAdditionalLights];
+            _screenSpaceOcclusionTempMap.Init("_ScreenSpaceOcclusionTempTexture");
         }
 
         public bool Setup(RenderTextureDescriptor baseDescriptor, RenderTargetHandle depthAttachmentHandle)
@@ -34,8 +35,8 @@ namespace UnityEngine.Rendering.Universal
 
             VolumeStack stack = VolumeManager.instance.stack;
 
-            _capsuleShadow = stack.GetComponent<CapsuleShadow>();
-            if (_capsuleShadow.IsActive())
+            _ambientOcclusion = stack.GetComponent<ScreenSpaceAmbientOcclusion>();
+            if (_ambientOcclusion.IsActive())
 			{
                 _depthAttachmentHandle = depthAttachmentHandle;
 
@@ -43,7 +44,7 @@ namespace UnityEngine.Rendering.Universal
                 _renderTextureDescriptor.depthBufferBits = 0;
                 _renderTextureDescriptor.msaaSamples = 1;
 
-                if (!_capsuleShadow.shouledFullRes)
+                if (!_ambientOcclusion.shouledFullRes)
 				{
                     _renderTextureDescriptor.width = _renderTextureDescriptor.width >> 1;
                     _renderTextureDescriptor.height = _renderTextureDescriptor.height >> 1;
@@ -52,13 +53,13 @@ namespace UnityEngine.Rendering.Universal
                 if (RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R8_UNorm, FormatUsage.Linear | FormatUsage.Render))
                     _renderTextureDescriptor.graphicsFormat = GraphicsFormat.R8_UNorm;
                 else
-                    _renderTextureDescriptor.graphicsFormat = GraphicsFormat.B8G8R8A8_UNorm;
+                    _renderTextureDescriptor.graphicsFormat = GraphicsFormat.R8G8B8A8_UNorm;
 
                 return true;
             }
             else
 			{
-                Shader.DisableKeyword(ShaderConstants._CapsuleShadow);
+                Shader.DisableKeyword(ShaderConstants._EnvironmentOcclusion);
                 return false;
 			}
         }
@@ -66,50 +67,36 @@ namespace UnityEngine.Rendering.Universal
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
             cmd.GetTemporaryRT(_screenSpaceOcclusionMap.id, _renderTextureDescriptor, FilterMode.Point);
+            cmd.GetTemporaryRT(_screenSpaceOcclusionTempMap.id, _renderTextureDescriptor, FilterMode.Point);
 
-            ConfigureTarget(_screenSpaceOcclusionMap.Identifier(), _capsuleShadow.shouledFullRes ? _depthAttachmentHandle.Identifier() : _screenSpaceOcclusionMap.Identifier());
+            ConfigureTarget(_screenSpaceOcclusionMap.Identifier(), _ambientOcclusion.shouledFullRes ? _depthAttachmentHandle.Identifier() : _screenSpaceOcclusionMap.Identifier());
             ConfigureClear(ClearFlag.Color, Color.clear);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
+            CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._ProfilerTag);
 
-            var occluderCount = CapsuleOccluderManager.instance.occluders.Count;
-            if (occluderCount > 0)
-            {
-                for (int i = 0; i < occluderCount; i++)
-                {
-                    var occluder = CapsuleOccluderManager.instance.occluders[i];
-                    var pointOffset = (occluder.height - (occluder.radius * 2)) / 2;
-                    var localToWorldMatrix = Matrix4x4.TRS(occluder.transform.position, occluder.transform.rotation, occluder.transform.lossyScale);
+            var radius = _ambientOcclusion.shouledFullRes ? _ambientOcclusion.radius.value : _ambientOcclusion.radius.value * 0.5f;
 
-                    var axis = Vector3.up;
+            cmd.EnableShaderKeyword(ShaderConstants._EnvironmentOcclusion);
+            cmd.SetGlobalVector(ShaderConstants._SSDO_SampleParams, new Vector4(_renderTextureDescriptor.width, _renderTextureDescriptor.height, radius, _ambientOcclusion.strength.value));
+            cmd.DrawProcedural(Matrix4x4.identity, _screenSpaceOcclusionMaterial, 0, MeshTopology.Triangles, 3);
 
-                    if (occluder.axis == CapsuleOccluder.Axis.X)
-                        axis = Vector3.right;
-                    else if (occluder.axis == CapsuleOccluder.Axis.Z)
-                        axis = Vector3.forward;
-
-                    var up = localToWorldMatrix.MultiplyPoint(occluder.center + axis * pointOffset);
-                    var down = localToWorldMatrix.MultiplyPoint(occluder.center + -axis * pointOffset);
-
-                    _additionalOccluderPositions[i * 2].Set(up.x, up.y, up.z, occluder.radius * 2);
-                    _additionalOccluderPositions[i * 2 + 1].Set(down.x, down.y, down.z, occluder.radius * 2);
-                }
-
-                cmd.EnableShaderKeyword(ShaderConstants._CapsuleShadow);
-
-                cmd.SetGlobalFloat(ShaderConstants._AdditionalOccludersCount, occluderCount);
-                cmd.SetGlobalVector(ShaderConstants._LightParams, Vector4.zero);
-                cmd.SetGlobalVector(ShaderConstants._ConeParams, new Vector4(_capsuleShadow.angle.value * Mathf.Deg2Rad, _capsuleShadow.strength.value, 0f, 0f));
-                cmd.SetGlobalVectorArray(ShaderConstants._AdditionalOccluderPosition, _additionalOccluderPositions);
-
-                cmd.DrawProcedural(Matrix4x4.identity, _screenSpaceOcclusionMaterial, 0, MeshTopology.Triangles, 3);
-            }
-            else
+            var sharpness = _ambientOcclusion.sharpness.value;
+            if (sharpness > 0.0f)
 			{
-                cmd.DisableShaderKeyword(ShaderConstants._CapsuleShadow);
+                cmd.SetRenderTarget(_screenSpaceOcclusionTempMap.Identifier());
+                cmd.ClearRenderTarget(false, true, Color.clear);
+                cmd.SetGlobalTexture(ShaderConstants._SSDO_Texture, _screenSpaceOcclusionMap.Identifier());
+                cmd.SetGlobalVector(ShaderConstants._SSDO_BlurParams, new Vector4(1.0f / _renderTextureDescriptor.width, 0, _ambientOcclusion.sharpness.value, 0));
+                cmd.DrawProcedural(Matrix4x4.identity, _screenSpaceOcclusionMaterial, 1, MeshTopology.Triangles, 3);
+
+                cmd.SetRenderTarget(_screenSpaceOcclusionMap.Identifier());
+                cmd.ClearRenderTarget(false, true, Color.clear);
+                cmd.SetGlobalTexture(ShaderConstants._SSDO_Texture, _screenSpaceOcclusionTempMap.Identifier());
+                cmd.SetGlobalVector(ShaderConstants._SSDO_BlurParams, new Vector4(0, 1.0f / _renderTextureDescriptor.height, _ambientOcclusion.sharpness.value, 0));
+                cmd.DrawProcedural(Matrix4x4.identity, _screenSpaceOcclusionMaterial, 1, MeshTopology.Triangles, 3);
             }
 
             context.ExecuteCommandBuffer(cmd);
@@ -119,16 +106,18 @@ namespace UnityEngine.Rendering.Universal
         public override void FrameCleanup(CommandBuffer cmd)
         {
             cmd.ReleaseTemporaryRT(_screenSpaceOcclusionMap.id);
+            cmd.ReleaseTemporaryRT(_screenSpaceOcclusionTempMap.id);
         }
 
         static class ShaderConstants
         {
-            public const string _profilerTag = "Resolve Occlusion";
-            public const string _CapsuleShadow = "_CAPSULE_SHADOWS";
+            public const string _ProfilerTag = "Resolve Occlusion";
+            public const string _EnvironmentOcclusion = "_ENVIRONMENT_OCCLUSION";
 
-            public static readonly int _LightParams = Shader.PropertyToID("_LightParams");
-            public static readonly int _ConeParams = Shader.PropertyToID("_ConeParams");
-
+            public static readonly int _SSDO_Texture = Shader.PropertyToID("_MainTex");
+            public static readonly int _SSDO_BlurParams = Shader.PropertyToID("_SSDO_BlurParams");
+            public static readonly int _SSDO_SampleParams = Shader.PropertyToID("_SSDO_SampleParams");
+            
             public static readonly int _AdditionalOccludersCount = Shader.PropertyToID("_AdditionalOccludersCount");
             public static readonly int _AdditionalOccluderPosition = Shader.PropertyToID("_AdditionalOccluderPosition");
         }

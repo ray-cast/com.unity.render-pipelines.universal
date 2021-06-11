@@ -64,11 +64,14 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, unity_MatrixInvVP);
 #endif
 
-#ifdef _CAPSULE_SHADOWS
-			return float4(surface.emission * SampleScreenSpaceOcclusionMap(input.uv.xy), 1);
-#else
-			return float4(surface.emission, 1);
+#ifdef _ENVIRONMENT_OCCLUSION
+			surface.emission *= GTAOMultiBounce(SampleScreenSpaceOcclusionMap(input.uv.xy), surface.albedo);
 #endif
+#ifdef _CAPSULE_SHADOWS
+			surface.emission *= SampleCapsuleShadowMap(input.uv.xy);
+#endif
+
+			return float4(surface.emission, 1);
 		}
 
 		float4 MainLightingFragment(Varyings input) : SV_Target
@@ -94,7 +97,12 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 
 			float3 lighting = surface.emission;
 #ifdef _CAPSULE_SHADOWS
-			lighting *= SampleScreenSpaceOcclusionMap(input.uv.xy);
+			lighting *= SampleCapsuleShadowMap(input.uv.xy);
+#endif
+#ifdef _ENVIRONMENT_OCCLUSION
+			float occlusion = SampleScreenSpaceOcclusionMap(input.uv.xy);
+			lighting *= GTAOMultiBounce(occlusion, surface.albedo);
+			mainLight.shadowAttenuation *= ComputeMicroShadowing(occlusion, abs(dot(mainLight.direction, n)), 0.5);
 #endif
 			lighting += LightingWrappedPhysicallyBased(brdfData, mainLight, n, v, surface.translucency);
 
@@ -143,6 +151,9 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 
 				#pragma vertex TiledLightingVertex
 				#pragma fragment EmissionLightingFragment
+
+				#pragma multi_compile _ _CAPSULE_SHADOWS
+				#pragma multi_compile _ _ENVIRONMENT_OCCLUSION
 			ENDHLSL
 		}
 		Pass
@@ -162,6 +173,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 				#pragma fragment MainLightingFragment
 
 				#pragma multi_compile _ _CAPSULE_SHADOWS
+				#pragma multi_compile _ _ENVIRONMENT_OCCLUSION
 				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
 			ENDHLSL
 		}

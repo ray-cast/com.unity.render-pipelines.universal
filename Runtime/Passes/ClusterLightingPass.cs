@@ -31,11 +31,7 @@ namespace UnityEngine.Rendering.Universal
 
             cmd.Clear();
             cmd.ClearRenderTarget(false, true, Color.clear);
-
-            if (renderingData.lightData.mainLightIndex >= 0)
-                cmd.DrawProcedural(Matrix4x4.identity, _lightingMaterial, 0, MeshTopology.Triangles, 3);
-            else
-                cmd.DrawProcedural(Matrix4x4.identity, _lightingMaterial, 1, MeshTopology.Triangles, 3);
+            cmd.DrawProcedural(Matrix4x4.identity, _lightingMaterial, renderingData.lightData.mainLightIndex >= 0 ? 0 : 1, MeshTopology.Triangles, 3);
 
             context.ExecuteCommandBuffer(cmd);
 

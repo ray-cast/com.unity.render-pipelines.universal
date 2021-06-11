@@ -748,7 +748,6 @@ namespace UnityEngine.Rendering.Universal
             {
                 cameraData.requiresDepthTexture = false;
                 cameraData.requiresOpaqueTexture = false;
-                cameraData.requiresTransparentTexture = false;
                 cameraData.deferredLightingMode = DeferredRenderingMode.Disabled;
             }
 

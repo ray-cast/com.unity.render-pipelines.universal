@@ -54,7 +54,12 @@
 
 			float3 lighting = surface.emission;
 #ifdef _CAPSULE_SHADOWS
-			lighting *= SampleScreenSpaceOcclusionMap(input.uv.xy);
+			lighting *= SampleCapsuleShadowMap(input.uv.xy);
+#endif
+#ifdef _ENVIRONMENT_OCCLUSION
+			float occlusion = SampleScreenSpaceOcclusionMap(input.uv.xy);
+			lighting *= GTAOMultiBounce(occlusion, surface.albedo);
+			mainLight.shadowAttenuation *= ComputeMicroShadowing(occlusion, abs(dot(mainLight.direction, n)), 0.5);
 #endif
 			lighting += LightingWrappedPhysicallyBased(brdfData, mainLight, n, v, surface.translucency);
 
@@ -90,7 +95,10 @@
 
 			float3 lighting = surface.emission;
 #ifdef _CAPSULE_SHADOWS
-			lighting *= SampleScreenSpaceOcclusionMap(input.uv.xy);
+			lighting *= SampleCapsuleShadowMap(input.uv.xy);
+#endif
+#ifdef _ENVIRONMENT_OCCLUSION
+			lighting *= GTAOMultiBounce(SampleScreenSpaceOcclusionMap(input.uv.xy), surface.albedo);
 #endif
 			uint2 cullingLightIndex = GetCullingLightIndex(ComputeClusterClipSpacePosition(input.uv.xy), linearDepth);
 
@@ -123,6 +131,7 @@
 				#pragma fragment ClusterLightingFragment
 
 				#pragma multi_compile _ _CAPSULE_SHADOWS
+				#pragma multi_compile _ _ENVIRONMENT_OCCLUSION
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 				#pragma multi_compile _ _SHADOWS_SOFT
@@ -141,6 +150,7 @@
 				#pragma fragment ClusterAdditionalLightingFragment
 
 				#pragma multi_compile _ _CAPSULE_SHADOWS
+				#pragma multi_compile _ _ENVIRONMENT_OCCLUSION
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 				#pragma multi_compile _ _SHADOWS_SOFT
