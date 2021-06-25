@@ -60,6 +60,18 @@ namespace UnityEngine.Rendering.Universal
 
             [Reload("Shaders/Environment/HeightFog.shader")]
             public Shader heightFogPS;
+
+            [Reload("Shaders/Sky/HDRiSky.shader")]
+            public Shader hdriSkyPS;
+
+            [Reload("Shaders/Sky/GradientSky.shader")]
+            public Shader gradientSkyPS;
+
+            [Reload("Shaders/Sky/ImageBasedLighting.shader")]
+            public Shader imageBasedLightingPS;
+
+            [Reload("Skybox/Cubemap", ReloadAttribute.Package.Builtin)]
+            public Shader skyboxCubemapPS;
         }
 
         [Reload("Runtime/Data/PostProcessData.asset")]

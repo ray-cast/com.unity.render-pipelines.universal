@@ -1,12 +1,5 @@
 ﻿Shader "Hidden/Universal Render Pipeline/Fog/MipFog"
 {
-	Properties
-	{
-		_MipFogMap("Texture", 2D) = "white" {}
-		_MipFogParams("MipFogParams", Vector) = (1, 1, 1, 0)
-		_MipFogFactorParams("MipFogFactorParams", Vector) = (0, 0, 0, 0)
-	}
-
 	HLSLINCLUDE
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
@@ -19,8 +12,9 @@
 		};
 
 #if	_MIPFOG_MAP
-		TEXTURE2D(_MipFogMap);
-		SAMPLER(sampler_MipFogMap);
+		float4 _SkyMipParams;
+		TEXTURE2D(_SkyMipTexture);
+		SAMPLER(sampler_SkyMipTexture);
 #endif
 
 		half4 _MipFogParams;
@@ -91,15 +85,15 @@
 			return o;
 		}
 
-		float4 MipFogFragment(Varyings i) : SV_Target
+		float4 MipFogFragment(Varyings input) : SV_Target
 		{		
-			float deviceDepth = SampleSceneDepth(i.uv);
+			float deviceDepth = SampleSceneDepth(input.uv);
 			float linearDepth = LinearEyeDepth(deviceDepth, _ZBufferParams);
 
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
 			deviceDepth = deviceDepth * 2 - 1;
 #endif
-			float3 worldPosition = ComputeWorldSpacePosition(i.uv, deviceDepth, unity_MatrixInvVP);
+			float3 worldPosition = ComputeWorldSpacePosition(input.uv, deviceDepth, unity_MatrixInvVP);
 
 			real fogFactor = ComputeMipFogFactor(linearDepth);
 			real fogIntensity = ComputeMipFogIntensity(fogFactor);
@@ -112,11 +106,13 @@
 
 			real3 mipFogColor = _MipFogParams.xyz;
 
-#	if _MIPFOG_MAP
-			real3 normal = rotate(normalize(worldPosition), _MipFogParams.w);
+#if defined(_MIPFOG_MAP)
+			real3 normal = rotate(normalize(worldPosition), _SkyMipParams.w);
 			real mipLevel = (1 - saturate((linearDepth - _ProjectionParams.y) / (_ProjectionParams.z - _ProjectionParams.y))) * 6;
-			mipFogColor *= pow(SAMPLE_TEXTURE2D_LOD(_MipFogMap, sampler_MipFogMap, SampleLatlong(normal), mipLevel).xyz, 1.0h / 2.2h);
-#	endif
+			mipFogColor *= _SkyMipParams.xyz;
+			mipFogColor *= SAMPLE_TEXTURE2D_LOD(_SkyMipTexture, sampler_SkyMipTexture, SampleLatlong(normal), mipLevel).xyz;
+			mipFogColor += lerp(-0.5, 0.5, InterleavedGradientNoise(input.vertex.xy, _Frame.x)) / 255.f;
+#endif
 
 			return float4(mipFogColor, mipFogFactor);
 		}

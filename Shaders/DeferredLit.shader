@@ -15,7 +15,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
         [ToggleOff(_STIPPLETEST_VIEW_OFF)] _ViewStippleCutoff("相机范围剔除", Float) = 1.0
         _CameraRangeCutoff("相机剔除范围", Range(0.01, 10.0)) = 1
         [ToggleOff(_STIPPLETEST_TARGET_OFF)] _TargetStippleCutoff("目标范围剔除", Float) = 1.0
-        _TargetRangeCutoff("目标剔除范围", Range(0.01, 10.0)) = 1
+        _TargetRangeCutoff("目标剔除范围", Range(0.01, 10.0)) = 2
         _TargetPosition("目标世界位置", Vector) = (0, 0, 0)
 
         [Space(20)]
@@ -61,6 +61,10 @@ Shader "Universal Render Pipeline/Deferred Lit"
 
         [Space(20)]
         [Toggle]_DepthPrepass("深度预渲染", Float) = 0
+
+        [Space(20)]
+        [ToggleOff(_SPECULARHIGHLIGHTS_OFF)] _SpecularHighlights("启用高光反射", Float) = 1.0
+        [ToggleOff(_ENVIRONMENTREFLECTIONS_OFF)] _EnvironmentReflections("启用环境反射", Float) = 1.0
 
         [HideInInspector] [ToggleOff]_ReceiveShadows("接收阴影", Float) = 1.0
 

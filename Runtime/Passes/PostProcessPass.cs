@@ -939,6 +939,7 @@ namespace UnityEngine.Rendering.Universal
                 uberMaterial.EnableKeyword(dirtIntensity > 0f ? ShaderKeywordStrings.BloomLQDirt : ShaderKeywordStrings.BloomLQ);
 
             CoreUtils.SetKeyword(uberMaterial, ShaderKeywordStrings.BloomGlow, m_Bloom.glowFiltering.value);
+            CoreUtils.SetKeyword(uberMaterial, ShaderKeywordStrings.BloomTonemapping, m_Bloom.tonemapping.value);
         }
 
         #endregion
@@ -1071,6 +1072,7 @@ namespace UnityEngine.Rendering.Universal
                 uberMaterial.EnableKeyword(dirtIntensity > 0f ? ShaderKeywordStrings.BloomLQDirt : ShaderKeywordStrings.BloomLQ);
 
             CoreUtils.SetKeyword(uberMaterial, ShaderKeywordStrings.BloomGlow, m_Bloom.glowFiltering.value);
+            CoreUtils.SetKeyword(uberMaterial, ShaderKeywordStrings.BloomTonemapping, m_Bloom.tonemapping.value);
         }
 
         #endregion
@@ -1176,6 +1178,7 @@ namespace UnityEngine.Rendering.Universal
                 {
                     case TonemappingMode.Neutral: material.EnableKeyword(ShaderKeywordStrings.TonemapNeutral); break;
                     case TonemappingMode.ACES: material.EnableKeyword(ShaderKeywordStrings.TonemapACES); break;
+                    case TonemappingMode.GranTurismo: material.EnableKeyword(ShaderKeywordStrings.TonemapGranTurismo); break;
                     default: break; // None
                 }
             }

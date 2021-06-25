@@ -10,6 +10,7 @@
 		_Cutoff("透明剔除", Range(0.0, 1.0)) = 0.5
 
         [Space(20)]
+        [ToggleOff(_VERTEX_NORMAL_OFF)]_UseVertexNormalOff("启用顶点法线", int) = 1
         [TexToggle(_NORMALMAP)][NoScaleOffset]_BumpMap("法线贴图", 2D) = "bump" {}
         _BumpScale("法线强度", Range(-10, 10)) = 1.0
 
@@ -145,11 +146,15 @@
             half4 albedo = float4(_MainColor.rgb, 1);
         #endif
     
-        #ifdef _NORMALMAP
+        #if defined(_NORMALMAP) && !defined(_VERTEX_NORMAL_OFF)
             float3 normalTS = SampleNormal(input.uv, TEXTURE2D_ARGS(_BumpMap, sampler_BumpMap), _BumpScale);
             float sgn = input.tangentWS.w;      // should be either +1 or -1
             float3 bitangent = sgn * cross(input.normalWS.xyz, input.tangentWS.xyz);
             input.normalWS = TransformTangentToWorld(normalTS, half3x3(input.tangentWS.xyz, bitangent.xyz, input.normalWS.xyz));
+        #endif
+
+        #if defined(_VERTEX_NORMAL_OFF)
+            input.normalWS = float3(0, 1, 0);
         #endif
 
             GbufferData data = (GbufferData)0;
@@ -227,7 +232,9 @@
 
                 #pragma shader_feature _ALPHATEST_ON
                 #pragma shader_feature _NORMALMAP
+
                 #pragma shader_feature_local _ALBEDOMAP
+                #pragma shader_feature_local _VERTEX_NORMAL_OFF
 
                 #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
                 #pragma instancing_options procedural:SetupInstancing

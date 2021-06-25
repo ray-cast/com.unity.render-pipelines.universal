@@ -13,6 +13,7 @@ struct TerrainPatch
 struct TerrainPositionInputs
 {
 	float2 texcoord;
+    float3 positionOS; // Object space position
     float3 positionWS; // World space position
     float3 positionVS; // View space position
     float4 positionCS; // Homogeneous clip space position
@@ -33,10 +34,16 @@ StructuredBuffer<uint> _VisibleInstancesIndexBuffer;
 StructuredBuffer<uint> _VisibleShadowIndexBuffer;
 
 void SetupTerrainInstancing()
-{	
+{
 }
 
 #ifdef PROCEDURAL_INSTANCING_ON
+
+float2 TransformObjectToTexcoord(float3 positionOS)
+{
+    float2 pixelCoord = positionOS.xz / _TerrainSize.xz * (_TerrainHeightMap_TexelSize.zw - 1);
+    return pixelCoord * _TerrainHeightMap_TexelSize.xy;
+}
 
 TerrainPositionInputs GetTerrainPositionInputs(float3 positionOS, float4 color)
 {
@@ -64,16 +71,17 @@ TerrainPositionInputs GetTerrainPositionInputs(float3 positionOS, float4 color)
     }
 
     float2 position2D = rect.xy + rect.zw * (positionOS.xz + diff) * 0.25;
-    int2 pixelCoord = saturate(position2D / _TerrainSize.xz) * (_TerrainHeightMap_TexelSize.zw - 1);
+    float2 pixelCoord = position2D / _TerrainSize.xz * (_TerrainHeightMap_TexelSize.zw - 1);
 
     positionOS = position2D.xyy;
-    positionOS.y = UnpackHeightmap(_TerrainHeightMap.Load(int3(pixelCoord, 0)).r) * _TerrainSize.y * 2;
+    positionOS.y = UnpackHeightmap(LOAD_TEXTURE2D(_TerrainHeightMap, pixelCoord).r) * _TerrainSize.y * 2;
 
     UNITY_MATRIX_M = _PivotMatrixWS;
 
     TerrainPositionInputs input;
     input.texcoord = pixelCoord * _TerrainHeightMap_TexelSize.xy;
 
+    input.positionOS = positionOS;
     input.positionWS = TransformObjectToWorld(positionOS);
     input.positionVS = TransformWorldToView(input.positionWS);
     input.positionCS = TransformWorldToHClip(input.positionWS);
@@ -95,13 +103,14 @@ TerrainPositionInputs GetTerrainShadowPositionInputs(float3 positionOS)
     int2 pixelCoord = saturate(position2D / _TerrainSize.xz) * (_TerrainHeightMap_TexelSize.zw - 1);
 
     positionOS = position2D.xyy;
-    positionOS.y = UnpackHeightmap(_TerrainHeightMap.Load(int3(pixelCoord, 0)).r) * _TerrainSize.y * 2;
+    positionOS.y = UnpackHeightmap(LOAD_TEXTURE2D(_TerrainHeightMap, pixelCoord).r) * _TerrainSize.y * 2;
 
     UNITY_MATRIX_M = _PivotMatrixWS;
 
     TerrainPositionInputs input;
     input.texcoord = pixelCoord * _TerrainHeightMap_TexelSize.xy;
 
+    input.positionOS = positionOS;
     input.positionWS = TransformObjectToWorld(positionOS);
     input.positionVS = TransformWorldToView(input.positionWS);
     input.positionCS = TransformWorldToHClip(input.positionWS);

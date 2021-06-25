@@ -31,7 +31,7 @@
         DrawObjectsPass _renderTransparentForwardPass;
         InvokeOnRenderObjectCallbackPass _onRenderObjectCallbackPass;
         ColorGradingLutPass _colorGradingLutPass;
-        ScenePostProcess _scenePostProcessPass;
+        VignetteLookupEffect _scenePostProcessPass;
         PostProcessPass _postProcessPass;
         PostProcessPass _finalPostProcessPass;
         CapturePass _capturePass;
@@ -77,6 +77,7 @@
 
         public ClusterBasedDeferredRenderer(ClusterBasedDeferredRendererData data) : base(data)
         {
+
             _blitMaterial = CoreUtils.CreateEngineMaterial(data.shaders.blitPS);
             _copyDepthMaterial = CoreUtils.CreateEngineMaterial(data.shaders.copyDepthPS);
             _samplingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.samplingPS);
@@ -116,9 +117,9 @@
             _copyGbufferDepthPass = new CopyDepthPass(RenderPassEvent.BeforeRenderingOpaques, _copyDepthMaterial);
             _deferredLightingPass = new DrawLightsPass(RenderPassEvent.BeforeRenderingOpaques, _lightingMaterial);
             _renderOpaqueForwardPass = new DrawObjectsPass("Render Opaques", true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
-            _drawSkyboxPass = new DrawSkyboxPass(RenderPassEvent.BeforeRenderingSkybox);
-            _copyDepthPass = new CopyDepthPass(RenderPassEvent.BeforeRenderingSkybox, _copyDepthMaterial);
-            _hizPass = new HizPass(RenderPassEvent.BeforeRenderingSkybox, data.shaders.HizCS);
+            _drawSkyboxPass = new DrawSkyboxPass(RenderPassEvent.BeforeRenderingOpaques, data.shaders);
+            _copyDepthPass = new CopyDepthPass(RenderPassEvent.AfterRenderingOpaques, _copyDepthMaterial);
+            _hizPass = new HizPass(RenderPassEvent.AfterRenderingOpaques, data.shaders.HizCS);
             _copyOpaqueColorPass = new CopyColorPass(RenderPassEvent.AfterRenderingSkybox, _samplingMaterial);
             _copyTransparentColorPass = new CopyColorPass(RenderPassEvent.BeforeRenderingTransparents, _samplingMaterial);
             _transparentSettingsPass = new TransparentSettingsPass(RenderPassEvent.BeforeRenderingTransparents, data.shadowTransparentReceive);
@@ -126,7 +127,7 @@
             _renderTransparentForwardPass = new DrawObjectsPass("Render Transparents", false, RenderPassEvent.BeforeRenderingTransparents, RenderQueueRange.transparent, data.transparentLayerMask, _defaultStencilState, stencilData.stencilReference);
             _onRenderObjectCallbackPass = new InvokeOnRenderObjectCallbackPass(RenderPassEvent.BeforeRenderingPostProcessing);
             _colorGradingLutPass = new ColorGradingLutPass(RenderPassEvent.BeforeRenderingPrepasses, data.postProcessData);
-            _scenePostProcessPass = new ScenePostProcess(RenderPassEvent.BeforeRenderingOpaques, data.postProcessData);
+            _scenePostProcessPass = new VignetteLookupEffect(RenderPassEvent.BeforeRenderingOpaques, data.postProcessData);
             _postProcessPass = new PostProcessPass(RenderPassEvent.BeforeRenderingPostProcessing, data.postProcessData, _blitMaterial);
             _finalPostProcessPass = new PostProcessPass(RenderPassEvent.AfterRendering + 1, data.postProcessData, _blitMaterial);
             _capturePass = new CapturePass(RenderPassEvent.AfterRendering);
@@ -165,6 +166,8 @@
             {
                 cameraStacking = true,
             };
+
+            SkyManager.instance.Build(data.shaders);
         }
 
         protected override void Dispose(bool disposing)
@@ -349,6 +352,13 @@
                     activeRenderPassQueue.RemoveAt(i);
             }
 
+            bool isOverlayCamera = cameraData.renderType == CameraRenderType.Overlay;
+            if (camera.clearFlags == CameraClearFlags.Skybox && !isOverlayCamera)
+			{
+                _drawSkyboxPass.Setup(_activeCameraColorAttachment, _activeCameraDepthAttachment);
+                EnqueuePass(_drawSkyboxPass);
+            }
+
             if (cameraData.postProcessEnabled)
             {
                 if (_scenePostProcessPass.Setup(cameraTargetDescriptor, _activeCameraColorAttachment))
@@ -360,10 +370,6 @@
 
             if (requiresForwardPrepass)
                 EnqueuePass(_renderOpaqueForwardPass);
-
-            bool isOverlayCamera = cameraData.renderType == CameraRenderType.Overlay;
-            if (camera.clearFlags == CameraClearFlags.Skybox && !isOverlayCamera)
-                EnqueuePass(_drawSkyboxPass);
 
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             if (SystemInfo.supportsGeometryShaders && _supportsClusterLighting && cameraData.requireDrawCluster && _clusterSettingPass.clusterData.clusterDimXYZ > 0)
@@ -406,7 +412,7 @@
             _renderTransparentDepthPass.Setup(_activeCameraDepthAttachment);
             EnqueuePass(_renderTransparentDepthPass);
 
-            _renderTransparentForwardPass.ConfigureTarget(this._activeCameraColorAttachment.Identifier(), this._activeCameraDepthAttachment.Identifier());
+            _renderTransparentForwardPass.ConfigureTarget(_activeCameraColorAttachment.Identifier(), _activeCameraDepthAttachment.Identifier());
             EnqueuePass(_renderTransparentForwardPass);
 
             if (renderingData.cameraData.requiresTransparentTexture)

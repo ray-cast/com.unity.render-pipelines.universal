@@ -6,7 +6,8 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #pragma multi_compile_local _ _CHROMATIC_ABERRATION
         #pragma multi_compile_local _ _BLOOM_LQ _BLOOM_HQ _BLOOM_LQ_DIRT _BLOOM_HQ_DIRT
         #pragma multi_compile_local _ _BLOOM_GLOW
-        #pragma multi_compile_local _ _HDR_GRADING _TONEMAP_ACES _TONEMAP_NEUTRAL
+        #pragma multi_compile_local _ _BLOOM_TONEMAPPING
+        #pragma multi_compile_local _ _HDR_GRADING _TONEMAP_ACES _TONEMAP_NEUTRAL _TONEMAP_GRAN_TURISMO
         #pragma multi_compile_local _ _FILM_GRAIN
         #pragma multi_compile_local _ _DITHERING
 		#pragma multi_compile_local _ _LINEAR_TO_SRGB_CONVERSION
@@ -124,6 +125,42 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             return output;
         }
 
+        half4 SampleBloom(float2 uv)
+        {
+            half4 bloom = SAMPLE_TEXTURE2D_X(_Bloom_Texture, sampler_LinearClamp, uv);
+
+            #if UNITY_COLORSPACE_GAMMA
+            bloom.xyz *= bloom.xyz; // γ to linear
+            #endif
+
+            UNITY_BRANCH
+            if (BloomRGBM > 0)
+            {
+                bloom.xyz = DecodeRGBM(bloom);
+            }
+
+            #if _BLOOM_GLOW
+                float3 glow = DecodeRGBM(SAMPLE_TEXTURE2D_X(_CameraGlowTexture, sampler_LinearClamp, uv));
+                bloom.xyz = saturate(bloom.xyz - glow * 65535);
+            #endif
+
+            bloom.xyz *= BloomIntensity;
+
+            #if defined(BLOOM_DIRT)
+            {
+                // UVs for the dirt texture should be DistortUV(uv * DirtScale + DirtOffset) but
+                // considering we use a cover-style scale on the dirt texture the difference
+                // isn't massive so we chose to save a few ALUs here instead in case lens
+                // distortion is active.
+                half3 dirt = SAMPLE_TEXTURE2D(_LensDirt_Texture, sampler_LinearClamp, uv * LensDirtScale + LensDirtOffset).xyz;
+                dirt *= LensDirtIntensity;
+                bloom.xyz += dirt * bloom.xyz;
+            }
+            #endif
+
+            return bloom;
+        }
+
         half4 Frag(Varyings input) : SV_Target
         {
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
@@ -160,40 +197,8 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             }
             #endif
 
-            #if defined(BLOOM)
-            {
-                half4 bloom = SAMPLE_TEXTURE2D_X(_Bloom_Texture, sampler_LinearClamp, uvDistorted);
-
-                #if UNITY_COLORSPACE_GAMMA
-                bloom.xyz *= bloom.xyz; // γ to linear
-                #endif
-
-                UNITY_BRANCH
-                if (BloomRGBM > 0)
-                {
-                    bloom.xyz = DecodeRGBM(bloom);
-                }
-
-                #if _BLOOM_GLOW
-                    float3 glow = DecodeRGBM(SAMPLE_TEXTURE2D_X(_CameraGlowTexture, sampler_LinearClamp, uv));
-                    bloom.xyz = saturate(bloom.xyz - glow * 65535);
-                #endif
-
-                bloom.xyz *= BloomIntensity;
-                color.xyz += bloom;
-
-                #if defined(BLOOM_DIRT)
-                {
-                    // UVs for the dirt texture should be DistortUV(uv * DirtScale + DirtOffset) but
-                    // considering we use a cover-style scale on the dirt texture the difference
-                    // isn't massive so we chose to save a few ALUs here instead in case lens
-                    // distortion is active.
-                    half3 dirt = SAMPLE_TEXTURE2D(_LensDirt_Texture, sampler_LinearClamp, uvDistorted * LensDirtScale + LensDirtOffset).xyz;
-                    dirt *= LensDirtIntensity;
-                    color.xyz += dirt * bloom.xyz;
-                }
-                #endif
-            }
+            #if defined(BLOOM) && defined(_BLOOM_TONEMAPPING)
+                color.xyz += SampleBloom(uvDistorted);
             #endif
 
             // To save on variants we'll use an uniform branch for vignette. Lower end platforms
@@ -206,9 +211,14 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
                 color.xyz = ApplyVignette(color.xyz, uvDistorted, VignetteCenter, VignetteIntensity, VignetteRoundness, VignetteSmoothness, VignetteColor);
             }
 
+            float3 PostColor = 0;
+            #if defined(BLOOM) && !defined(_BLOOM_TONEMAPPING)
+                PostColor = SampleBloom(uvDistorted);
+            #endif
+
             // Color grading is always enabled when post-processing/uber is active
             {
-                color.xyz = ApplyColorGrading(color.xyz, PostExposure, TEXTURE2D_ARGS(_InternalLut, sampler_LinearClamp), LutParams, TEXTURE2D_ARGS(_UserLut, sampler_LinearClamp), UserLutParams, UserLutContribution);
+                color.xyz = ApplyColorGrading(color.xyz, PostColor, PostExposure, TEXTURE2D_ARGS(_InternalLut, sampler_LinearClamp), LutParams, TEXTURE2D_ARGS(_UserLut, sampler_LinearClamp), UserLutParams, UserLutContribution);
             }
 
             #if _FILM_GRAIN

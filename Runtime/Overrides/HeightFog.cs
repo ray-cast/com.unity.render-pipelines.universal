@@ -18,8 +18,11 @@
         [Tooltip("雾气底部浓度")]
         public MinFloatParameter heightDensity = new MinFloatParameter(0.0f, 0.0f);
 
-        [Tooltip("雾气颜色叠加")]
-        public ColorParameter tint = new ColorParameter(Color.white, false, false, true); //0.77647f, 0.84705f, 0.98039f
+        [Tooltip("雾气颜色")]
+        public ColorParameter tint = new ColorParameter(Color.white, false, false, true);
+
+        [Tooltip("模糊后的天空图")]
+        public FogColorModeParameter colorMode = new FogColorModeParameter(FogColorMode.Constant);
 
         [Tooltip("雾气的高度相对于相机位置")]
         public BoolParameter relativeRendering = new BoolParameter(false);

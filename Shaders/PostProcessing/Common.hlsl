@@ -90,6 +90,36 @@ half3 ApplyVignette(half3 input, float2 uv, float2 center, float intensity, floa
     return input * lerp(color, (1.0).xxx, vfactor);
 }
 
+float3 GranTurismoTonemapping(float3 x) {
+    float3 P = 1;
+    float3 a = 1;
+    float3 m = 0.22;
+    float3 l = 0.4;
+    float3 c = 1.33;
+    float3 b = 0;
+    // Linear Region Computation
+    // l0 is the linear length after scale
+    float3 l0 = ((P - m) * l) / a;
+    float3 L0 = m - (m / a);
+    float3 L1 = m + (1 - m) / a;
+    float3 Lx = m + a * (x - m);
+    // Toe
+    float3 Tx = m * pow(x / m, c) + b;
+    // Shoulder
+    float3 S0 = m + l0;
+    float3 S1 = m + a * l0;
+    float3 C2 = (a * P) / (P - S1);
+    float3 Sx = P - (P - S1) * exp(-(C2 * (x - S0) / P));
+    // Toe weight
+    float3 w0 = 1.0 - smoothstep(0, m, x);
+    // Shoulder weight
+    float3 w2 = smoothstep(m + l0, m + l0, x);
+    // Linear weight
+    float3 w1 = 1 - w0 - w2;
+
+    return saturate(Tx * w0 + Lx * w1 + Sx * w2);
+}
+
 half3 ApplyTonemap(half3 input)
 {
 #if _TONEMAP_ACES
@@ -97,12 +127,14 @@ half3 ApplyTonemap(half3 input)
     input = AcesTonemap(aces);
 #elif _TONEMAP_NEUTRAL
     input = NeutralTonemap(input);
+#elif _TONEMAP_GRAN_TURISMO
+    input = GranTurismoTonemapping(input);
 #endif
 
     return saturate(input);
 }
 
-half3 ApplyColorGrading(half3 input, float postExposure, TEXTURE2D_PARAM(lutTex, lutSampler), float3 lutParams, TEXTURE2D_PARAM(userLutTex, userLutSampler), float3 userLutParams, float userLutContrib)
+half3 ApplyColorGrading(half3 input, half3 postColor, float postExposure, TEXTURE2D_PARAM(lutTex, lutSampler), float3 lutParams, TEXTURE2D_PARAM(userLutTex, userLutSampler), float3 userLutParams, float userLutContrib)
 {
     // Artist request to fine tune exposure in post without affecting bloom, dof etc
     input *= postExposure;
@@ -113,7 +145,7 @@ half3 ApplyColorGrading(half3 input, float postExposure, TEXTURE2D_PARAM(lutTex,
     #if _HDR_GRADING
     {
         float3 inputLutSpace = saturate(LinearToLogC(input)); // LUT space is in LogC
-        input = ApplyLut2D(TEXTURE2D_ARGS(lutTex, lutSampler), inputLutSpace, lutParams);
+        input = saturate(ApplyLut2D(TEXTURE2D_ARGS(lutTex, lutSampler), inputLutSpace, lutParams) + postColor);
 
         UNITY_BRANCH
         if (userLutContrib > 0.0)
@@ -132,7 +164,7 @@ half3 ApplyColorGrading(half3 input, float postExposure, TEXTURE2D_PARAM(lutTex,
     //   - Apply internal linear LUT
     #else
     {
-        input = ApplyTonemap(input);
+        input = saturate(ApplyTonemap(input) + postColor);
 
         UNITY_BRANCH
         if (userLutContrib > 0.0)

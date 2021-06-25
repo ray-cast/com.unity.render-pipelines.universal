@@ -2,8 +2,6 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 {
 	SubShader
 	{
-		Tags{ "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "True"}
-
 		HLSLINCLUDE
 
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
@@ -29,8 +27,8 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 
 		struct Varyings
 		{
-			half4  positionCS   : SV_POSITION;
-			half2  uv           : TEXCOORD0;
+			float4 positionCS   : SV_POSITION;
+			float2 uv           : TEXCOORD0;
 			float3 viewdir      : TEXCOORD1;
 			UNITY_VERTEX_OUTPUT_STEREO
 		};
@@ -54,11 +52,11 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 		{
 			UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-			float deviceDepth = SampleSceneDepth(input.uv.xy);
+			float deviceDepth = SampleSceneDepth(input.uv);
 			float linearDepth = LinearEyeDepth(deviceDepth, _ZBufferParams);
 
 		#if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
-			float3 worldPos = ComputeWorldSpacePosition(input.uv.xy, deviceDepth * 2 - 1, unity_MatrixInvVP);
+			float3 worldPos = ComputeWorldSpacePosition(input.uv, deviceDepth * 2 - 1, unity_MatrixInvVP);
 		#else
 			float3 worldPos = mul(UNITY_MATRIX_I_V, float4(input.viewdir * linearDepth, 1)).xyz;
 		#endif

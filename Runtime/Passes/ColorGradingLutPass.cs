@@ -1,4 +1,6 @@
-﻿using UnityEngine.Experimental.Rendering;
+﻿using System.IO;
+using UnityEditor;
+using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -51,6 +53,12 @@ namespace UnityEngine.Rendering.Universal
                 _hdrLutFormat = GraphicsFormat.R8G8B8A8_UNorm;
 
             _ldrLutFormat = GraphicsFormat.R8G8B8A8_UNorm;
+
+#if UNITY_EDITOR
+            var asset = UniversalRenderPipeline.asset;
+            if (asset)
+                asset.colorLookupBake += Bake;
+#endif
         }
 
         public void Setup(in RenderTargetHandle internalLut)
@@ -58,6 +66,55 @@ namespace UnityEngine.Rendering.Universal
             _internalLut = internalLut;
         }
 
+#if UNITY_EDITOR
+        public void Bake()
+		{
+            var asset = UniversalRenderPipeline.asset;
+
+            var isHdr = asset.colorGradingMode == ColorGradingMode.HighDynamicRange;
+
+            var lutHeight = asset.colorGradingLutSize;
+            var lutWidth = lutHeight * lutHeight;
+            var format = isHdr ? _hdrLutFormat : _ldrLutFormat;
+            var material = isHdr ? _lutBuilderHdr : _lutBuilderLdr;
+
+            var assetsLut = new RenderTexture(lutWidth, lutHeight, 0, format, 0)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+
+            Graphics.Blit(assetsLut, assetsLut, material, 1);
+
+            Texture2D tex = new Texture2D(lutWidth, lutHeight, format, 0, TextureCreationFlags.None);
+            RenderTexture.active = assetsLut;
+            tex.ReadPixels(new Rect(0, 0, lutWidth, lutHeight), 0, 0);
+            tex.Apply();
+
+            if (isHdr)
+			{
+				string path = EditorUtility.SaveFilePanelInProject("Save Texture", "Lut", "asset", "Please enter a file name to save the texture to");
+				if (path.Length != 0)
+				{
+					AssetDatabase.CreateAsset(tex, path);
+					AssetDatabase.Refresh();
+				}
+			}
+			else
+			{
+                string path = EditorUtility.SaveFilePanelInProject("Save Image", "Lut", "png", "Please enter a file name to save the image to");
+                if (path.Length != 0)
+                {
+                    byte[] pngData = tex.EncodeToPNG();
+                    if (pngData != null)
+                    {
+                        File.WriteAllBytes(path, pngData);
+                        AssetDatabase.Refresh();
+                    }
+                }
+            }
+        }
+#endif
         /// <inheritdoc/>
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
@@ -76,7 +133,7 @@ namespace UnityEngine.Rendering.Universal
 
             ref var postProcessingData = ref renderingData.postProcessingData;
             bool hdr = postProcessingData.gradingMode == ColorGradingMode.HighDynamicRange;
-
+            
             // Prepare texture & material
             int lutHeight = postProcessingData.lutSize;
             int lutWidth = lutHeight * lutHeight;
@@ -159,12 +216,13 @@ namespace UnityEngine.Rendering.Universal
                 {
                     case TonemappingMode.Neutral: material.EnableKeyword(ShaderKeywordStrings.TonemapNeutral); break;
                     case TonemappingMode.ACES: material.EnableKeyword(ShaderKeywordStrings.TonemapACES); break;
+                    case TonemappingMode.GranTurismo: material.EnableKeyword(ShaderKeywordStrings.TonemapGranTurismo); break;
                     default: break; // None
                 }
             }
 
             // Render the lut
-            Blit(cmd, _internalLut.id, _internalLut.id, material);
+            Blit(cmd, _internalLut.id, _internalLut.id, material, 0);
 
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
@@ -179,11 +237,16 @@ namespace UnityEngine.Rendering.Universal
         /// <inheritdoc/>
         public override void FrameCleanup(CommandBuffer cmd)
         {
-
         }
 
         internal void Cleanup()
         {
+#if UNITY_EDITOR
+            var asset = UniversalRenderPipeline.asset;
+            if (asset)
+                asset.colorLookupBake -= Bake;
+#endif
+
             CoreUtils.Destroy(_lutBuilderLdr);
             CoreUtils.Destroy(_lutBuilderHdr);
         }

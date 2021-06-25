@@ -8,12 +8,12 @@ namespace UnityEngine.Rendering.Universal
     {
         SerializedDataParameter _mode;
         SerializedDataParameter _color;
+        SerializedDataParameter _tint;
         SerializedDataParameter _density;
         SerializedDataParameter _start;
         SerializedDataParameter _end;
         SerializedDataParameter _skyDensity;
-        SerializedDataParameter _skybox;
-        SerializedDataParameter _rotation;
+        SerializedDataParameter _colorMode;
 
         public override void OnEnable()
         {
@@ -21,12 +21,12 @@ namespace UnityEngine.Rendering.Universal
 
             _mode = Unpack(o.Find(x => x.mode));
             _color = Unpack(o.Find(x => x.color));
+            _tint = Unpack(o.Find(x => x.tint));
             _density = Unpack(o.Find(x => x.density));
             _start = Unpack(o.Find(x => x.start));
             _end = Unpack(o.Find(x => x.end));
             _skyDensity = Unpack(o.Find(x => x.skyDensity));
-            _skybox = Unpack(o.Find(x => x.skybox));
-            _rotation = Unpack(o.Find(x => x.rotation));
+            _colorMode = Unpack(o.Find(x => x.colorMode));
         }
 
         public override void OnInspectorGUI()
@@ -39,8 +39,10 @@ namespace UnityEngine.Rendering.Universal
 
             EditorGUILayout.LabelField("Fog", EditorStyles.miniLabel);
 
-            PropertyField(_color);
             PropertyField(_mode);
+
+            PropertyField(_colorMode);
+            PropertyField((target as MipFog).colorMode == FogColorMode.SkyColor ? _tint : _color);
 
             if ((target as MipFog).mode == MipFogMode.Linear)
             {
@@ -53,11 +55,6 @@ namespace UnityEngine.Rendering.Universal
             }
 
             PropertyField(_skyDensity);
-
-            EditorGUILayout.LabelField("Mip Map", EditorStyles.miniLabel);
-
-            PropertyField(_skybox);
-            PropertyField(_rotation);
         }
     }
 }

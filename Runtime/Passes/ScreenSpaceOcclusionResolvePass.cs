@@ -81,6 +81,7 @@ namespace UnityEngine.Rendering.Universal
 
             cmd.EnableShaderKeyword(ShaderConstants._EnvironmentOcclusion);
             cmd.SetGlobalVector(ShaderConstants._SSDO_SampleParams, new Vector4(_renderTextureDescriptor.width, _renderTextureDescriptor.height, radius, _ambientOcclusion.strength.value));
+            cmd.SetGlobalVector(ShaderConstants._SSDO_SampleParams2, new Vector4(_ambientOcclusion.bias.value, 0, 0, 0));
             cmd.DrawProcedural(Matrix4x4.identity, _screenSpaceOcclusionMaterial, 0, MeshTopology.Triangles, 3);
 
             var sharpness = _ambientOcclusion.sharpness.value;
@@ -117,7 +118,8 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _SSDO_Texture = Shader.PropertyToID("_MainTex");
             public static readonly int _SSDO_BlurParams = Shader.PropertyToID("_SSDO_BlurParams");
             public static readonly int _SSDO_SampleParams = Shader.PropertyToID("_SSDO_SampleParams");
-            
+            public static readonly int _SSDO_SampleParams2 = Shader.PropertyToID("_SSDO_SampleParams2");
+
             public static readonly int _AdditionalOccludersCount = Shader.PropertyToID("_AdditionalOccludersCount");
             public static readonly int _AdditionalOccluderPosition = Shader.PropertyToID("_AdditionalOccluderPosition");
         }

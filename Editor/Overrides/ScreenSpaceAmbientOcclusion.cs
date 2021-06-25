@@ -11,6 +11,7 @@ namespace UnityEngine.Rendering.Universal
         SerializedDataParameter _strength;
         SerializedDataParameter _fullRes;
         SerializedDataParameter _sharpness;
+        SerializedDataParameter _bias;
 
         public override void OnEnable()
         {
@@ -21,6 +22,7 @@ namespace UnityEngine.Rendering.Universal
             _strength = Unpack(o.Find(x => x.strength));
             _fullRes = Unpack(o.Find(x => x._fullRes));
             _sharpness = Unpack(o.Find(x => x.sharpness));
+            _bias = Unpack(o.Find(x => x.bias));
         }
 
         public override void OnInspectorGUI()
@@ -34,6 +36,7 @@ namespace UnityEngine.Rendering.Universal
             PropertyField(_radius);
             PropertyField(_strength);
             PropertyField(_sharpness);
+            PropertyField(_bias);
         }
     }
 }

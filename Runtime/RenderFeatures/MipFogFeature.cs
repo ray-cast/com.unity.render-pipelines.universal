@@ -97,13 +97,11 @@
                     else if (_mipFog.mode.value == MipFogMode.ExponentialSquared)
                         _fogMaterial.EnableKeyword("_FOG_EXP2");
 
-                    if (_mipFog.skybox.value)
+                    if (_mipFog.colorMode.value == FogColorMode.SkyColor)
                         _fogMaterial.EnableKeyword("_MIPFOG_MAP");
 
-                    var color = _mipFog.color.value.linear;
-                    _fogMaterial.EnableKeyword("_MIPFOG");
-                    _fogMaterial.SetTexture(ShaderConstants._MipFogMap, _mipFog.skybox.value);
-                    _fogMaterial.SetVector(ShaderConstants._MipFogParams, new Vector4(color.r, color.g, color.b, _mipFog.rotation.value * Mathf.Deg2Rad));
+                    var color = _mipFog.colorMode.value == FogColorMode.SkyColor ? _mipFog.tint.value.linear : _mipFog.color.value.linear;
+                    _fogMaterial.SetVector(ShaderConstants._MipFogParams, new Vector4(color.r, color.g, color.b, 0));
 
                     if (_mipFog.mode.value == MipFogMode.Linear)
 					{
@@ -124,6 +122,11 @@
 
                 if (_heightFog != null && _heightFog.IsActive())
 				{
+                    if (_heightFog.colorMode.value == FogColorMode.SkyColor)
+                        _heightFogMaterial.EnableKeyword("_MIPFOG_MAP");
+                    else
+                        _heightFogMaterial.DisableKeyword("_MIPFOG_MAP");
+
                     var color = _heightFog.tint.value.linear;
                     var baseHeight = _heightFog.baseHeight.value;
                     var maximumHeight = _heightFog.maximumHeight.value;

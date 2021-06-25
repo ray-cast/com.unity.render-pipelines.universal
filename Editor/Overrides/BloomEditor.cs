@@ -16,6 +16,7 @@ namespace UnityEngine.Rendering.Universal
         SerializedDataParameter _scatter;
         SerializedDataParameter _clamp;
         SerializedDataParameter _tint;
+        SerializedDataParameter _tonemapping;
         SerializedDataParameter _glowFiltering;
         SerializedDataParameter _highQualityFiltering;
         SerializedDataParameter _dirtTexture;
@@ -33,6 +34,7 @@ namespace UnityEngine.Rendering.Universal
             _scatter = Unpack(o.Find(x => x.scatter));
             _clamp = Unpack(o.Find(x => x.clamp));
             _tint = Unpack(o.Find(x => x.tint));
+            _tonemapping = Unpack(o.Find(x => x.tonemapping));
             _glowFiltering = Unpack(o.Find(x => x.glowFiltering));
             _highQualityFiltering = Unpack(o.Find(x => x.highQualityFiltering));
             _dirtTexture = Unpack(o.Find(x => x.dirtTexture));
@@ -64,6 +66,7 @@ namespace UnityEngine.Rendering.Universal
             PropertyField(_scatter);
             PropertyField(_tint);
             PropertyField(_clamp);
+            PropertyField(_tonemapping);
             PropertyField(_glowFiltering);
             PropertyField(_highQualityFiltering);
 

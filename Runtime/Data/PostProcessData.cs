@@ -26,8 +26,8 @@ namespace UnityEngine.Rendering.Universal
             [Reload("Shaders/PostProcessing/PaniniProjection.shader")]
             public Shader paniniProjectionPS;
 
-            [Reload("Shaders/PostProcessing/SceneLookup.shader")]
-            public Shader sceneLookupPS;
+            [Reload("Shaders/PostProcessing/VignetteLookup.shader")]
+            public Shader vignetteLookupPS;
 
             [Reload("Shaders/PostProcessing/LutBuilderLdr.shader")]
             public Shader lutBuilderLdrPS;

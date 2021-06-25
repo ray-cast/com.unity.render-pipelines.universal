@@ -1,59 +1,51 @@
+using System.Collections.Generic;
+
 namespace UnityEngine.Rendering.Universal
 {
     public class DrawSkyboxPass : ScriptableRenderPass
     {
-        static Mesh _icoskyboxMesh = null;
-        static Material _hdriMaterial = null;
-        static Material _skyboxMaterial = null;
-        static Material _gradientMaterial = null;
+        private Material _hdriMaterial = null;
+        private Material _gradientMaterial = null;
 
-        Mesh icoskyboxMesh
-		{
-            get
-			{
-                if (_icoskyboxMesh == null)
-                    _icoskyboxMesh = IcoSphereCreator.Create(4, 0.985f); // 0.015 is padding
+        private RenderTargetHandle _depthAttachmentHandle { get; set; }
+        private RenderTargetHandle _colorAttachmentHandle { get; set; }
 
-                return _icoskyboxMesh;
-            }
-		}
+        private GradientSky _gradientSky;
+        private static Dictionary<Texture, RenderTexture> _skyTextures = new Dictionary<Texture, RenderTexture>();
 
-        Material skyboxMaterial
-        {
-            get
-            {
-                if (_skyboxMaterial == null)
-                    _skyboxMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Skybox/Cubemap"));
-
-                return _skyboxMaterial;
-            }
-        }
-
-        Material hdriMaterial
-		{
-            get
-			{
-                if (_hdriMaterial == null)
-                    _hdriMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Hidden/Universal Render Pipeline/Sky/HDRi Sky"));
-
-                return _hdriMaterial;
-            }
-		}
-
-        Material gradientMaterial
-        {
-            get
-            {
-                if (_gradientMaterial == null)
-                    _gradientMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Hidden/Universal Render Pipeline/Sky/GradientSky"));
-
-                return _gradientMaterial;
-            }
-        }
-
-        public DrawSkyboxPass(RenderPassEvent evt)
+        public DrawSkyboxPass(RenderPassEvent evt, ClusterBasedDeferredRendererData.ShaderResources defaultResources)
         {
             renderPassEvent = evt;
+
+            foreach (var texture in _skyTextures)
+                RenderTexture.ReleaseTemporary(texture.Value);
+
+            _skyTextures.Clear();
+            _gradientSky = new GradientSky();
+
+            if (defaultResources != null)
+			{
+                _hdriMaterial = CoreUtils.CreateEngineMaterial(defaultResources.hdriSkyPS);
+                _gradientMaterial = CoreUtils.CreateEngineMaterial(defaultResources.gradientSkyPS);
+            }
+            else
+			{
+                _hdriMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Hidden/Universal Render Pipeline/Sky/HDRi Sky"));
+                _gradientMaterial = CoreUtils.CreateEngineMaterial(Shader.Find("Hidden/Universal Render Pipeline/Sky/GradientSky"));
+            }
+        }
+
+        public void Setup(RenderTargetHandle colorAttachmentHandle, RenderTargetHandle depthAttachmentHandle)
+        {
+            this._depthAttachmentHandle = depthAttachmentHandle;
+            this._colorAttachmentHandle = colorAttachmentHandle;
+        }
+
+
+        public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
+        {
+            ConfigureTarget(_colorAttachmentHandle.Identifier(), _depthAttachmentHandle.Identifier());
+            ConfigureClear(ClearFlag.None, Color.clear);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -72,59 +64,138 @@ namespace UnityEngine.Rendering.Universal
                     if (hdriSky.IsActive())
                     {
                         var phi = -Mathf.Deg2Rad * hdriSky.rotation.value;
+                        var color = hdriSky.color.value;
 
-                        this.skyboxMaterial.SetTexture(ShaderConstants._Tex, hdriSky.HdriSky.value);
-                        this.skyboxMaterial.SetFloat(ShaderConstants._Exposure, hdriSky.exposure.value);
-                        this.skyboxMaterial.SetFloat(ShaderConstants._Rotation, hdriSky.rotation.value);
-                        this.skyboxMaterial.SetColor(ShaderConstants._Tint, hdriSky.color.value);
-
-                        this.hdriMaterial.SetTexture(ShaderConstants._Cubemap, hdriSky.HdriSky.value);
-                        this.hdriMaterial.SetColor(ShaderConstants._Tint, hdriSky.color.value);
-                        this.hdriMaterial.SetVector(ShaderConstants._SkyParam, new Vector4(hdriSky.exposure.value, 0, Mathf.Cos(phi), Mathf.Sin(phi)));
-
-                        RenderSettings.skybox = this.skyboxMaterial;
+                        this._hdriMaterial.SetColor(ShaderConstants._Tint, color);
+                        this._hdriMaterial.SetTexture(ShaderConstants._Cubemap, hdriSky.HdriSky.value);
+                        this._hdriMaterial.SetVector(ShaderConstants._SkyParam, new Vector4(hdriSky.exposure.value * 2, 0, Mathf.Cos(phi), Mathf.Sin(phi)));
 
                         CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
                         cmd.Clear();
-                        cmd.DrawProcedural(Matrix4x4.identity, this.hdriMaterial, 0, MeshTopology.Triangles, 3);
+                        cmd.DrawProcedural(Matrix4x4.identity, this._hdriMaterial, 0, MeshTopology.Triangles, 3);
+
+                        if (!_skyTextures.TryGetValue(hdriSky.HdriSky.value, out var skyTexture))
+						{
+                            var descriptor = new RenderTextureDescriptor(512, 256, RenderTextureFormat.ARGBHalf)
+                            {
+                                useMipMap = true,
+                                mipCount = 6,
+                                autoGenerateMips = false,
+                            };
+
+                            skyTexture = RenderTexture.GetTemporary(descriptor);
+                            skyTexture.filterMode = FilterMode.Trilinear;
+                            skyTexture.wrapMode = TextureWrapMode.Repeat;
+
+                            SkyManager.instance.RenderImageBasedLighting(cmd, hdriSky.HdriSky.value, skyTexture);
+
+                            cmd.SetRenderTarget(this.colorAttachment, this.depthAttachment);
+
+                            _skyTextures.Add(hdriSky.HdriSky.value, skyTexture);
+                        }
+
+                        var skyMipParams = new Vector4(
+                            color.r * hdriSky.exposure.value * 2,
+                            color.g * hdriSky.exposure.value * 2,
+                            color.b * hdriSky.exposure.value * 2,
+                            hdriSky.rotation.value * Mathf.Deg2Rad
+                        );
+
+                        cmd.SetGlobalTexture(ShaderConstants._SkyMipTexture, skyTexture);
+                        cmd.SetGlobalVector(ShaderConstants._SkyMipParams, skyMipParams);
 
                         context.ExecuteCommandBuffer(cmd);
-
                         CommandBufferPool.Release(cmd);
                     }
                     else
                     {
-                        RenderSettings.skybox = null;
+                        CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
+                        cmd.SetGlobalTexture(ShaderConstants._SkyMipTexture, Texture2D.blackTexture);
+                        cmd.SetGlobalVector(ShaderConstants._SkyMipParams, new Vector4(1, 1, 1, 0));
+
+                        context.ExecuteCommandBuffer(cmd);
+                        CommandBufferPool.Release(cmd);
                     }
                 }
                 else if (skyLightingMode == SkyMode.GradientSky)
-				{
-                    var gradientSky = stack.GetComponent<GradientSky>();
-                    if (gradientSky.IsActive())
+                {
+                    var shouldUpdateTexture = false;
+                    var cubemap = SkyManager.instance.standardSkyCubemap;
+
+                    if (!_skyTextures.TryGetValue(cubemap, out var skyTexture))
                     {
-                        var camera = renderingData.cameraData.camera;
-                        Matrix4x4 matrix = Matrix4x4.Scale(new Vector3(camera.farClipPlane, camera.farClipPlane, camera.farClipPlane));
-                        matrix.SetColumn(3, new Vector4(camera.transform.position.x, camera.transform.position.y, camera.transform.position.z, 1));
+                        var descriptor = new RenderTextureDescriptor(512, 256, RenderTextureFormat.ARGBHalf)
+                        {
+                            useMipMap = true,
+                            mipCount = 6,
+                            autoGenerateMips = false
+                        };
 
-                        this.gradientMaterial.SetColor(ShaderConstants._GradientTop, gradientSky.top.value);
-                        this.gradientMaterial.SetColor(ShaderConstants._GradientMiddle, gradientSky.middle.value);
-                        this.gradientMaterial.SetColor(ShaderConstants._GradientBottom, gradientSky.bottom.value);
-                        this.gradientMaterial.SetFloat(ShaderConstants._GradientDiffusion, gradientSky.gradientDiffusion.value);
-                        this.gradientMaterial.SetFloat(ShaderConstants._SkyIntensity, gradientSky.exposure.value);
+                        skyTexture = RenderTexture.GetTemporary(descriptor);
+                        skyTexture.filterMode = FilterMode.Trilinear;
+                        skyTexture.wrapMode = TextureWrapMode.Repeat;
 
-                        RenderSettings.skybox = this.gradientMaterial;
+                        _skyTextures.Add(cubemap, skyTexture);
 
-                        CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
-                        cmd.Clear();
-                        cmd.DrawProcedural(Matrix4x4.identity, this.gradientMaterial, 0, MeshTopology.Triangles, 3);
+                        shouldUpdateTexture = true;
+                    }
+
+                    var gradientSky = stack.GetComponent<GradientSky>();
+                    if (_gradientSky.top.value != gradientSky.top.value ||
+                        _gradientSky.middle.value != gradientSky.middle.value ||
+                        _gradientSky.bottom.value != gradientSky.bottom.value ||
+                        _gradientSky.gradientDiffusion.value != gradientSky.gradientDiffusion.value ||
+                        _gradientSky.exposure.value != gradientSky.exposure.value || shouldUpdateTexture)
+                    {
+                        _gradientSky.top.value = gradientSky.top.value;
+                        _gradientSky.middle.value = gradientSky.middle.value;
+                        _gradientSky.bottom.value = gradientSky.bottom.value;
+                        _gradientSky.gradientDiffusion.value = gradientSky.gradientDiffusion.value;
+                        _gradientSky.exposure.value = gradientSky.exposure.value;
+
+                        _gradientMaterial.SetColor(ShaderConstants._GradientTop, gradientSky.top.value);
+                        _gradientMaterial.SetColor(ShaderConstants._GradientMiddle, gradientSky.middle.value);
+                        _gradientMaterial.SetColor(ShaderConstants._GradientBottom, gradientSky.bottom.value);
+                        _gradientMaterial.SetFloat(ShaderConstants._GradientDiffusion, gradientSky.gradientDiffusion.value);
+                        _gradientMaterial.SetFloat(ShaderConstants._SkyIntensity, gradientSky.exposure.value);
+
+                        CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._bakeTag);
+
+                        SkyManager.instance.RenderToCubemap(cmd, ref _gradientMaterial, 1, ref cameraData);
+                        SkyManager.instance.RenderImageBasedLighting(cmd, cubemap, skyTexture);
+
+                        cmd.SetRenderTarget(this.colorAttachment, this.depthAttachment);
+                        cmd.SetGlobalTexture(ShaderConstants._SkyMipTexture, skyTexture);
+                        cmd.SetGlobalVector(ShaderConstants._SkyMipParams, new Vector4(1, 1, 1, 0));
 
                         context.ExecuteCommandBuffer(cmd);
+                        CommandBufferPool.Release(cmd);
+                    }
 
+                    if (gradientSky.IsActive())
+                    {
+                        _gradientMaterial.SetColor(ShaderConstants._GradientTop, gradientSky.top.value);
+                        _gradientMaterial.SetColor(ShaderConstants._GradientMiddle, gradientSky.middle.value);
+                        _gradientMaterial.SetColor(ShaderConstants._GradientBottom, gradientSky.bottom.value);
+                        _gradientMaterial.SetFloat(ShaderConstants._GradientDiffusion, gradientSky.gradientDiffusion.value);
+                        _gradientMaterial.SetFloat(ShaderConstants._SkyIntensity, gradientSky.exposure.value);
+
+                        CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
+                        cmd.SetGlobalTexture(ShaderConstants._SkyMipTexture, skyTexture);
+                        cmd.SetGlobalVector(ShaderConstants._SkyMipParams, new Vector4(1, 1, 1, 0));
+                        cmd.DrawProcedural(Matrix4x4.identity, _gradientMaterial, 0, MeshTopology.Triangles, 3);
+
+                        context.ExecuteCommandBuffer(cmd);
                         CommandBufferPool.Release(cmd);
                     }
                     else
                     {
-                        RenderSettings.skybox = null;
+                        CommandBuffer cmd = CommandBufferPool.Get(ShaderConstants._renderTag);
+                        cmd.SetGlobalTexture(ShaderConstants._SkyMipTexture, Texture2D.blackTexture);
+                        cmd.SetGlobalVector(ShaderConstants._SkyMipParams, new Vector4(1, 1, 1, 0));
+
+                        context.ExecuteCommandBuffer(cmd);
+                        CommandBufferPool.Release(cmd);
                     }
                 }
             }
@@ -144,22 +215,24 @@ namespace UnityEngine.Rendering.Universal
 
         static class ShaderConstants
         {
+            public const string _bakeTag = "Bake Skybox";
             public const string _renderTag = "Draw Skybox";
 
             public static readonly int _Tex = Shader.PropertyToID("_Tex");
             public static readonly int _Tint = Shader.PropertyToID("_Tint");
             public static readonly int _Exposure = Shader.PropertyToID("_Exposure");
             public static readonly int _Rotation = Shader.PropertyToID("_Rotation");
+            public static readonly int _Cubemap = Shader.PropertyToID("_Cubemap");
+
+            public static readonly int _SkyParam = Shader.PropertyToID("_SkyParam");
+            public static readonly int _SkyIntensity = Shader.PropertyToID("_SkyIntensity");
+            public static readonly int _SkyMipTexture = Shader.PropertyToID("_SkyMipTexture");
+            public static readonly int _SkyMipParams = Shader.PropertyToID("_SkyMipParams");
 
             public static readonly int _GradientBottom = Shader.PropertyToID("_GradientBottom");
             public static readonly int _GradientMiddle = Shader.PropertyToID("_GradientMiddle");
             public static readonly int _GradientTop = Shader.PropertyToID("_GradientTop");
             public static readonly int _GradientDiffusion = Shader.PropertyToID("_GradientDiffusion");
-
-            public static readonly int _Cubemap = Shader.PropertyToID("_Cubemap");
-            public static readonly int _SkyParam = Shader.PropertyToID("_SkyParam");
-
-            public static readonly int _SkyIntensity = Shader.PropertyToID("_SkyIntensity");
         }
     }
 }

@@ -13,10 +13,13 @@ namespace UnityEngine.Rendering.Universal
         public NoInterpClampedFloatParameter radius = new NoInterpClampedFloatParameter(1.0f, 0.0f, 5.0f);
 
         [Tooltip("遮蔽强度")]
-        public ClampedFloatParameter strength = new ClampedFloatParameter(0f, 0f, 1f);
+        public ClampedFloatParameter strength = new ClampedFloatParameter(0f, 0f, 5f);
 
         [Tooltip("清晰度")]
         public ClampedFloatParameter sharpness = new ClampedFloatParameter(5f, 0f, 10f);
+
+        [Tooltip("偏离率")]
+        public ClampedFloatParameter bias = new ClampedFloatParameter(0.01f, 1e-3f, 1.0f);
 
         [Tooltip("全分辨率渲染")]
         public BoolParameter _fullRes = new BoolParameter(false);

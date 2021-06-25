@@ -44,6 +44,9 @@ namespace UnityEngine.Rendering.Universal
         [Tooltip("设置颜色叠加")]
         public ColorParameter tint = new ColorParameter(Color.white, false, false, true);
 
+        [Tooltip("勾选后开启色彩映射")]
+        public BoolParameter tonemapping = new BoolParameter(false);
+
         [Tooltip("勾选后可减少闪烁问题")]
         public BoolParameter highQualityFiltering = new BoolParameter(true);
 

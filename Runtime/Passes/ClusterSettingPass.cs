@@ -372,57 +372,49 @@ namespace UnityEngine.Rendering.Universal
 		public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
 		{
 			var cmd = CommandBufferPool.Get(ShaderConstants._profilerTag);
+			var camera = this._drawMainCamera ? Camera.main : renderingData.cameraData.camera;
 
-			using (new ProfilingScope(cmd, _profilingSampler))
+			if (this._clusterData.width != camera.pixelWidth || this._clusterData.height != camera.pixelHeight ||
+				this._clusterData.zNear != camera.nearClipPlane ||
+				this._clusterData.zFar != Mathf.Min(renderingData.lightData.maxLightingDistance, camera.farClipPlane) ||
+				this._clusterData.fieldOfView != Mathf.Max(1, camera.fieldOfView))
 			{
-				context.ExecuteCommandBuffer(cmd);
-				cmd.Clear();
+				this.SetupClusterData(ref camera, ref renderingData);
+				this.SetupClusterDataBuffer(ref cmd, ref camera);
+			}
 
-				var camera = this._drawMainCamera ? Camera.main : renderingData.cameraData.camera;
+			ShaderData.instance.CreateUniqueCounterBuffer(1);
+			ShaderData.instance.CreateLightDataBuffer(UniversalRenderPipeline.maxVisibleAdditionalLights);
+			ShaderData.instance.CreateLightIndexCountBuffer(1);
+			ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize * renderingData.lightData.maxPerClusterAdditionalLightsCount);
 
-				if (this._clusterData.width != camera.pixelWidth || this._clusterData.height != camera.pixelHeight ||
-					this._clusterData.zNear != camera.nearClipPlane ||
-					this._clusterData.zFar != Mathf.Min(renderingData.lightData.maxLightingDistance, camera.farClipPlane) ||
-					this._clusterData.fieldOfView != Mathf.Max(1, camera.fieldOfView))
-				{
-					this.SetupClusterData(ref camera, ref renderingData);
-					this.SetupClusterDataBuffer(ref cmd, ref camera);
-				}
+			this.ClearLightGirdIndexCounter(ref cmd, ref renderingData);
 
-				ShaderData.instance.CreateUniqueCounterBuffer(1);
-				ShaderData.instance.CreateLightDataBuffer(UniversalRenderPipeline.maxVisibleAdditionalLights);
-				ShaderData.instance.CreateLightIndexCountBuffer(1);
-				ShaderData.instance.CreateLightIndexBuffer(_clusterData.clusterThreadGroup * _maxComputeWorkGroupSize * renderingData.lightData.maxPerClusterAdditionalLightsCount);
+			var additionalLightsCount = this.SetupAdditionalLightConstants(ref renderingData);
+			var sizeParams = new Vector2(ShaderConstants.blockSizeX, ShaderConstants.blockSizeY);
+			var dimensionParams = new Vector4(_clusterData.clusterDimX, _clusterData.clusterDimY, _clusterData.clusterDimZ, 0.0f);
+			var projectionParams = new Vector4(_clusterData.zNear, _clusterData.zFar, _clusterData.nearK, _clusterData.logDimY);
+			var lightParams = new Vector4(_clusterAdditionalLightsCount, renderingData.lightData.maxPerClusterAdditionalLightsCount, 0.0f, 0.0f);
+			var screenDimParams = new Vector4(_clusterData.width, _clusterData.height, 1.0f / _clusterData.width, 1.0f / _clusterData.height);
 
-				this.ClearLightGirdIndexCounter(ref cmd, ref renderingData);
+			cmd.SetGlobalVector(ShaderConstants._ClusterSizeParams, sizeParams);
+			cmd.SetGlobalVector(ShaderConstants._ClusterDimensionParams, dimensionParams);
+			cmd.SetGlobalVector(ShaderConstants._ClusterProjectionParams, projectionParams);
+			cmd.SetGlobalVector(ShaderConstants._ClusterScreenDimensionParams, screenDimParams);
+			cmd.SetGlobalVector(ShaderConstants._ClusterLightParams, lightParams);
+			cmd.SetGlobalBuffer(ShaderConstants._ClusterDataBuffer, ShaderData.instance.clusterBuffer);
+			cmd.SetGlobalBuffer(ShaderConstants._ClusterFlagBuffer, ShaderData.instance.flagBuffer);
+			cmd.SetGlobalBuffer(ShaderConstants._ClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
+			cmd.SetGlobalBuffer(ShaderConstants._ClusterLightIndexBuffer, ShaderData.instance.lightIndexListBuffer);
+			cmd.SetGlobalBuffer(ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
 
-				var additionalLightsCount = this.SetupAdditionalLightConstants(ref renderingData);
-				var sizeParams = new Vector2(ShaderConstants.blockSizeX, ShaderConstants.blockSizeY);
-				var dimensionParams = new Vector4(_clusterData.clusterDimX, _clusterData.clusterDimY, _clusterData.clusterDimZ, 0.0f);
-				var projectionParams = new Vector4(_clusterData.zNear, _clusterData.zFar, _clusterData.nearK, _clusterData.logDimY);
-				var lightParams = new Vector4(_clusterAdditionalLightsCount, renderingData.lightData.maxPerClusterAdditionalLightsCount, 0.0f, 0.0f);
-				var screenDimParams = new Vector4(_clusterData.width, _clusterData.height, 1.0f / _clusterData.width, 1.0f / _clusterData.height);
-
-				cmd.SetGlobalVector(ShaderConstants._ClusterSizeParams, sizeParams);
-				cmd.SetGlobalVector(ShaderConstants._ClusterDimensionParams, dimensionParams);
-				cmd.SetGlobalVector(ShaderConstants._ClusterProjectionParams, projectionParams);
-				cmd.SetGlobalVector(ShaderConstants._ClusterScreenDimensionParams, screenDimParams);
-				cmd.SetGlobalVector(ShaderConstants._ClusterLightParams, lightParams);
-				cmd.SetGlobalBuffer(ShaderConstants._ClusterDataBuffer, ShaderData.instance.clusterBuffer);
-				cmd.SetGlobalBuffer(ShaderConstants._ClusterFlagBuffer, ShaderData.instance.flagBuffer);
-				cmd.SetGlobalBuffer(ShaderConstants._ClusterLightGridBuffer, ShaderData.instance.lightGridBuffer);
-				cmd.SetGlobalBuffer(ShaderConstants._ClusterLightIndexBuffer, ShaderData.instance.lightIndexListBuffer);
-				cmd.SetGlobalBuffer(ShaderConstants._ClusterLightBuffer, ShaderData.instance.additionalLightsBuffer);
-
-				if (additionalLightsCount > 0)
-				{
-					this.SetupClusterFlags(ref cmd, ref renderingData.cameraData.camera);
-					this.ComputeLightClusterIntersection(ref cmd, ref renderingData, ref camera);
-				}
+			if (additionalLightsCount > 0)
+			{
+				this.SetupClusterFlags(ref cmd, ref renderingData.cameraData.camera);
+				this.ComputeLightClusterIntersection(ref cmd, ref renderingData, ref camera);
 			}
 
 			context.ExecuteCommandBuffer(cmd);
-
 			CommandBufferPool.Release(cmd);
 		}
 

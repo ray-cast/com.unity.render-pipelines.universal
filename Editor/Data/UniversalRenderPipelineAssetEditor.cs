@@ -396,7 +396,6 @@ namespace UnityEngine.Rendering.Universal
             _shadowSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_shadowSettingsFoldout.value, Styles.shadowSettingsText);
             if (_shadowSettingsFoldout.value)
             {
-                EditorGUI.indentLevel++;
                 _shadowDistanceProp.floatValue = Mathf.Max(0.0f, EditorGUILayout.FloatField(Styles.shadowDistanceText, _shadowDistanceProp.floatValue));
                 CoreEditorUtils.DrawPopup(Styles.shadowCascadesText, _shadowCascadesProp, Styles.shadowCascadeOptions);
 
@@ -409,10 +408,11 @@ namespace UnityEngine.Rendering.Universal
                 _shadowDepthBiasProp.floatValue = EditorGUILayout.Slider(Styles.shadowDepthBias, _shadowDepthBiasProp.floatValue, 0.0f, UniversalRenderPipeline.maxShadowBias);
                 _shadowNormalBiasProp.floatValue = EditorGUILayout.Slider(Styles.shadowNormalBias, _shadowNormalBiasProp.floatValue, 0.0f, UniversalRenderPipeline.maxShadowBias);
                 EditorGUILayout.PropertyField(_softShadowsSupportedProp, Styles.supportsSoftShadows);
-                EditorGUI.indentLevel--;
+
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
             }
+
             EditorGUILayout.EndFoldoutHeaderGroup();
         }
 
@@ -422,9 +422,6 @@ namespace UnityEngine.Rendering.Universal
             if (_postProcessingSettingsFoldout.value)
             {
                 bool isHdrOn = _HDR.boolValue;
-
-                EditorGUI.indentLevel++;
-
                 bool ppv2Enabled = false;
 
 #if POST_PROCESSING_STACK_2_0_0_OR_NEWER
@@ -449,12 +446,18 @@ namespace UnityEngine.Rendering.Universal
                     _colorGradingLutSize.intValue = Mathf.Clamp(_colorGradingLutSize.intValue, UniversalRenderPipelineAsset.k_MinLutSize, UniversalRenderPipelineAsset.k_MaxLutSize);
                     if (isHdrOn && _colorGradingMode.intValue == (int)ColorGradingMode.HighDynamicRange && _colorGradingLutSize.intValue < 32)
                         EditorGUILayout.HelpBox(Styles.colorGradingLutSizeWarning, MessageType.Warning);
+
+                    if (GUILayout.Button("Save as Texture"))
+					{
+                        UniversalRenderPipelineAsset asset = target as UniversalRenderPipelineAsset;
+                        asset.colorLookupBake.Invoke();
+                    }
                 }
 
-                EditorGUI.indentLevel--;
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
             }
+
             EditorGUILayout.EndFoldoutHeaderGroup();
         }
 
@@ -463,13 +466,12 @@ namespace UnityEngine.Rendering.Universal
             _advancedSettingsFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_advancedSettingsFoldout.value, Styles.advancedSettingsText);
             if (_advancedSettingsFoldout.value)
             {
-                EditorGUI.indentLevel++;
                 EditorGUILayout.PropertyField(_SRPBatcher, Styles.srpBatcher);
                 EditorGUILayout.PropertyField(_supportsDynamicBatching, Styles.dynamicBatching);
                 EditorGUILayout.PropertyField(_mixedLightingSupportedProp, Styles.mixedLightingSupportLabel);
                 EditorGUILayout.PropertyField(_debugLevelProp, Styles.debugLevel);
                 EditorGUILayout.PropertyField(_shaderVariantLogLevel, Styles.shaderVariantLogLevel);
-                EditorGUI.indentLevel--;
+
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
             }

@@ -248,6 +248,7 @@ namespace UnityEngine.Rendering.Universal
         public const string PaniniUnitDistance = "_UNIT_DISTANCE";
         public const string BloomLQ = "_BLOOM_LQ";
         public const string BloomHQ = "_BLOOM_HQ";
+        public const string BloomTonemapping = "_BLOOM_TONEMAPPING";
         public const string BloomLQDirt = "_BLOOM_LQ_DIRT";
         public const string BloomHQDirt = "_BLOOM_HQ_DIRT";
         public const string BloomGlow = "_BLOOM_GLOW";
@@ -257,6 +258,7 @@ namespace UnityEngine.Rendering.Universal
         public const string HDRGrading = "_HDR_GRADING";
         public const string TonemapACES = "_TONEMAP_ACES";
         public const string TonemapNeutral = "_TONEMAP_NEUTRAL";
+        public const string TonemapGranTurismo = "_TONEMAP_GRAN_TURISMO";
         public const string FilmGrain = "_FILM_GRAIN";
         public const string Fxaa = "_FXAA";
         public const string Dithering = "_DITHERING";

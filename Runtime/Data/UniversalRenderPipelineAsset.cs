@@ -215,6 +215,7 @@ namespace UnityEngine.Rendering.Universal
 #pragma warning restore 414
         [SerializeField] ColorGradingMode m_ColorGradingMode = ColorGradingMode.LowDynamicRange;
         [SerializeField] int m_ColorGradingLutSize = 32;
+        [SerializeField] event Action m_colorLookupBuild;
 
         // Deprecated settings
         [SerializeField] ShadowQuality m_ShadowType = ShadowQuality.HardShadows;
@@ -766,6 +767,12 @@ namespace UnityEngine.Rendering.Universal
         {
             get { return m_ColorGradingLutSize; }
             set { m_ColorGradingLutSize = Mathf.Clamp(value, k_MinLutSize, k_MaxLutSize); }
+        }
+
+        public Action colorLookupBake
+		{
+            get { return m_colorLookupBuild; }
+            set { m_colorLookupBuild = value; }
         }
 
         /// <summary>

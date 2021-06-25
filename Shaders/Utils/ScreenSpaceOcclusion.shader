@@ -13,6 +13,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 
 		half4 _SSDO_BlurParams;
 		half4 _SSDO_SampleParams;
+		half4 _SSDO_SampleParams2;
 
 		struct Attributes
 		{
@@ -164,14 +165,14 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 				real emitterRadius = sampleRadius.x * linearDepth * 2;
 				real emitterArea = (emitterScale * emitterRadius * emitterRadius) * PI * 0.25;
 
-				real4 sh = emitterArea * saturate(sampleAngle - 0.001f) / (sampleLength2 + emitterArea);
+				real4 sh = emitterArea * saturate(sampleAngle - _SSDO_SampleParams2.x) / (sampleLength2 + emitterArea);
 
 				sampleOcclustion += dot(sh, 1);
 			}
 
 			sampleOcclustion /= SSDO_SAMPLER_COUNT;
 
-			return LerpWhiteTo(Gamma22ToLinear(1 - sampleOcclustion.w), _SSDO_SampleParams.w);
+			return pow(1 - sampleOcclustion.w, _SSDO_SampleParams.w * 2.2);
 		}
 
 		real BilateralWeight(real r, float depth, float center_d, real sigma, real sharpness)

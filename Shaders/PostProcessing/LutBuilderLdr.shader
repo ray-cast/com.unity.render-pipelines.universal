@@ -158,5 +158,14 @@ Shader "Hidden/Universal Render Pipeline/LutBuilderLdr"
                 #pragma fragment Frag
             ENDHLSL
         }
+        Pass
+        {
+            Name "LutBuilderLdrBake"
+
+            HLSLPROGRAM
+                #pragma vertex Vert
+                #pragma fragment Frag
+            ENDHLSL
+        }
     }
 }

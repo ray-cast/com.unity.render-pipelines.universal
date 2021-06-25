@@ -22,6 +22,33 @@
 
 		static float _MaxDistance = 5000;
 
+#if	_MIPFOG_MAP
+		float4 _SkyMipParams;
+		TEXTURE2D(_SkyMipTexture);
+		SAMPLER(sampler_SkyMipTexture);
+#endif
+
+		half3 rotate(half3 normal, half theta)
+		{
+			half c = cos(theta);
+			half s = sin(theta);
+
+			half3x3 m;
+			m[0] = half3(c, 0, -s);
+			m[1] = half3(0, 1, 0);
+			m[2] = half3(s, 0, c);
+
+			return mul(normal, m);
+		}
+
+		float2 SampleLatlong(float3 normal)
+		{
+			static float InvPIE = 0.318309886142f;
+			normal = clamp(normal, -1.0, 1.0);
+			float2 coord = float2((atan2(normal.x, normal.z) * InvPIE * 0.5f + 0.5f), 1.0f - acos(normal.y) * InvPIE);
+			return coord;
+		}
+
 		float3 GetCurrentViewPosition()
 		{
 		    return UNITY_MATRIX_I_V._14_24_34;
@@ -40,18 +67,13 @@
 			return o;
 		}
 
-		float4 HeightFogFragment(Varyings i) : SV_Target
+		float4 HeightFogFragment(Varyings input) : SV_Target
 		{		
-			float deviceDepth = SampleSceneDepth(i.uv);
+			float deviceDepth = SampleSceneDepth(input.uv);
 			float linearDepth = Linear01Depth(deviceDepth, _ZBufferParams) * _ProjectionParams.z;
 
-			if (deviceDepth == UNITY_RAW_FAR_CLIP_VALUE)
-			{
-				linearDepth = _MaxDistance;
-			}
-
-			float3 V = mul((float3x3)UNITY_MATRIX_I_V, normalize(-i.viewdir));
-			float3 viewPos = i.viewdir * linearDepth;
+			float3 V = mul((float3x3)UNITY_MATRIX_I_V, normalize(-input.viewdir));
+			float3 viewPos = input.viewdir * (deviceDepth == UNITY_RAW_FAR_CLIP_VALUE ? _MaxDistance : linearDepth);
     		float3 worldPosition = mul(UNITY_MATRIX_I_V, float4(viewPos, 1)).xyz;
 
 			float cosZenith = -V.y;
@@ -59,6 +81,14 @@
 
             float odFallback = OpticalDepthHeightFog(_HeightFogBaseExtinction, _HeightFogBaseHeight, _HeightFogExponents, _HeightFogDensity, cosZenith, startHeight, linearDepth);
 			float trFallback = TransmittanceFromOpticalDepth(odFallback);
+
+#if defined(_MIPFOG_MAP)
+			real3 normal = rotate(normalize(worldPosition), _SkyMipParams.w);
+			real mipLevel = (1 - saturate((linearDepth - _ProjectionParams.y) / (_ProjectionParams.z - _ProjectionParams.y))) * 6;
+			_HeightFogColor.xyz *= _SkyMipParams.xyz;
+			_HeightFogColor.xyz *= SAMPLE_TEXTURE2D_LOD(_SkyMipTexture, sampler_SkyMipTexture, SampleLatlong(normal), mipLevel).xyz;
+			_HeightFogColor.xyz += lerp(-0.5, 0.5, InterleavedGradientNoise(input.vertex.xy, _Frame.x)) / 255.f;
+#endif
 
 			return float4(_HeightFogColor.xyz, (1 - trFallback));
 		}
@@ -82,6 +112,8 @@
 
 				#pragma vertex HeightFogVertex
 				#pragma fragment HeightFogFragment
+
+				#pragma multi_compile_local _ _MIPFOG_MAP
 			ENDHLSL
 		}
 	}

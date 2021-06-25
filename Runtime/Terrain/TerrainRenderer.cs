@@ -29,6 +29,7 @@ namespace UnityEngine.Rendering.Universal
 
         public Material instanceMaterial;
         public TerrainData terrainData;
+        public TiledTexture tiledTexture;
 
         private Texture2D _normalMap;
         private Texture2D _lightMap;
@@ -64,6 +65,8 @@ namespace UnityEngine.Rendering.Universal
         private TerrainTree _terrainTree;
         private TerrainData _terrainDataCache;
         private Dictionary<int, TerrainPatch[]> _terrainPatchesCaches;
+        private RenderTextureJob _renderTextureJob;
+        private PageTable _pageTable;
 
 #if UNITY_EDITOR
         public bool debugMode = false;
@@ -75,7 +78,7 @@ namespace UnityEngine.Rendering.Universal
         void OnEnable()
         {
             _shouldUpdateTerrain = true;
-
+            
             _instancePatchMesh = Resources.Load<Mesh>("Quad");
 
             _computeShader = Resources.Load<ComputeShader>("TerrainCulling");
@@ -86,6 +89,8 @@ namespace UnityEngine.Rendering.Universal
             _sectorID = int.MaxValue;
             _terrainDataCache = terrainData;
             _terrainPatchesCaches = new Dictionary<int, TerrainPatch[]>();
+            _pageTable = new PageTable();
+            _pageTable.Init();
 
             uint[] args = new uint[5];
             args[0] = (uint)_instancePatchMesh.GetIndexCount(0);
@@ -267,21 +272,21 @@ namespace UnityEngine.Rendering.Universal
 			{
 				var rect = new Rect(0, 0, terrainData.size.x, terrainData.size.z);
 
-				var chunkX = Mathf.CeilToInt(rect.width / ShaderConstants.chunkSize);
+                var written = 0;
+
+                var chunkX = Mathf.CeilToInt(rect.width / ShaderConstants.chunkSize);
 				var chunkY = Mathf.CeilToInt(rect.height / ShaderConstants.chunkSize);
-
-				var written = 0;
 				var children = new TerrainTree[chunkX * chunkY];
-
-				for (var i = 0; i < rect.width; i += ShaderConstants.chunkSize)
+                
+                for (var i = 0; i < rect.width; i += ShaderConstants.chunkSize)
 				{
 					for (var j = 0; j < rect.height; j += ShaderConstants.chunkSize)
 					{
 						children[written++] = new TerrainTree(new Rect(i, j, ShaderConstants.chunkSize, ShaderConstants.chunkSize), 3);
 					}
 				}
-                
-				_boundingBox.min = new Vector3(rect.min.x, 0, rect.min.y);
+
+                _boundingBox.min = new Vector3(rect.min.x, 0, rect.min.y);
 				_boundingBox.max = new Vector3(rect.max.x, terrainData.size.y, rect.max.y);
 
 				_terrainTree = new TerrainTree(rect);
@@ -630,10 +635,10 @@ namespace UnityEngine.Rendering.Universal
                     _cameraFrustumData[i].z = plane.normal.z;
                     _cameraFrustumData[i].w = plane.distance;
                 }
-
+                
                 var depthEstimation = HizPass.GetDepthEstimation(ref camera);
                 var occlusionKernel = depthEstimation.hizTexture && this.shouldOcclusionCulling ? _computeOcclusionCullingKernel : _computeFrustumCullingKernel;
-                var tanFov = 1.0f / (Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f));
+                var tanFov = 1.0f / Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f);
 
                 cmd.SetComputeBufferParam(_computeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
                 cmd.DispatchCompute(_computeShader, _clearUniqueCounterKernel, 1, 1, 1);
@@ -659,7 +664,7 @@ namespace UnityEngine.Rendering.Universal
                     cmd.SetComputeTextureParam(_computeShader, occlusionKernel, ShaderConstants._HizTexture, depthEstimation.hizTexture);
                     cmd.SetComputeVectorParam(_computeShader, ShaderConstants._HizTexture_Size, new Vector2(depthEstimation.hizTexture.width, depthEstimation.hizTexture.height));
                 }
-
+                
                 cmd.DispatchCompute(_computeShader, occlusionKernel, Mathf.CeilToInt(_instanceCount / (float)_maxComputeWorkGroupSize), 1, 1);
 
 #if UNITY_EDITOR
@@ -685,7 +690,13 @@ namespace UnityEngine.Rendering.Universal
             _shouldUpdateTerrain = true;
         }
 
-        static class ShaderConstants
+		private void Update()
+		{
+            if (_renderTextureJob != null)
+                _renderTextureJob.ClearJob();
+		}
+
+		static class ShaderConstants
         {
             public const int chunkSize = 8;
 
