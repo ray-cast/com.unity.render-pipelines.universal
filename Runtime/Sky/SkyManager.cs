@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using UnityEngine.Experimental.Rendering;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -67,7 +68,13 @@ namespace UnityEngine.Rendering.Universal
 
         public void Build(ClusterBasedDeferredRendererData.ShaderResources defaultResources)
 		{
-            this._cubemap = new Cubemap(128, Experimental.Rendering.DefaultFormat.HDR, Experimental.Rendering.TextureCreationFlags.None);
+            GraphicsFormat hdrFormat;
+            if (SystemInfo.IsFormatSupported(GraphicsFormat.B10G11R11_UFloatPack32, FormatUsage.Linear | FormatUsage.Render | FormatUsage.Sample))
+                hdrFormat = GraphicsFormat.B10G11R11_UFloatPack32;
+            else
+                hdrFormat = GraphicsFormat.R16G16B16_SFloat;
+
+            this._cubemap = new Cubemap(128, hdrFormat, TextureCreationFlags.None);
             this._iblMaterial = CoreUtils.CreateEngineMaterial(defaultResources.imageBasedLightingPS);
             this._hdriMaterial = CoreUtils.CreateEngineMaterial(defaultResources.skyboxCubemapPS);
         }

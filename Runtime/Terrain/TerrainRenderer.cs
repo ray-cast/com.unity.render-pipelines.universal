@@ -89,8 +89,6 @@ namespace UnityEngine.Rendering.Universal
             _sectorID = int.MaxValue;
             _terrainDataCache = terrainData;
             _terrainPatchesCaches = new Dictionary<int, TerrainPatch[]>();
-            _pageTable = new PageTable();
-            _pageTable.Init();
 
             uint[] args = new uint[5];
             args[0] = (uint)_instancePatchMesh.GetIndexCount(0);
@@ -692,8 +690,6 @@ namespace UnityEngine.Rendering.Universal
 
 		private void Update()
 		{
-            if (_renderTextureJob != null)
-                _renderTextureJob.ClearJob();
 		}
 
 		static class ShaderConstants

@@ -2,9 +2,6 @@
 {
     HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Terrain.hlsl"
-
-        float4 _FeedbackParam;
 
         float4 _Control_ST;
         float4 _Splat0_ST;
@@ -24,6 +21,10 @@
         TEXTURE2D(_Normal2);
         TEXTURE2D(_Normal3);
 
+        TEXTURE2D_X(_MainTex);
+        SAMPLER(sampler_MainTex);
+        float4 _MainTex_TexelSize;
+
         struct Attributes
         {
             float4 positionOS   : POSITION;
@@ -39,63 +40,40 @@
             UNITY_VERTEX_OUTPUT_STEREO
         };
 
-        struct FeedbackAttributes
-        {
-            float3 positionOS   : POSITION;
-            float4 color        : COLOR;
-            float2 texcoord     : TEXCOORD0;
-            UNITY_VERTEX_INPUT_INSTANCE_ID
-        };
-
-        struct FeedbackVaryings
-        {
-            float2 uv                       : TEXCOORD0;
-            float4 positionCS               : SV_POSITION;
-
-            UNITY_VERTEX_INPUT_INSTANCE_ID
-            UNITY_VERTEX_OUTPUT_STEREO
-        };
-
         struct RVTOutput
         {
             float3 albedo : SV_TARGET0;
             float3 normal : SV_TARGET1;
         };
 
-        FeedbackVaryings FeedbackVertex(FeedbackAttributes input)
+        float4 GetMaxFeedback(float2 uv, int count)
         {
-            FeedbackVaryings output = (FeedbackVaryings)0;
+            float4 col = float4(1, 1, 1, 1);
 
-            UNITY_SETUP_INSTANCE_ID(input);
-            UNITY_TRANSFER_INSTANCE_ID(input, output);
-            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+            for (int y = 0; y < count; y++)
+            {
+                for (int x = 0; x < count; x++)
+                {
+                    float4 col1 = SAMPLE_TEXTURE2D_LOD(_MainTex, sampler_MainTex, uv + float2(_MainTex_TexelSize.x * x, _MainTex_TexelSize.y * y), 0);
+                    col = lerp(col, col1, step(col1.b, col.b));
+                }
+            }
 
-        #ifdef PROCEDURAL_INSTANCING_ON
-            TerrainPositionInputs vertexInput = GetTerrainPositionInputs(input.positionOS, input.color);
-            output.uv = vertexInput.texcoord;
-            output.positionCS = vertexInput.positionCS;
-        #else
-            VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
-            output.uv = input.texcoord;
-            output.positionCS = vertexInput.positionCS;
-        #endif
-
-            return output;
+            return col;
         }
 
-        float4 FeedbackFragment(FeedbackVaryings input) : SV_TARGET
+        Varyings FeedbackVertex(uint id : SV_VERTEXID)
         {
-            UNITY_SETUP_INSTANCE_ID(input);
-            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+            Varyings o;
+            o.uv = GetFullScreenTriangleTexCoord(id);
+            o.positionCS = GetFullScreenTriangleVertexPosition(id);
 
-            float2 page = floor(input.uv * _FeedbackParam.x);
+            return o;
+        }
 
-            float2 uv = input.uv * _FeedbackParam.y;
-            float2 dx = ddx(uv);
-            float2 dy = ddy(uv);
-            int mip = clamp(int(0.5 * log2(max(dot(dx, dx), dot(dy, dy))) + 0.5 + _FeedbackParam.w), 0, _FeedbackParam.z);
-
-            return float4(page / 255.0, mip / 255.0, 1);
+        float4 FeedbackFragment(Varyings input) : SV_Target
+        {
+            return GetMaxFeedback(input.uv, 8);
         }
 
         Varyings BakeVertex(Attributes input)
@@ -164,12 +142,6 @@
 
             #pragma vertex FeedbackVertex
             #pragma fragment FeedbackFragment
-
-            #pragma shader_feature_local _NORMALMAP
-            #pragma multi_compile PROCEDURAL_INSTANCING_ON
-
-            #pragma instancing_options procedural:SetupTerrainInstancing
-            #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
             ENDHLSL
         }

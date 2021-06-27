@@ -48,17 +48,25 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        public RenderTextureRequest Find(int x, int y, int mip)
+        {
+            foreach (var req in _pendingRequests)
+            {
+                if (req.pageX == x && req.pageY == y && req.mipLevel == mip)
+                    return req;
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// 新建渲染请求
         /// </summary>
         public RenderTextureRequest Request(int x, int y, int mip)
         {
             // 是否已经在请求队列中
-            foreach (var r in _pendingRequests)
-            {
-                if (r.pageX == x && r.pageY == y && r.mipLevel == mip)
-                    return null;
-            }
+            if (this.Find(x, y, mip) != null)
+                return null;
 
             // 加入待处理列表
             var request = new RenderTextureRequest(x, y, mip);

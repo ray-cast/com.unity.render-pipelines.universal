@@ -211,6 +211,32 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
 
             ENDHLSL
         }
+        Pass
+        {
+            Name "Feedback"
+            Tags{"LightMode" = "Feedback"}
+
+            ZWrite On
+
+            HLSLPROGRAM
+
+            #pragma prefer_hlslcc gles
+            #pragma exclude_renderers d3d11_9x
+            #pragma target 2.0
+
+            #pragma vertex FeedbackVertex
+            #pragma fragment FeedbackFragment
+
+            #pragma multi_compile PROCEDURAL_INSTANCING_ON
+
+            #pragma instancing_options procedural:SetupTerrainInstancing
+            #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
+
+            #include "DeferredTerrainLitInput.hlsl"
+            #include "DeferredTerrainLitPasses.hlsl"
+
+            ENDHLSL
+        }
     }
     FallBack "Hidden/Universal Render Pipeline/FallbackError"
     CustomEditor "UnityEditor.Rendering.Universal.ShaderGUI.DeferredTerrainLitShader"

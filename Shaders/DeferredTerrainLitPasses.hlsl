@@ -260,4 +260,57 @@ half4 UniversalFragmentMeta(Varyings input) : SV_Target
     return MetaFragment(metaInput);
 }
 
+struct FeedbackAttributes
+{
+    float3 positionOS   : POSITION;
+    float4 color        : COLOR;
+    float2 texcoord     : TEXCOORD0;
+    UNITY_VERTEX_INPUT_INSTANCE_ID
+};
+
+struct FeedbackVaryings
+{
+    float2 uv                       : TEXCOORD0;
+    float4 positionCS               : SV_POSITION;
+
+    UNITY_VERTEX_INPUT_INSTANCE_ID
+    UNITY_VERTEX_OUTPUT_STEREO
+};
+
+FeedbackVaryings FeedbackVertex(FeedbackAttributes input)
+{
+    FeedbackVaryings output = (FeedbackVaryings)0;
+
+    UNITY_SETUP_INSTANCE_ID(input);
+    UNITY_TRANSFER_INSTANCE_ID(input, output);
+    UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+#ifdef PROCEDURAL_INSTANCING_ON
+    TerrainPositionInputs vertexInput = GetTerrainPositionInputs(input.positionOS.xyz, input.color);
+    output.uv = vertexInput.texcoord;
+#else
+    VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
+    output.uv = input.texcoord;
+#endif
+
+    output.positionCS = vertexInput.positionCS;
+
+    return output;
+}
+
+float4 FeedbackFragment(FeedbackVaryings input) : SV_TARGET
+{
+    UNITY_SETUP_INSTANCE_ID(input);
+    UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+    float2 page = floor(input.uv * _VTFeedbackParam.x);
+
+    float2 uv = input.uv * _VTFeedbackParam.y;
+    float2 dx = ddx(uv);
+    float2 dy = ddy(uv);
+    int mip = clamp(int(0.5 * log2(max(dot(dx, dx), dot(dy, dy))) + 0.5 + _VTFeedbackParam.w), 0, _VTFeedbackParam.z);
+
+    return float4(page / 255.0, mip / 255.0, 1);
+}
+
 #endif

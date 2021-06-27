@@ -72,6 +72,9 @@ namespace UnityEngine.Rendering.Universal
 
             [Reload("Skybox/Cubemap", ReloadAttribute.Package.Builtin)]
             public Shader skyboxCubemapPS;
+
+            [Reload("Shaders/Utils/RVT.shader")]
+            public Shader virtualTexturePS;
         }
 
         [Reload("Runtime/Data/PostProcessData.asset")]

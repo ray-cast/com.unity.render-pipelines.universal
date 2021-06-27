@@ -35,13 +35,12 @@ namespace UnityEngine.Rendering.Universal
             PerCellSize = (int)Mathf.Pow(2, mip);
             NodeCellCount = tableSize / PerCellSize;
             Cell = new TableNodeCell[NodeCellCount, NodeCellCount];
+
             for (int i = 0; i < NodeCellCount; i++)
             {
                 for(int j = 0; j < NodeCellCount; j++)
                 {
-                    Cell[i,j] = new TableNodeCell(i * PerCellSize, 
-                                                  j * PerCellSize, 
-                                                  PerCellSize, PerCellSize, MipLevel);
+                    Cell[i,j] = new TableNodeCell(i * PerCellSize, j * PerCellSize,  PerCellSize, PerCellSize, MipLevel);
                 }
             }
         }

@@ -2,7 +2,7 @@
 
 namespace UnityEngine.Rendering.Universal
 {
-    public class TiledTexture : MonoBehaviour
+    public class TiledTexture
     {
         /// <summary>
         /// Tile更新完成的事件回调.
@@ -18,7 +18,7 @@ namespace UnityEngine.Rendering.Universal
         /// 区域尺寸.
         /// </summary>
         [SerializeField]
-        private Vector2Int m_RegionSize = default;
+        private Vector2Int m_RegionSize = new Vector2Int(15, 15);
 
         /// <summary>
         /// 单个Tile的尺寸.
@@ -120,7 +120,7 @@ namespace UnityEngine.Rendering.Universal
             if (!SetActive(tile))
                 return;
 
-            DoDrawTexture?.Invoke(new RectInt(tile.x * TileSizeWithPadding, tile.y * TileSizeWithPadding, TileSizeWithPadding, TileSizeWithPadding),                                   request);
+            DoDrawTexture?.Invoke(new RectInt(tile.x * TileSizeWithPadding, tile.y * TileSizeWithPadding, TileSizeWithPadding, TileSizeWithPadding), request);
             OnTileUpdateComplete?.Invoke(tile);
         }
 
