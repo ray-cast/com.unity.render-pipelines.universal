@@ -52,7 +52,7 @@ namespace UnityEngine.Rendering.Universal
             get
             {
                 if (_cubemap == null)
-                    _cubemap = new Cubemap(128, Experimental.Rendering.DefaultFormat.HDR, Experimental.Rendering.TextureCreationFlags.None);
+                    _cubemap = new Cubemap(128, DefaultFormat.HDR, TextureCreationFlags.None);
 
                 return _cubemap;
             }
@@ -68,13 +68,7 @@ namespace UnityEngine.Rendering.Universal
 
         public void Build(ClusterBasedDeferredRendererData.ShaderResources defaultResources)
 		{
-            GraphicsFormat hdrFormat;
-            if (SystemInfo.IsFormatSupported(GraphicsFormat.B10G11R11_UFloatPack32, FormatUsage.Linear | FormatUsage.Render | FormatUsage.Sample))
-                hdrFormat = GraphicsFormat.B10G11R11_UFloatPack32;
-            else
-                hdrFormat = GraphicsFormat.R16G16B16_SFloat;
-
-            this._cubemap = new Cubemap(128, hdrFormat, TextureCreationFlags.None);
+            this._cubemap = new Cubemap(128, DefaultFormat.HDR, TextureCreationFlags.None);
             this._iblMaterial = CoreUtils.CreateEngineMaterial(defaultResources.imageBasedLightingPS);
             this._hdriMaterial = CoreUtils.CreateEngineMaterial(defaultResources.skyboxCubemapPS);
         }

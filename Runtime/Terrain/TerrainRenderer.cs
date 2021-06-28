@@ -29,7 +29,7 @@ namespace UnityEngine.Rendering.Universal
 
         public Material instanceMaterial;
         public TerrainData terrainData;
-        public TiledTexture tiledTexture;
+        public TiledTexture virtualTexture;
 
         private Texture2D _normalMap;
         private Texture2D _lightMap;
@@ -40,6 +40,9 @@ namespace UnityEngine.Rendering.Universal
         private Vector4[] _cameraFrustumData = new Vector4[6];
         private Bounds _worldBoundingBox;
         private Matrix4x4 _localToWorldMatrix = Matrix4x4.zero;
+
+        private Mesh _tileQuadMesh;
+        private Material _tileMaterial;
 
         private Mesh _instancePatchMesh;
 
@@ -65,8 +68,6 @@ namespace UnityEngine.Rendering.Universal
         private TerrainTree _terrainTree;
         private TerrainData _terrainDataCache;
         private Dictionary<int, TerrainPatch[]> _terrainPatchesCaches;
-        private RenderTextureJob _renderTextureJob;
-        private PageTable _pageTable;
 
 #if UNITY_EDITOR
         public bool debugMode = false;
@@ -108,8 +109,12 @@ namespace UnityEngine.Rendering.Universal
             RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
             RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
 
+            VirtualTextureManager.beginTileRendering += OnBeginTileRendering;
+
+            InitializeQuadMesh();
+
 #if UNITY_EDITOR
-            UnityEditor.Lightmapping.bakeCompleted += OnBakeCompleted;
+            Lightmapping.bakeCompleted += OnBakeCompleted;
 #endif
         }
 
@@ -117,6 +122,8 @@ namespace UnityEngine.Rendering.Universal
         {
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
             RenderPipelineManager.beginFrameRendering -= OnBeginFrameRendering;
+
+            VirtualTextureManager.beginTileRendering -= OnBeginTileRendering;
 
 #if UNITY_EDITOR
             UnityEditor.Lightmapping.bakeCompleted -= OnBakeCompleted;
@@ -139,6 +146,38 @@ namespace UnityEngine.Rendering.Universal
             _shadowBuffer = null;
             _normalMap = null;
             _lightMap = null;
+        }
+
+        public void InitializeQuadMesh()
+        {
+            List<Vector3> quadVertexList = new List<Vector3>();
+            List<int> quadTriangleList = new List<int>();
+            List<Vector2> quadUVList = new List<Vector2>();
+
+            quadVertexList.Add(new Vector3(0, 1, 0.1f));
+            quadVertexList.Add(new Vector3(0, 0, 0.1f));
+            quadVertexList.Add(new Vector3(1, 0, 0.1f));
+            quadVertexList.Add(new Vector3(1, 1, 0.1f));
+
+            quadUVList.Add(new Vector2(0, 1));
+            quadUVList.Add(new Vector2(0, 0));
+            quadUVList.Add(new Vector2(1, 0));
+            quadUVList.Add(new Vector2(1, 1));
+
+            quadTriangleList.Add(0);
+            quadTriangleList.Add(1);
+            quadTriangleList.Add(2);
+
+            quadTriangleList.Add(2);
+            quadTriangleList.Add(3);
+            quadTriangleList.Add(0);
+
+            _tileQuadMesh = new Mesh();
+            _tileQuadMesh.SetVertices(quadVertexList);
+            _tileQuadMesh.SetUVs(0, quadUVList);
+            _tileQuadMesh.SetTriangles(quadTriangleList, 0);
+
+            _tileMaterial = new Material(Shader.Find("VirtualTexture/DrawTexture"));
         }
 
         public void InitializeWorldBoundingBox()
@@ -510,6 +549,88 @@ namespace UnityEngine.Rendering.Universal
 
                 _shouldUpdateTerrainPatches = false;
             }
+        }
+
+        private void OnBeginTileRendering(RenderTextureRequest request, TiledTexture tileTexture, Vector2Int tile)
+		{
+            int perSize = 2 << request.mipLevel;
+
+            int x = request.pageX - request.pageX % perSize;
+            int y = request.pageY - request.pageY % perSize;
+
+            this.virtualTexture = tileTexture;
+
+            var tileRect = tileTexture.TileToRect(tile);
+
+            var tableSize = 256;
+            var RealTotalRect = new Rect(_worldBoundingBox.min.x, _worldBoundingBox.min.z, _worldBoundingBox.max.x, _worldBoundingBox.max.z);
+            var paddingEffect = tileTexture.paddingSize * perSize * (RealTotalRect.width / tableSize) / tileTexture.tileSize;
+            var realRect = new Rect(RealTotalRect.xMin + (float)x / tableSize * RealTotalRect.width - paddingEffect,
+                                     RealTotalRect.yMin + (float)y / tableSize * RealTotalRect.height - paddingEffect,
+                                     RealTotalRect.width / tableSize * perSize + 2f * paddingEffect,
+                                     RealTotalRect.width / tableSize * perSize + 2f * paddingEffect);
+            var terRect = Rect.zero;
+
+            var needDrawRect = realRect;
+            needDrawRect.xMin = Mathf.Max(realRect.xMin, terRect.xMin);
+            needDrawRect.yMin = Mathf.Max(realRect.yMin, terRect.yMin);
+            needDrawRect.xMax = Mathf.Min(realRect.xMax, terRect.xMax);
+            needDrawRect.yMax = Mathf.Min(realRect.yMax, terRect.yMax);
+            var scaleFactor = tileRect.width / realRect.width;
+
+            var position = new Rect(tileRect.x + (needDrawRect.xMin - realRect.xMin) * scaleFactor,
+                                    tileRect.y + (needDrawRect.yMin - realRect.yMin) * scaleFactor,
+                                    needDrawRect.width * scaleFactor,
+                                    needDrawRect.height * scaleFactor);
+
+            var scaleOffset = new Vector4(
+                        needDrawRect.width / terRect.width,
+                        needDrawRect.height / terRect.height,
+                        (needDrawRect.xMin - terRect.xMin) / terRect.width,
+                        (needDrawRect.yMin - terRect.yMin) / terRect.height);
+
+            float l = position.x * 2.0f / tileTexture.width - 1;
+            float b = position.y * 2.0f / tileTexture.height - 1;
+            float r = (position.x + position.width) * 2.0f / tileTexture.width - 1;
+            float t = (position.y + position.height) * 2.0f / tileTexture.height - 1;
+            /*var mat = new Matrix4x4();
+            mat.m00 = r - l;
+            mat.m03 = l;
+            mat.m11 = t - b;
+            mat.m13 = b;
+            mat.m23 = -1;
+            mat.m33 = 1;*/
+
+            var tileX = tileRect.x / (float)tileTexture.width - 1;
+            var tileY = (tileRect.y - tileRect.height * 2) / (float)tileTexture.height + 1;
+
+            var width = tileRect.width * 2 / (float)tileTexture.width;
+            var height = tileRect.height * 2 / (float)tileTexture.height;
+
+            var mat = Matrix4x4.TRS(new Vector3(tileX, tileY, 0), Quaternion.identity, new Vector3(width, height, 0));
+            //var mat2 = Matrix4x4.Ortho(35, tileTexture.regionSize.x, 35, tileTexture.regionSize.y, 0.01f, 1000);
+
+            _tileMaterial.SetTexture("_Control", instanceMaterial.GetTexture("_Control"));
+            _tileMaterial.SetTexture("_Splat0", instanceMaterial.GetTexture("_Splat0"));
+            _tileMaterial.SetTexture("_Splat1", instanceMaterial.GetTexture("_Splat1"));
+            _tileMaterial.SetTexture("_Splat2", instanceMaterial.GetTexture("_Splat2"));
+            _tileMaterial.SetTexture("_Splat3", instanceMaterial.GetTexture("_Splat3"));
+
+            _tileMaterial.SetVector("_Control_ST", instanceMaterial.GetVector("_Control_ST")); 
+
+            _tileMaterial.SetVector("_Splat0_ST", instanceMaterial.GetVector("_Splat0_ST"));
+            _tileMaterial.SetVector("_Splat1_ST", instanceMaterial.GetVector("_Splat1_ST"));
+            _tileMaterial.SetVector("_Splat2_ST", instanceMaterial.GetVector("_Splat2_ST"));
+            _tileMaterial.SetVector("_Splat3_ST", instanceMaterial.GetVector("_Splat3_ST"));
+            
+            _tileMaterial.SetMatrix(Shader.PropertyToID("_ImageMVP"), GL.GetGPUProjectionMatrix(mat, false));
+
+            var cmd = CommandBufferPool.Get();
+            cmd.SetRenderTarget(tileTexture.tileBuffers, tileTexture.tileDepthBuffer);
+            cmd.DrawMesh(_tileQuadMesh, Matrix4x4.identity, _tileMaterial, 0);
+
+            Graphics.ExecuteCommandBuffer(cmd);
+            CommandBufferPool.Release(cmd);
         }
 
         public void OnBeginFrameRendering(ScriptableRenderContext context, Camera[] cameras)

@@ -1,7 +1,12 @@
-﻿Shader "VirtualTexture/VTDrawLookup"
+﻿Shader "VirtualTexture/DrawLookup"
 {
 	HLSLINCLUDE
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+		UNITY_INSTANCING_BUFFER_START(LookupBlock)
+		UNITY_DEFINE_INSTANCED_PROP(float4, _PageInfo)
+		UNITY_DEFINE_INSTANCED_PROP(float4x4, _ImageMVP)
+		UNITY_INSTANCING_BUFFER_END(LookupBlock)
 
 		struct Attributes
 		{
@@ -14,32 +19,27 @@
 		struct Varyings
 		{
 			float4 color           : TEXCOORD0;
-			float4 positionHCS	   : SV_POSITION;
+			float4 positionCS	   : SV_POSITION;
 		};
 
-		float4 _tempInfo;
-
-		UNITY_INSTANCING_BUFFER_START(InstanceProp)
-		UNITY_DEFINE_INSTANCED_PROP(float4, _PageInfo)
-		UNITY_DEFINE_INSTANCED_PROP(float4x4, _ImageMVP)
-		UNITY_INSTANCING_BUFFER_END(InstanceProp)
-
-		Varyings vert(Attributes IN)
+		Varyings LookupVertex(Attributes input)
 		{
-			Varyings output;
+			UNITY_SETUP_INSTANCE_ID(input);
 
-			UNITY_SETUP_INSTANCE_ID(IN);
 			float4x4 mat = UNITY_MATRIX_M;
-			mat = UNITY_ACCESS_INSTANCED_PROP(InstanceProp, _ImageMVP);
-			float2 pos = saturate(mul(mat, IN.positionOS).xy);
+			mat = UNITY_ACCESS_INSTANCED_PROP(LookupBlock, _ImageMVP);
+
+			float2 pos = saturate(mul(mat, input.positionOS).xy);
 			pos.y = 1 - pos.y;
-			output.positionHCS = float4(2.0 * pos - 1,0.5,1);
-			output.color = UNITY_ACCESS_INSTANCED_PROP(InstanceProp, _PageInfo);
+
+			Varyings output;
+			output.positionCS = float4(pos * 2 - 1, 0, 1);
+			output.color = UNITY_ACCESS_INSTANCED_PROP(LookupBlock, _PageInfo);
 
 			return output;
 		}
 
-		half4 frag(Varyings input) : SV_Target
+		half4 LookupFragment(Varyings input) : SV_Target
 		{
 			return input.color;
 		}
@@ -48,8 +48,8 @@
 	{
 		Pass
 		{
-			ZTest Always
-			Cull Front
+			ZTest Always ZWrite Off 
+			Cull Off
 
 			HLSLPROGRAM
 
@@ -57,8 +57,8 @@
             #pragma exclude_renderers d3d11_9x
             #pragma target 2.0
 
-			#pragma vertex vert
-			#pragma fragment frag
+			#pragma vertex LookupVertex
+			#pragma fragment LookupFragment
 			
 			#pragma multi_compile_instancing
 

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace UnityEngine.Rendering.Universal
 {
-    public class RenderTextureJob
+    public sealed class RenderTextureJob
     {
         /// <summary>
         /// 渲染完成的事件回调.
@@ -28,23 +28,21 @@ namespace UnityEngine.Rendering.Universal
 
         public void Update()
         {
-            if (_pendingRequests.Count <= 0)
-                return;
-
-            // 优先处理mipmap等级高的请求
-            _pendingRequests.Sort((x, y) => { return x.mipLevel.CompareTo(y.mipLevel); });
-
-            int count = limit;
-
-            while (count > 0 && _pendingRequests.Count > 0)
+            if (startRenderJob != null && _pendingRequests.Count > 0)
             {
-                count--;
-                // 将第一个请求从等待队列移到运行队列
-                var req = _pendingRequests[_pendingRequests.Count - 1];
-                _pendingRequests.RemoveAt(_pendingRequests.Count - 1);
+                // 优先处理mipmap等级高的请求
+                _pendingRequests.Sort((x, y) => { return x.mipLevel.CompareTo(y.mipLevel); });
 
-                // 开始渲染
-                startRenderJob?.Invoke(req);
+                for (int i = 0; i < limit && _pendingRequests.Count > 0; i++)
+                {
+                    // 将第一个请求从等待队列移到运行队列
+                    var req = _pendingRequests[_pendingRequests.Count - 1];
+
+                    // 开始渲染
+                    startRenderJob.Invoke(req);
+
+                    _pendingRequests.RemoveAt(_pendingRequests.Count - 1);
+                }
             }
         }
 

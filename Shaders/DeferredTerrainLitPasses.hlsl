@@ -6,6 +6,7 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Gbuffer.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/MetaInput.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/VirtualTexture.hlsl"
 
 struct Attributes
 {
@@ -148,10 +149,12 @@ FragmentOutput LitPassFragment(Varyings input)
     surfaceData.smoothness = GeometricNormalFiltering(surfaceData.smoothness, inputData.normalWS, _specularAntiAliasingThreshold, 2);
 #endif
 
+    VirtualTexture virtualData = SampleVirtualTexture(input.uv);
+
     GbufferData data = (GbufferData)0;
-    data.albedo = surfaceData.albedo;
+    data.albedo = virtualData.diffuse;//surfaceData.albedo;
     data.normalWS = inputData.normalWS;
-    data.emission = surfaceData.emission;
+    data.emission = 0;//surfaceData.emission;
     data.specular = surfaceData.specular;
     data.metallic = surfaceData.metallic;
     data.smoothness = surfaceData.smoothness;

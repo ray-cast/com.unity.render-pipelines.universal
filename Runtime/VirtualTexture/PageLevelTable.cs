@@ -6,7 +6,7 @@ namespace UnityEngine.Rendering.Universal
     {
         public RectInt Rect { get; set; }
 
-        public PagePayload Payload { get; set; }
+        public PagePayload payload { get; set; }
 
         public int MipLevel { get; }
 
@@ -14,7 +14,7 @@ namespace UnityEngine.Rendering.Universal
         {
             Rect = new RectInt(x, y, width, height);
             MipLevel = mip;
-            Payload = new PagePayload();
+            payload = new PagePayload();
         }
     }
 
@@ -54,8 +54,8 @@ namespace UnityEngine.Rendering.Universal
                     for (int j = 0; j < NodeCellCount; j++)
                     {
                         var transXY = GetTransXY(i, j);
-                        Cell[transXY.x, transXY.y].Payload.LoadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].Payload.TileIndex);
+                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 pageOffset = Vector2Int.zero;
                 return;
@@ -70,8 +70,8 @@ namespace UnityEngine.Rendering.Universal
                     for (int j = 0;j < NodeCellCount;j++)
                     {
                         var transXY = GetTransXY(i, j);
-                        Cell[transXY.x, transXY.y].Payload.LoadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].Payload.TileIndex);
+                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 }
             }
@@ -82,8 +82,8 @@ namespace UnityEngine.Rendering.Universal
                     for (int j = 0; j < NodeCellCount; j++)
                     {
                         var transXY = GetTransXY(NodeCellCount - i, j);
-                        Cell[transXY.x, transXY.y].Payload.LoadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].Payload.TileIndex);
+                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 }
             }
@@ -94,8 +94,8 @@ namespace UnityEngine.Rendering.Universal
                     for (int j = 0; j < NodeCellCount; j++)
                     {
                         var transXY = GetTransXY(j, i);
-                        Cell[transXY.x, transXY.y].Payload.LoadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].Payload.TileIndex);
+                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 }
             }
@@ -106,8 +106,8 @@ namespace UnityEngine.Rendering.Universal
                     for (int j = 0; j < NodeCellCount; j++)
                     {
                         var transXY = GetTransXY(j, NodeCellCount - i);
-                        Cell[transXY.x, transXY.y].Payload.LoadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].Payload.TileIndex);
+                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 }
             }

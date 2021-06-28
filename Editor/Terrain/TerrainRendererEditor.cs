@@ -116,6 +116,12 @@ namespace UnityEditor.Rendering.Universal
                 _renderer.shouldOcclusionCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driven）", _renderer.shouldOcclusionCulling);
 
                 EditorGUILayout.Space();
+
+                var texture = _renderer.virtualTexture.tileTextures[0];
+                EditorGUILayout.LabelField("Virtual Texture:");
+                EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)texture.width / texture.height), texture);
+
+                EditorGUILayout.Space();
                 EditorGUILayout.Space();
             }
 

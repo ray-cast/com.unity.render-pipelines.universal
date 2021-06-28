@@ -5,7 +5,6 @@ namespace UnityEngine.Rendering.Universal
     public sealed class FeedbackPass : ScriptableRenderPass
     {
         private int _mipmapBias = 0;
-        private int m_TileSize = 256;
 
         private ScaleFactor m_Scale = ScaleFactor.Half;
 
@@ -59,7 +58,7 @@ namespace UnityEngine.Rendering.Universal
 
             using (new ProfilingScope(cmd, _profilingSampler))
             {
-                cmd.SetGlobalVector("_VTFeedbackParam", new Vector4(_pageTable.tableSize, _pageTable.tableSize * m_TileSize * m_Scale.ToFloat(), _pageTable.maxMipLevel - 1, _mipmapBias));
+                cmd.SetGlobalVector("_VTFeedbackParam", new Vector4(_pageTable.tableSize, _pageTable.tableSize * _pageTable.tileSize * m_Scale.ToFloat(), _pageTable.maxMipLevel - 1, _mipmapBias));
 
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
@@ -75,6 +74,9 @@ namespace UnityEngine.Rendering.Universal
                 cmd.DrawProcedural(Matrix4x4.identity, _virtualTextureMaterial, 0, MeshTopology.Triangles, 3);
 
                 cmd.RequestAsyncReadback(_maxFeedbackTexture, 0, OnAsyncFeedbackRequest);
+                
+                _pageTable._renderTextureJob.Update();
+                _pageTable.UpdateLookup();
             }
             
             context.ExecuteCommandBuffer(cmd);
@@ -84,7 +86,6 @@ namespace UnityEngine.Rendering.Universal
         private void OnAsyncFeedbackRequest(AsyncGPUReadbackRequest req)
         {
             //_pageTable.ProcessFeedback(req.GetData<Color32>());
-            _pageTable._renderTextureJob.Update();
         }
 
         public override void FrameCleanup(CommandBuffer cmd)

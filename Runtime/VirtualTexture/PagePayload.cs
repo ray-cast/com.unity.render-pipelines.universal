@@ -10,7 +10,7 @@
         /// <summary>
         /// 对应平铺贴图中的id
         /// </summary>
-		public Vector2Int TileIndex = s_InvalidTileIndex;
+		public Vector2Int tileIndex = s_InvalidTileIndex;
 
         /// <summary>
         /// 激活的帧序号
@@ -20,19 +20,19 @@
         /// <summary>
         /// 渲染请求
         /// </summary>
-		public RenderTextureRequest LoadRequest;
+		public RenderTextureRequest loadRequest;
 
         /// <summary>
         /// 是否处于可用状态
         /// </summary>
-		public bool IsReady { get { return (TileIndex != s_InvalidTileIndex); } }
+		public bool IsReady { get { return (tileIndex != s_InvalidTileIndex); } }
 
         /// <summary>
         /// 重置页表数据
         /// </summary>
         public void ResetTileIndex()
         {
-            TileIndex = s_InvalidTileIndex;
+            tileIndex = s_InvalidTileIndex;
         }
     }
 }
