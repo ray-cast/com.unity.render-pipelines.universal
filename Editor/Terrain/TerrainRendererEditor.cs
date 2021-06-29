@@ -117,11 +117,21 @@ namespace UnityEditor.Rendering.Universal
 
                 EditorGUILayout.Space();
 
-                if (_renderer.virtualTexture != null)
+                var virtualTexture = VirtualTextureSystem.instance.tileTexture;
+                if (virtualTexture != null)
 				{
-                    var texture = _renderer.virtualTexture.tileTextures[0];
+                    var texture =  virtualTexture.tileTextures[0];
                     EditorGUILayout.LabelField("Virtual Texture:");
                     EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)texture.width / texture.height), texture);
+                }
+
+                EditorGUILayout.Space();
+
+                var lookupTexture = VirtualTextureSystem.instance.lookupTexture;
+                if (lookupTexture != null)
+                {
+                    EditorGUILayout.LabelField("Lookup Texture:");
+                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)lookupTexture.width / lookupTexture.height), lookupTexture);
                 }
 
                 EditorGUILayout.Space();

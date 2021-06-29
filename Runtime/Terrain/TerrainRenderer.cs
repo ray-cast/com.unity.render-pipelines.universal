@@ -29,7 +29,6 @@ namespace UnityEngine.Rendering.Universal
 
         public Material instanceMaterial;
         public TerrainData terrainData;
-        public TiledTexture virtualTexture;
 
         private Texture2D _normalMap;
         private Texture2D _lightMap;
@@ -559,8 +558,6 @@ namespace UnityEngine.Rendering.Universal
 
             x = x - x % perSize;
             y = y - y % perSize;
-
-            this.virtualTexture = tileTexture;
 
             var tileRect = tileTexture.TileToRect(tile);
 

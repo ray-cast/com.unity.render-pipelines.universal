@@ -79,7 +79,7 @@ namespace UnityEngine.Rendering.Universal
                 if (_isRequestComplete && _center != renderingData.cameraData.camera.transform.position)
 				{
                     var pageTable = _virtualTextureSystem.pageTable;
-                    cmd.SetGlobalVector(ShaderConstants._VTFeedbackParam, new Vector4(pageTable.pageSize, pageTable.pageSize * pageTable.tileSize * _scale.ToFloat(), pageTable.maxMipLevel - 1, _mipmapBias));
+                    cmd.SetGlobalVector(ShaderConstants._VTFeedbackParam, new Vector4(pageTable.pageSize, pageTable.pageSize * _virtualTextureSystem.tileSize * _scale.ToFloat(), pageTable.maxMipLevel - 1, _mipmapBias));
 
                     context.ExecuteCommandBuffer(cmd);
                     cmd.Clear();
@@ -114,6 +114,7 @@ namespace UnityEngine.Rendering.Universal
         private void OnAsyncFeedbackRequest(AsyncGPUReadbackRequest req)
         {
             _virtualTextureSystem.LoadPages(req.GetData<Color32>());
+            _virtualTextureSystem.UpdateLookup();
             _isRequestComplete = true;
         }
 
