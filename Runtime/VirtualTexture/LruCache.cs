@@ -5,17 +5,17 @@
         public class NodeInfo
         {
             public int id = 0;
-            public NodeInfo Next { get; set; }
-            public NodeInfo Prev { get; set; }
+            public NodeInfo next { get; set; }
+            public NodeInfo prev { get; set; }
         }
 
         private NodeInfo [] allNodes;
         private NodeInfo head = null;
         private NodeInfo tail = null;
 
-        public int First { get { return head.id; } }
+        public int first { get { return head.id; } }
 
-        public void Init(int count)
+        public LruCache(int count)
         {
             allNodes = new NodeInfo[count];
 
@@ -29,8 +29,8 @@
 
             for (int i = 0; i < count; i++)
             {
-                allNodes[i].Next = (i + 1 < count) ? allNodes[i + 1] : null;
-                allNodes[i].Prev = (i != 0) ? allNodes[i - 1] : null;
+                allNodes[i].next = (i + 1 < count) ? allNodes[i + 1] : null;
+                allNodes[i].prev = (i != 0) ? allNodes[i - 1] : null;
             }
 
             head = allNodes[0];
@@ -56,21 +56,21 @@
         private void AddLast(NodeInfo node)
         {
             var lastTail = tail;
-            lastTail.Next = node;
+            lastTail.next = node;
             tail = node;
-            node.Prev = lastTail;
+            node.prev = lastTail;
         }
 
         private void Remove(NodeInfo node)
         {
             if (head == node)
             {
-                head = node.Next;
+                head = node.next;
             }
             else
             {
-                node.Prev.Next = node.Next;
-                node.Next.Prev = node.Prev;
+                node.prev.next = node.next;
+                node.next.prev = node.prev;
             }
         }
     }

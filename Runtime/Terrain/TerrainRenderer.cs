@@ -109,7 +109,7 @@ namespace UnityEngine.Rendering.Universal
             RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
             RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
 
-            VirtualTextureManager.beginTileRendering += OnBeginTileRendering;
+            VirtualTextureSystem.beginTileRendering += OnBeginTileRendering;
 
             InitializeQuadMesh();
 
@@ -123,7 +123,7 @@ namespace UnityEngine.Rendering.Universal
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
             RenderPipelineManager.beginFrameRendering -= OnBeginFrameRendering;
 
-            VirtualTextureManager.beginTileRendering -= OnBeginTileRendering;
+            VirtualTextureSystem.beginTileRendering -= OnBeginTileRendering;
 
 #if UNITY_EDITOR
             UnityEditor.Lightmapping.bakeCompleted -= OnBakeCompleted;
@@ -159,10 +159,10 @@ namespace UnityEngine.Rendering.Universal
             quadVertexList.Add(new Vector3(1, 0, 0.1f));
             quadVertexList.Add(new Vector3(1, 1, 0.1f));
 
-            quadUVList.Add(new Vector2(0, 1));
             quadUVList.Add(new Vector2(0, 0));
-            quadUVList.Add(new Vector2(1, 0));
+            quadUVList.Add(new Vector2(0, 1));
             quadUVList.Add(new Vector2(1, 1));
+            quadUVList.Add(new Vector2(1, 0));
 
             quadTriangleList.Add(0);
             quadTriangleList.Add(1);
@@ -551,25 +551,31 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        private void OnBeginTileRendering(RenderTextureRequest request, TiledTexture tileTexture, Vector2Int tile)
+        private void OnBeginTileRendering(RequestPageData request, TiledTexture tileTexture, Vector2Int tile)
 		{
-            int perSize = 2 << request.mipLevel;
+            int x = request.pageX;
+            int y = request.pageY;
+            int perSize = (int)Mathf.Pow(2, request.mipLevel);
 
-            int x = request.pageX - request.pageX % perSize;
-            int y = request.pageY - request.pageY % perSize;
+            x = x - x % perSize;
+            y = y - y % perSize;
 
             this.virtualTexture = tileTexture;
 
             var tileRect = tileTexture.TileToRect(tile);
 
-            var tableSize = 256;
-            var RealTotalRect = new Rect(_worldBoundingBox.min.x, _worldBoundingBox.min.z, _worldBoundingBox.max.x, _worldBoundingBox.max.z);
-            var paddingEffect = tileTexture.paddingSize * perSize * (RealTotalRect.width / tableSize) / tileTexture.tileSize;
-            var realRect = new Rect(RealTotalRect.xMin + (float)x / tableSize * RealTotalRect.width - paddingEffect,
-                                     RealTotalRect.yMin + (float)y / tableSize * RealTotalRect.height - paddingEffect,
-                                     RealTotalRect.width / tableSize * perSize + 2f * paddingEffect,
-                                     RealTotalRect.width / tableSize * perSize + 2f * paddingEffect);
+            var pageSize = VirtualTextureSystem.instance.pageSize;
+            var RealTotalRect = new Rect(_worldBoundingBox.min.x, _worldBoundingBox.min.z, _worldBoundingBox.size.x, _worldBoundingBox.size.z);
+            var paddingEffect = tileTexture.paddingSize * perSize * (RealTotalRect.width / pageSize) / tileTexture.tileSize;
+            var realRect = new Rect(RealTotalRect.xMin + (float)x / pageSize * RealTotalRect.width - paddingEffect,
+                                     RealTotalRect.yMin + (float)y / pageSize * RealTotalRect.height - paddingEffect,
+                                     RealTotalRect.width / pageSize * perSize + 2f * paddingEffect,
+                                     RealTotalRect.width / pageSize * perSize + 2f * paddingEffect);
             var terRect = Rect.zero;
+            terRect.xMin = transform.position.x;
+            terRect.yMin = transform.position.z;
+            terRect.width = terrainData.size.x;
+            terRect.height = terrainData.size.z;
 
             var needDrawRect = realRect;
             needDrawRect.xMin = Mathf.Max(realRect.xMin, terRect.xMin);
@@ -601,8 +607,8 @@ namespace UnityEngine.Rendering.Universal
             mat.m23 = -1;
             mat.m33 = 1;*/
 
-            var tileX = tileRect.x / (float)tileTexture.width - 1;
-            var tileY = (tileRect.y - tileRect.height * 2) / (float)tileTexture.height + 1;
+            var tileX = tileRect.x / (float)tileTexture.width * 2 - 1;
+            var tileY = 1 - (tileRect.y + tileRect.height) / (float)tileTexture.height * 2;
 
             var width = tileRect.width * 2 / (float)tileTexture.width;
             var height = tileRect.height * 2 / (float)tileTexture.height;
@@ -610,20 +616,40 @@ namespace UnityEngine.Rendering.Universal
             var mat = Matrix4x4.TRS(new Vector3(tileX, tileY, 0), Quaternion.identity, new Vector3(width, height, 0));
             //var mat2 = Matrix4x4.Ortho(35, tileTexture.regionSize.x, 35, tileTexture.regionSize.y, 0.01f, 1000);
 
+            var _Control_ST = instanceMaterial.GetVector("_Control_ST");
+            var _Splat0_ST = instanceMaterial.GetVector("_Splat0_ST");
+            var _Splat1_ST = instanceMaterial.GetVector("_Splat1_ST");
+            var _Splat2_ST = instanceMaterial.GetVector("_Splat2_ST");
+            var _Splat3_ST = instanceMaterial.GetVector("_Splat3_ST");
+
+            _tileMaterial.SetMatrix("_ImageMVP", GL.GetGPUProjectionMatrix(mat, false));
+
             _tileMaterial.SetTexture("_Control", instanceMaterial.GetTexture("_Control"));
+            _tileMaterial.SetVector("_Control_ST", new Vector4(_Control_ST.x * scaleOffset.x, _Control_ST.y * scaleOffset.y, _Control_ST.x * scaleOffset.z, _Control_ST.y * scaleOffset.w));
+
             _tileMaterial.SetTexture("_Splat0", instanceMaterial.GetTexture("_Splat0"));
             _tileMaterial.SetTexture("_Splat1", instanceMaterial.GetTexture("_Splat1"));
             _tileMaterial.SetTexture("_Splat2", instanceMaterial.GetTexture("_Splat2"));
             _tileMaterial.SetTexture("_Splat3", instanceMaterial.GetTexture("_Splat3"));
+            _tileMaterial.SetVector("_Splat0_ST", new Vector4(_Splat0_ST.x * scaleOffset.x, _Splat0_ST.y * scaleOffset.y, _Splat0_ST.x * scaleOffset.z, _Splat0_ST.y * scaleOffset.w));
+            _tileMaterial.SetVector("_Splat1_ST", new Vector4(_Splat1_ST.x * scaleOffset.x, _Splat1_ST.y * scaleOffset.y, _Splat1_ST.x * scaleOffset.z, _Splat1_ST.y * scaleOffset.w));
+            _tileMaterial.SetVector("_Splat2_ST", new Vector4(_Splat2_ST.x * scaleOffset.x, _Splat2_ST.y * scaleOffset.y, _Splat2_ST.x * scaleOffset.z, _Splat2_ST.y * scaleOffset.w));
+            _tileMaterial.SetVector("_Splat3_ST", new Vector4(_Splat3_ST.x * scaleOffset.x, _Splat0_ST.y * scaleOffset.y, _Splat3_ST.x * scaleOffset.z, _Splat3_ST.y * scaleOffset.w));
 
-            _tileMaterial.SetVector("_Control_ST", instanceMaterial.GetVector("_Control_ST")); 
+            if (instanceMaterial.IsKeywordEnabled("_NORMALMAP"))
+            {
+                _tileMaterial.EnableKeyword("_NORMALMAP");
 
-            _tileMaterial.SetVector("_Splat0_ST", instanceMaterial.GetVector("_Splat0_ST"));
-            _tileMaterial.SetVector("_Splat1_ST", instanceMaterial.GetVector("_Splat1_ST"));
-            _tileMaterial.SetVector("_Splat2_ST", instanceMaterial.GetVector("_Splat2_ST"));
-            _tileMaterial.SetVector("_Splat3_ST", instanceMaterial.GetVector("_Splat3_ST"));
-            
-            _tileMaterial.SetMatrix(Shader.PropertyToID("_ImageMVP"), GL.GetGPUProjectionMatrix(mat, false));
+                _tileMaterial.SetTexture("_Normal0", instanceMaterial.GetTexture("_Normal0"));
+                _tileMaterial.SetTexture("_Normal1", instanceMaterial.GetTexture("_Normal1"));
+                _tileMaterial.SetTexture("_Normal2", instanceMaterial.GetTexture("_Normal2"));
+                _tileMaterial.SetTexture("_Normal3", instanceMaterial.GetTexture("_Normal3"));
+
+                _tileMaterial.SetFloat("_BumpScale0", instanceMaterial.GetFloat("_BumpScale0"));
+                _tileMaterial.SetFloat("_BumpScale1", instanceMaterial.GetFloat("_BumpScale1"));
+                _tileMaterial.SetFloat("_BumpScale2", instanceMaterial.GetFloat("_BumpScale2"));
+                _tileMaterial.SetFloat("_BumpScale3", instanceMaterial.GetFloat("_BumpScale3"));
+            }
 
             var cmd = CommandBufferPool.Get();
             cmd.SetRenderTarget(tileTexture.tileBuffers, tileTexture.tileDepthBuffer);

@@ -9,6 +9,11 @@ Shader "VirtualTexture/DrawTexture"
         float4 _Splat2_ST;
         float4 _Splat3_ST;
 
+        float _BumpScale0;
+        float _BumpScale1;
+        float _BumpScale2;
+        float _BumpScale3;
+
         float4x4 _ImageMVP;
 
         TEXTURE2D(_Control); SAMPLER(sampler_Control);

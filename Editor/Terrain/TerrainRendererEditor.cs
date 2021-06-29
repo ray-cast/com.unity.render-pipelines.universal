@@ -117,9 +117,12 @@ namespace UnityEditor.Rendering.Universal
 
                 EditorGUILayout.Space();
 
-                var texture = _renderer.virtualTexture.tileTextures[0];
-                EditorGUILayout.LabelField("Virtual Texture:");
-                EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)texture.width / texture.height), texture);
+                if (_renderer.virtualTexture != null)
+				{
+                    var texture = _renderer.virtualTexture.tileTextures[0];
+                    EditorGUILayout.LabelField("Virtual Texture:");
+                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)texture.width / texture.height), texture);
+                }
 
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();

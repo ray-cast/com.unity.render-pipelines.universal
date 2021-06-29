@@ -1,8 +1,9 @@
 ﻿namespace UnityEngine.Rendering.Universal
-{    /// <summary>
-	 /// 渲染请求类.
-	 /// </summary>
-	public class RenderTextureRequest
+{
+	/// <summary>
+	/// 渲染请求类.
+	/// </summary>
+	public sealed class RequestPageData
 	{
 		/// <summary>
 		/// 页表X坐标
@@ -22,7 +23,7 @@
 		/// <summary>
 		/// 构造函数
 		/// </summary>
-		public RenderTextureRequest(int x, int y, int mip)
+		public RequestPageData(int x, int y, int mip)
 		{
 			pageX = x;
 			pageY = y;

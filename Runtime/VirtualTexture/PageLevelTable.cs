@@ -4,74 +4,74 @@ namespace UnityEngine.Rendering.Universal
 {
     public class TableNodeCell
     {
-        public RectInt Rect { get; set; }
+        public RectInt rect { get; set; }
 
         public PagePayload payload { get; set; }
 
-        public int MipLevel { get; }
+        public int mipLevel { get; }
 
         public TableNodeCell(int x, int y, int width, int height, int mip)
         {
-            Rect = new RectInt(x, y, width, height);
-            MipLevel = mip;
+            rect = new RectInt(x, y, width, height);
+            mipLevel = mip;
             payload = new PagePayload();
         }
     }
 
     public class PageLevelTable
     {
-        public TableNodeCell[,] Cell { get; set; }
-
-        public int MipLevel { get; }
+        public TableNodeCell[,] cell { get; set; }
 
         public Vector2Int pageOffset;
-        public int NodeCellCount;
-        public int PerCellSize;
+
+        public int mipLevel { get; }
+        public int nodeCellCount;
+        public int perCellSize;
 
         public PageLevelTable(int mip, int tableSize)
         {
             pageOffset = Vector2Int.zero;
-            MipLevel = mip;
-            PerCellSize = (int)Mathf.Pow(2, mip);
-            NodeCellCount = tableSize / PerCellSize;
-            Cell = new TableNodeCell[NodeCellCount, NodeCellCount];
+            mipLevel = mip;
+            perCellSize = (int)Mathf.Pow(2, mip);
+            nodeCellCount = tableSize / perCellSize;
+            cell = new TableNodeCell[nodeCellCount, nodeCellCount];
 
-            for (int i = 0; i < NodeCellCount; i++)
+            for (int i = 0; i < nodeCellCount; i++)
             {
-                for(int j = 0; j < NodeCellCount; j++)
+                for(int j = 0; j < nodeCellCount; j++)
                 {
-                    Cell[i,j] = new TableNodeCell(i * PerCellSize, j * PerCellSize,  PerCellSize, PerCellSize, MipLevel);
+                    cell[i,j] = new TableNodeCell(i * perCellSize, j * perCellSize,  perCellSize, perCellSize, mipLevel);
                 }
             }
         }
 
         public void ChangeViewRect(Vector2Int offset, Action<Vector2Int> InvalidatePage)
         {
-            if (Mathf.Abs(offset.x) >= NodeCellCount || Mathf.Abs(offset.y) > NodeCellCount ||
-                offset.x % PerCellSize != 0 || offset.y % PerCellSize != 0)
+            if (Mathf.Abs(offset.x) >= nodeCellCount || Mathf.Abs(offset.y) > nodeCellCount ||
+                offset.x % perCellSize != 0 || offset.y % perCellSize != 0)
             {
-                for (int i = 0; i < NodeCellCount; i++)
-                    for (int j = 0; j < NodeCellCount; j++)
+                for (int i = 0; i < nodeCellCount; i++)
+                    for (int j = 0; j < nodeCellCount; j++)
                     {
                         var transXY = GetTransXY(i, j);
-                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
+                        cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 pageOffset = Vector2Int.zero;
                 return;
             }
-            offset.x /= PerCellSize;
-            offset.y /= PerCellSize;
+            offset.x /= perCellSize;
+            offset.y /= perCellSize;
             #region clip map
             if (offset.x > 0)
             {
                 for(int i = 0;i < offset.x; i++)
                 {
-                    for (int j = 0;j < NodeCellCount;j++)
+                    for (int j = 0;j < nodeCellCount;j++)
                     {
                         var transXY = GetTransXY(i, j);
-                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
+                        cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 }
             }
@@ -79,11 +79,11 @@ namespace UnityEngine.Rendering.Universal
             {
                 for(int i = 1; i <= -offset.x; i++)
                 {
-                    for (int j = 0; j < NodeCellCount; j++)
+                    for (int j = 0; j < nodeCellCount; j++)
                     {
-                        var transXY = GetTransXY(NodeCellCount - i, j);
-                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
+                        var transXY = GetTransXY(nodeCellCount - i, j);
+                        cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 }
             }
@@ -91,11 +91,11 @@ namespace UnityEngine.Rendering.Universal
             {
                 for (int i = 0; i < offset.y; i++)
                 {
-                    for (int j = 0; j < NodeCellCount; j++)
+                    for (int j = 0; j < nodeCellCount; j++)
                     {
                         var transXY = GetTransXY(j, i);
-                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
+                        cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 }
             }
@@ -103,11 +103,11 @@ namespace UnityEngine.Rendering.Universal
             {
                 for (int i = 1; i <= -offset.y; i++)
                 {
-                    for (int j = 0; j < NodeCellCount; j++)
+                    for (int j = 0; j < nodeCellCount; j++)
                     {
-                        var transXY = GetTransXY(j, NodeCellCount - i);
-                        Cell[transXY.x, transXY.y].payload.loadRequest = null;
-                        InvalidatePage(Cell[transXY.x, transXY.y].payload.tileIndex);
+                        var transXY = GetTransXY(j, nodeCellCount - i);
+                        cell[transXY.x, transXY.y].payload.loadRequest = null;
+                        InvalidatePage(cell[transXY.x, transXY.y].payload.tileIndex);
                     }
                 }
             }
@@ -115,26 +115,26 @@ namespace UnityEngine.Rendering.Universal
             pageOffset += offset;
             while(pageOffset.x < 0)
             {
-                pageOffset.x += NodeCellCount;
+                pageOffset.x += nodeCellCount;
             }
             while (pageOffset.y < 0)
             {
-                pageOffset.y += NodeCellCount;
+                pageOffset.y += nodeCellCount;
             }
-            pageOffset.x %= NodeCellCount;
-            pageOffset.y %= NodeCellCount;
+            pageOffset.x %= nodeCellCount;
+            pageOffset.y %= nodeCellCount;
         }
 
         // 取x/y/mip完全一致的node，没有就返回null
         public TableNodeCell Get(int x, int y)
         {
-            x /= PerCellSize;
-            y /= PerCellSize;
+            x /= perCellSize;
+            y /= perCellSize;
 
-            x = (x + pageOffset.x) % NodeCellCount;
-            y = (y + pageOffset.y) % NodeCellCount;
+            x = (x + pageOffset.x) % nodeCellCount;
+            y = (y + pageOffset.y) % nodeCellCount;
 
-            return Cell[x, y];
+            return cell[x, y];
         }
 
         public RectInt GetInverRect(RectInt rect)
@@ -147,8 +147,8 @@ namespace UnityEngine.Rendering.Universal
 
         private Vector2Int GetTransXY(int x, int y)
         {
-            return new Vector2Int((x + pageOffset.x) % NodeCellCount,
-                                  (y + pageOffset.y) % NodeCellCount);
+            return new Vector2Int((x + pageOffset.x) % nodeCellCount,
+                                  (y + pageOffset.y) % nodeCellCount);
         }
     }
 }

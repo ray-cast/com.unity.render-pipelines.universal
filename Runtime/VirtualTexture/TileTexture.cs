@@ -23,7 +23,7 @@
         /// <summary>
         /// Tile缓存池.
         /// </summary>
-        private LruCache _tilePool = new LruCache();
+        private LruCache _tilePool;
 
         /// <summary>
         /// Tile Target
@@ -76,7 +76,7 @@
 
         public TiledTexture()
         {
-            _tilePool.Init(regionSize.x * regionSize.y);
+            _tilePool = new LruCache(regionSize.x * regionSize.y);
 
             tileTextures = new RenderTexture[2];
             tileTextures[0] = new RenderTexture(this.width, this.height, 0);
@@ -94,24 +94,24 @@
             tileDepthBuffer = tileTextures[0].depthBuffer;
         }
 
+        private Vector2Int IdToPos(int id)
+        {
+            return new Vector2Int(id % regionSize.x, id / regionSize.x);
+        }
+
+        private int PosToId(Vector2Int tile)
+        {
+            return tile.y * regionSize.x + tile.x;
+        }
+
         public Vector2Int RequestTile()
         {
-            return IdToPos(_tilePool.First);
+            return IdToPos(_tilePool.first);
         }
 
         public bool SetActive(Vector2Int tile)
         {
             return _tilePool.SetActive(PosToId(tile));
-        }
-
-        public Vector2Int IdToPos(int id)
-        {
-            return new Vector2Int(id % regionSize.x, id / regionSize.x);
-        }
-
-        public int PosToId(Vector2Int tile)
-        {
-            return tile.y * regionSize.x + tile.x;
         }
 
         public RectInt TileToRect(Vector2Int tile)

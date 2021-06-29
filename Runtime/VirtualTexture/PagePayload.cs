@@ -15,17 +15,17 @@
         /// <summary>
         /// 激活的帧序号
         /// </summary>
-        public int ActiveFrame;
+        public int activeFrame;
 
         /// <summary>
         /// 渲染请求
         /// </summary>
-		public RenderTextureRequest loadRequest;
+		public RequestPageData loadRequest;
 
         /// <summary>
         /// 是否处于可用状态
         /// </summary>
-		public bool IsReady { get { return (tileIndex != s_InvalidTileIndex); } }
+		public bool isReady { get { return (tileIndex != s_InvalidTileIndex); } }
 
         /// <summary>
         /// 重置页表数据
