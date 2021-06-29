@@ -9,6 +9,12 @@
         private int _pageSize = 256;
 
         /// <summary>
+        /// 页表尺寸.
+        /// </summary>
+        [SerializeField]
+        private int _maxMipLevel = 8;
+
+        /// <summary>
         /// 页表层级结构
         /// </summary>
         public PageLevelTable[] pageLevelTable { get; private set; }
@@ -21,10 +27,13 @@
         /// <summary>
         /// 最大mipmap等级
         /// </summary>
-        public int maxMipLevel { get { return (int)Mathf.Log(pageSize, 2); } }
+        public int maxMipLevel { get { return _maxMipLevel; } }
 
-        public PageTable(RequestPageDataJob renderTextureJob)
+        public PageTable(int pageSize)
         {
+            _pageSize = pageSize;
+            _maxMipLevel = (int)Mathf.Log(pageSize, 2);
+
             pageLevelTable = new PageLevelTable[maxMipLevel + 1];
             
             for (int i = 0; i <= maxMipLevel; i++)
@@ -37,6 +46,20 @@
                 return null;
 
             return pageLevelTable[mip].Get(x, y);
+        }
+
+        public void Reset()
+        {
+            for (int i = 0; i <= maxMipLevel; i++)
+            {
+                for (int j = 0; j < pageLevelTable[i].nodeCellCount; j++)
+                {
+                    for (int k = 0; k < pageLevelTable[i].nodeCellCount; k++)
+                    {
+                        pageLevelTable[i].cell[j, k].payload.ResetTileIndex();
+                    }
+                }
+            }
         }
     }
 }

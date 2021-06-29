@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using Unity.Collections;
-using UnityEngine.Assertions;
-using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -24,6 +22,12 @@ namespace UnityEngine.Rendering.Universal
         /// RT Job对象
         /// </summary>
         private RequestPageDataJob _requestPageJob;
+
+        /// <summary>
+        /// 页表尺寸.
+        /// </summary>
+        [SerializeField]
+        private int _pageSize = 256;
 
         /// <summary>
         /// 页表
@@ -63,7 +67,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// 页表尺寸.
         /// </summary>
-        public int pageSize { get { return _pageTable.pageSize; } }
+        public int pageSize { get { return _pageSize; } }
 
         /// <summary>
         /// 画Tile的事件.
@@ -85,7 +89,7 @@ namespace UnityEngine.Rendering.Universal
             _requestPageJob.startRenderJob += OnRequestPageJob;
             _requestPageJob.cancelRenderJob += OnCancelPageJob;
 
-            _pageTable = new PageTable(_requestPageJob);
+            _pageTable = new PageTable(_pageSize);
 
             _drawLookupMat = new Material(Shader.Find("VirtualTexture/DrawLookup"));
             _drawLookupMat.enableInstancing = true;
@@ -138,17 +142,7 @@ namespace UnityEngine.Rendering.Universal
 
         public void Reset()
         {
-            for (int i = 0; i <= _pageTable.maxMipLevel; i++)
-            {
-                for (int j = 0; j < _pageTable.pageLevelTable[i].nodeCellCount; j++)
-                {
-                    for (int k = 0; k < _pageTable.pageLevelTable[i].nodeCellCount; k++)
-                    {
-                        InvalidatePage(_pageTable.pageLevelTable[i].cell[j, k].payload.tileIndex);
-                    }
-                }
-            }
-
+            _pageTable.Reset();
             _activePages.Clear();
         }
 

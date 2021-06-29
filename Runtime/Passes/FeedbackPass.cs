@@ -115,11 +115,8 @@ namespace UnityEngine.Rendering.Universal
         {
             _virtualTextureSystem.LoadPages(req.GetData<Color32>());
             _virtualTextureSystem.UpdateLookup();
-            _isRequestComplete = true;
-        }
 
-        public override void FrameCleanup(CommandBuffer cmd)
-        {
+            _isRequestComplete = true;
         }
 
         static class ShaderConstants
