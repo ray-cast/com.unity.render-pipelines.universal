@@ -6,42 +6,34 @@ namespace UnityEngine.Rendering.Universal
     public sealed class RequestPageDataJob
     {
         /// <summary>
-        /// 渲染完成的事件回调.
-        /// </summary>
-        public event Action<RequestPageData> startRenderJob;
-
-        /// <summary>
-        /// 渲染取消的事件回调.
-        /// </summary>
-        public event Action<RequestPageData> cancelRenderJob;
-
-        /// <summary>
         /// 一帧最多处理几个
         /// </summary>
         [SerializeField]
         public int limit = 2;
 
         /// <summary>
+        /// 渲染完成的事件回调.
+        /// </summary>
+        public event Predicate<RequestPageData> startRequestPageJob;
+
+        /// <summary>
+        /// 渲染取消的事件回调.
+        /// </summary>
+        public event Action<RequestPageData> cancelRequestPageJob;
+
+        /// <summary>
+        /// 请求池.
+        /// </summary>
+        private static readonly ObjectPool<RequestPageData> _pendingRequestPool = new ObjectPool<RequestPageData>(null, null);
+
+        /// <summary>
         /// 等待处理的请求.
         /// </summary>
         private List<RequestPageData> _pendingRequests = new List<RequestPageData>();
 
-        public void Update()
-        {
-            if (startRenderJob != null && _pendingRequests.Count > 0)
-            {
-                _pendingRequests.Sort((x, y) => { return x.mipLevel.CompareTo(y.mipLevel); });
-
-                for (int i = 0; i < limit && _pendingRequests.Count > 0; i++)
-                {
-                    var req = _pendingRequests[_pendingRequests.Count - 1];
-                    _pendingRequests.RemoveAt(_pendingRequests.Count - 1);
-
-                    startRenderJob.Invoke(req);
-                }
-            }
-        }
-
+        /// <summary>
+        /// 搜索页面请求
+        /// </summary>
         public RequestPageData Find(int x, int y, int mip)
         {
             foreach (var req in _pendingRequests)
@@ -54,7 +46,7 @@ namespace UnityEngine.Rendering.Universal
         }
 
         /// <summary>
-        /// 新建渲染请求
+        /// 新建页面请求
         /// </summary>
         public RequestPageData Request(int x, int y, int mip)
         {
@@ -62,7 +54,11 @@ namespace UnityEngine.Rendering.Universal
             if (this.Find(x, y, mip) == null)
 			{
                 // 加入待处理列表
-                var request = new RequestPageData(x, y, mip);
+                var request = _pendingRequestPool.Get();
+                request.pageX = x;
+                request.pageY = y;
+                request.mipLevel = mip;
+
                 _pendingRequests.Add(request);
 
                 return request;
@@ -71,12 +67,37 @@ namespace UnityEngine.Rendering.Universal
             return null;
         }
 
-        public void ClearJob()
+        /// <summary>
+        /// 清除所有的页面请求作业
+        /// </summary>
+        public void Clear()
         {
-            foreach (var r in _pendingRequests)
-                cancelRenderJob?.Invoke(r);
+            if (cancelRequestPageJob != null)
+			{
+                foreach (var r in _pendingRequests)
+                    cancelRequestPageJob?.Invoke(r);
+            }
 
             _pendingRequests.Clear();
+        }
+
+        public void Update()
+        {
+            if (startRequestPageJob != null && _pendingRequests.Count > 0)
+            {
+                _pendingRequests.Sort((x, y) => { return x.mipLevel.CompareTo(y.mipLevel); });
+
+                for (int i = 0; i < limit && _pendingRequests.Count > 0; i++)
+                {
+                    var req = _pendingRequests[_pendingRequests.Count - 1];
+
+                    if (startRequestPageJob(req))
+					{
+                        _pendingRequests.RemoveAt(_pendingRequests.Count - 1);
+                        _pendingRequestPool.Release(req);
+                    }
+                }
+            }
         }
     }
 }

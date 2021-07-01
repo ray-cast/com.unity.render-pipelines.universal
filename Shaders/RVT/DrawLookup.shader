@@ -1,4 +1,4 @@
-﻿Shader "VirtualTexture/DrawLookup"
+﻿Shader "Virtual Texture/Draw Lookup"
 {
 	HLSLINCLUDE
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"

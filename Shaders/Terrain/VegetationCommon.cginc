@@ -49,13 +49,12 @@ inline float4x4 RotationByRadian(float3 rotation)
 		);
 }
 //传入的是弧度值
-inline float4x4 RotationY(float rotateYRadian)
+inline float3x3 RotationY(float rotateYRadian)
 {
-	return float4x4(
-		cos(rotateYRadian), 0.0, sin(rotateYRadian), 0.0,
-		0.0, 1.0, 0.0, 0.0,
-		-sin(rotateYRadian), 0.0, cos(rotateYRadian), 0.0,
-		0.0, 0.0, 0.0, 1.0
+	return float3x3(
+		cos(rotateYRadian), 0.0, sin(rotateYRadian),
+		0.0, 1.0, 0.0,
+		-sin(rotateYRadian), 0.0, cos(rotateYRadian)
 		);
 }
 inline float3 RotationByVector(float3 position, float3 vec)

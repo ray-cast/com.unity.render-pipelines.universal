@@ -15,10 +15,12 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent drawSettingsText = EditorGUIUtility.TrTextContent("画刷设置");
             public static GUIContent materialSettingsText = EditorGUIUtility.TrTextContent("材质设置");
             public static GUIContent renderingSettingsText = EditorGUIUtility.TrTextContent("渲染设置");
+            public static GUIContent debugSettingsText = EditorGUIUtility.TrTextContent("调试");
         }
 
         SavedBool _materialSettingsFoldout;
         SavedBool _renderingSettingsFoldout;
+        SavedBool _debugViewFoldout;
 
         TerrainRenderer _renderer { get { return target as TerrainRenderer; } }
 
@@ -26,11 +28,24 @@ namespace UnityEditor.Rendering.Universal
 
         public void OnEnable()
         {
+            VirtualTextureSystem.beginTileRendering += beginTileRendering;
+
             _materialSettingsFoldout = new SavedBool($"{target.GetType()}.MaterialSettingsFoldout", true);
             _renderingSettingsFoldout = new SavedBool($"{target.GetType()}.CullingSettingsFoldout", true);
+            _debugViewFoldout = new SavedBool($"{target.GetType()}.DebugSettingsFoldout", true);
         }
 
-        public override void OnInspectorGUI()
+		public void OnDisable()
+		{
+            VirtualTextureSystem.beginTileRendering -= beginTileRendering;
+        }
+
+        public void beginTileRendering(RequestPageData request, TiledTexture tileTexture, Vector2Int tile)
+		{
+            Repaint();
+		}
+
+		public override void OnInspectorGUI()
         {
             if (_renderer.instanceMaterial != null)
                 _materialEditor = CreateEditor(_renderer.instanceMaterial) as MaterialEditor;
@@ -39,6 +54,7 @@ namespace UnityEditor.Rendering.Universal
 
             this.DrawMaterialSettings();
             this.DrawRenderingSettings();
+            this.DrawDebugFoldout();
 
             EditorGUILayout.EndVertical();
 
@@ -116,22 +132,36 @@ namespace UnityEditor.Rendering.Universal
                 _renderer.shouldOcclusionCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driven）", _renderer.shouldOcclusionCulling);
 
                 EditorGUILayout.Space();
+                EditorGUILayout.Space();
+            }
 
-                var virtualTexture = VirtualTextureSystem.instance.tileTexture;
-                if (virtualTexture != null)
-				{
-                    var texture =  virtualTexture.tileTextures[0];
-                    EditorGUILayout.LabelField("Virtual Texture:");
-                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)texture.width / texture.height), texture);
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        void DrawDebugFoldout()
+        {
+            _debugViewFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_debugViewFoldout.value, Styles.debugSettingsText);
+            if (_debugViewFoldout.value)
+            {
+                var lookupTexture = VirtualTextureSystem.instance.lookupTexture;
+                if (lookupTexture != null)
+                {
+                    EditorGUILayout.LabelField("虚拟纹理查找表:");
+                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)lookupTexture.width / lookupTexture.height), lookupTexture);
                 }
 
                 EditorGUILayout.Space();
 
-                var lookupTexture = VirtualTextureSystem.instance.lookupTexture;
-                if (lookupTexture != null)
+                var virtualTexture = VirtualTextureSystem.instance.tileTexture;
+                if (virtualTexture != null && virtualTexture.tileTextures.Length >= 2)
                 {
-                    EditorGUILayout.LabelField("Lookup Texture:");
-                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)lookupTexture.width / lookupTexture.height), lookupTexture);
+                    var albedoTexture = virtualTexture.tileTextures[0];
+                    var normalTexture = virtualTexture.tileTextures[1];
+
+                    EditorGUILayout.LabelField("虚拟纹理:");
+
+                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)albedoTexture.width / albedoTexture.height), albedoTexture);
+                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)normalTexture.width / normalTexture.height), normalTexture);
                 }
 
                 EditorGUILayout.Space();

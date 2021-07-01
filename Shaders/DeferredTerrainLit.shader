@@ -17,14 +17,17 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
         _BumpScale2("法线强度 3", Range(0, 10)) = 1.0
         [NoScaleOffset]_Normal3("法线贴图 4", 2D) = "bump" {}
         _BumpScale3("法线强度 4", Range(0, 10)) = 1.0
-        [TexToggle(_USE_WETNESSMAP1)]_WetnessMap0("积水贴图 1", 2D) = "black" {}
-        [TexToggle(_USE_WETNESSMAP2)]_WetnessMap1("积水贴图 2", 2D) = "black" {}
-        [TexToggle(_USE_WETNESSMAP3)]_WetnessMap2("积水贴图 3", 2D) = "black" {}
-        [TexToggle(_USE_WETNESSMAP4)]_WetnessMap3("积水贴图 4", 2D) = "black" {}
+        [Space(20)]
+        [TexToggle(_USE_WETNESSMAP1)][NoScaleOffset]_WetnessMap0("积水贴图 1", 2D) = "black" {}
+        [TexToggle(_USE_WETNESSMAP2)][NoScaleOffset]_WetnessMap1("积水贴图 2", 2D) = "black" {}
+        [TexToggle(_USE_WETNESSMAP3)][NoScaleOffset]_WetnessMap2("积水贴图 3", 2D) = "black" {}
+        [TexToggle(_USE_WETNESSMAP4)][NoScaleOffset]_WetnessMap3("积水贴图 4", 2D) = "black" {}
+        [Space(20)]
         _Metallic0("金属程度 1", Range(0, 1)) = 0
         _Metallic1("金属程度 2", Range(0, 1)) = 0
         _Metallic2("金属程度 3", Range(0, 1)) = 0
         _Metallic3("金属程度 4", Range(0, 1)) = 0
+        [Space(20)]
         _Smoothness0("光滑度 1", Range(0, 1)) = 0.5
         _Smoothness1("光滑度 2", Range(0, 1)) = 0.5
         _Smoothness2("光滑度 3", Range(0, 1)) = 0.5
@@ -98,6 +101,7 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma shader_feature_local _USE_WETNESSMAP2
             #pragma shader_feature_local _USE_WETNESSMAP3
             #pragma shader_feature_local _USE_WETNESSMAP4
+            #pragma shader_feature_local _USE_VIRTUAL_TEXTURE
             #pragma shader_feature_local _SPECULAR_ANTIALIASING
 
             #pragma shader_feature _SPECULARHIGHLIGHTS_OFF
@@ -126,7 +130,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma vertex LitPassVertex
             #pragma fragment LitPassFragment
 
-            #include "DeferredTerrainLitInput.hlsl"
             #include "DeferredTerrainLitPasses.hlsl"
             ENDHLSL
         }
@@ -152,7 +155,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma instancing_options procedural:SetupTerrainInstancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
-            #include "DeferredTerrainLitInput.hlsl"
             #include "DeferredTerrainLitPasses.hlsl"
             ENDHLSL
         }
@@ -178,7 +180,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma instancing_options procedural:SetupTerrainInstancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
-            #include "DeferredTerrainLitInput.hlsl"
             #include "DeferredTerrainLitPasses.hlsl"
             ENDHLSL
         }
@@ -206,7 +207,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
 
             #pragma shader_feature _SPECGLOSSMAP
 
-            #include "DeferredTerrainLitInput.hlsl"
             #include "DeferredTerrainLitPasses.hlsl"
 
             ENDHLSL
@@ -232,7 +232,6 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma instancing_options procedural:SetupTerrainInstancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
-            #include "DeferredTerrainLitInput.hlsl"
             #include "DeferredTerrainLitPasses.hlsl"
 
             ENDHLSL

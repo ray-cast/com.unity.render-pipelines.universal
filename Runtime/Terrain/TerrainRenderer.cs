@@ -214,6 +214,9 @@ namespace UnityEngine.Rendering.Universal
                         _worldBoundingBox.max = max;
                     }
                 }
+
+                var pageRegion = new Rect(_worldBoundingBox.min.x, _worldBoundingBox.min.z, _worldBoundingBox.size.x, _worldBoundingBox.size.z);
+                VirtualTextureSystem.instance.SetPageRegion(pageRegion);
             }
         }
 
@@ -562,12 +565,13 @@ namespace UnityEngine.Rendering.Universal
             var tileRect = tileTexture.TileToRect(tile);
 
             var pageSize = VirtualTextureSystem.instance.pageSize;
-            var RealTotalRect = new Rect(_worldBoundingBox.min.x, _worldBoundingBox.min.z, _worldBoundingBox.size.x, _worldBoundingBox.size.z);
-            var paddingEffect = tileTexture.paddingSize * perSize * (RealTotalRect.width / pageSize) / tileTexture.tileSize;
-            var realRect = new Rect(RealTotalRect.xMin + (float)x / pageSize * RealTotalRect.width - paddingEffect,
-                                     RealTotalRect.yMin + (float)y / pageSize * RealTotalRect.height - paddingEffect,
-                                     RealTotalRect.width / pageSize * perSize + 2f * paddingEffect,
-                                     RealTotalRect.width / pageSize * perSize + 2f * paddingEffect);
+            var pageRegion = VirtualTextureSystem.instance.pageRegion;
+
+            var paddingEffect = tileTexture.paddingSize * perSize * (pageRegion.width / pageSize) / tileTexture.tileSize;
+            var realRect = new Rect(pageRegion.xMin + (float)x / pageSize * pageRegion.width - paddingEffect,
+                                     pageRegion.yMin + (float)y / pageSize * pageRegion.height - paddingEffect,
+                                     pageRegion.width / pageSize * perSize + 2f * paddingEffect,
+                                     pageRegion.width / pageSize * perSize + 2f * paddingEffect);
             var terRect = Rect.zero;
             terRect.xMin = transform.position.x;
             terRect.yMin = transform.position.z;
@@ -624,10 +628,12 @@ namespace UnityEngine.Rendering.Universal
             _tileMaterial.SetTexture("_Control", instanceMaterial.GetTexture("_Control"));
             _tileMaterial.SetVector("_Control_ST", new Vector4(_Control_ST.x * scaleOffset.x, _Control_ST.y * scaleOffset.y, _Control_ST.x * scaleOffset.z, _Control_ST.y * scaleOffset.w));
 
+            _tileMaterial.SetTexture("_Normal", _normalMap);
             _tileMaterial.SetTexture("_Splat0", instanceMaterial.GetTexture("_Splat0"));
             _tileMaterial.SetTexture("_Splat1", instanceMaterial.GetTexture("_Splat1"));
             _tileMaterial.SetTexture("_Splat2", instanceMaterial.GetTexture("_Splat2"));
             _tileMaterial.SetTexture("_Splat3", instanceMaterial.GetTexture("_Splat3"));
+
             _tileMaterial.SetVector("_Splat0_ST", new Vector4(_Splat0_ST.x * scaleOffset.x, _Splat0_ST.y * scaleOffset.y, _Splat0_ST.x * scaleOffset.z, _Splat0_ST.y * scaleOffset.w));
             _tileMaterial.SetVector("_Splat1_ST", new Vector4(_Splat1_ST.x * scaleOffset.x, _Splat1_ST.y * scaleOffset.y, _Splat1_ST.x * scaleOffset.z, _Splat1_ST.y * scaleOffset.w));
             _tileMaterial.SetVector("_Splat2_ST", new Vector4(_Splat2_ST.x * scaleOffset.x, _Splat2_ST.y * scaleOffset.y, _Splat2_ST.x * scaleOffset.z, _Splat2_ST.y * scaleOffset.w));

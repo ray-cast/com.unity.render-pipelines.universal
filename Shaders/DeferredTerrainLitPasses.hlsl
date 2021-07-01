@@ -6,7 +6,54 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Gbuffer.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/MetaInput.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Terrain.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/VirtualTexture.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"
+
+CBUFFER_START(UnityPerMaterial)
+    float4 _MainTex_ST;
+    half4 _BaseColor;
+    half _Cutoff;
+    float4 _Control_ST;
+    float4 _Splat0_ST;
+    float4 _Splat1_ST;
+    float4 _Splat2_ST;
+    float4 _Splat3_ST;
+    half _BumpScale0;
+    half _BumpScale1;
+    half _BumpScale2;
+    half _BumpScale3;
+    half _Metallic0;
+    half _Metallic1;
+    half _Metallic2;
+    half _Metallic3;
+    half _Smoothness0;
+    half _Smoothness1;
+    half _Smoothness2;
+    half _Smoothness3;
+    half _specularAntiAliasingThreshold;
+    half _ShadowDepthBias;
+    half _ShadowNormalBias;
+CBUFFER_END
+
+float3 _LightDirection;
+
+TEXTURE2D(_Control); SAMPLER(sampler_Control);
+
+TEXTURE2D(_Splat0); SAMPLER(sampler_Splat0);
+TEXTURE2D(_Splat1);
+TEXTURE2D(_Splat2);
+TEXTURE2D(_Splat3);
+
+TEXTURE2D(_Normal0); SAMPLER(sampler_Normal0);
+TEXTURE2D(_Normal1);
+TEXTURE2D(_Normal2);
+TEXTURE2D(_Normal3);
+
+TEXTURE2D(_WetnessMap0); SAMPLER(sampler_WetnessMap0);
+TEXTURE2D(_WetnessMap1);
+TEXTURE2D(_WetnessMap2);
+TEXTURE2D(_WetnessMap3);
 
 struct Attributes
 {
@@ -58,35 +105,120 @@ struct VaryingsLean
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
-void InitializeInputData(Varyings input, half3 normalTS, out InputData inputData)
+struct FeedbackAttributes
 {
-    inputData = (InputData)0;
+    float3 positionOS   : POSITION;
+    float4 color        : COLOR;
+    UNITY_VERTEX_INPUT_INSTANCE_ID
+};
+
+struct FeedbackVaryings
+{
+    float3 positionWS               : TEXCOORD0;
+    float4 positionCS               : SV_POSITION;
+
+    UNITY_VERTEX_INPUT_INSTANCE_ID
+    UNITY_VERTEX_OUTPUT_STEREO
+};
+
+struct PhysicalMaterial
+{
+    half3 albedo;
+    half3 specular;
+    half  metallic;
+    half  smoothness;
+    half3 normalTS;
+    half3 emission;
+    half  occlusion;
+    half  alpha;
+#if defined(REQUIRES_WORLD_SPACE_POS_INTERPOLATOR)
+    float3  positionWS;
+#endif
+    half3   normalWS;
+    half3   viewDirectionWS;
+    half3   bakedGI;
+};
+
+inline void InitializeStandardLitSurfaceData(Varyings input, out PhysicalMaterial physicalMaterial)
+{
+    float2 uv_Control = input.uv * _Control_ST.xy + _Control_ST.zw;
+    float2 uv0_Splat0 = input.uv * _Splat0_ST.xy + _Splat0_ST.zw;
+    float2 uv0_Splat1 = input.uv * _Splat1_ST.xy + _Splat1_ST.zw;
+    float2 uv0_Splat2 = input.uv * _Splat2_ST.xy + _Splat2_ST.zw;
+    float2 uv0_Splat3 = input.uv * _Splat3_ST.xy + _Splat3_ST.zw;
+
+    float4 classify = SAMPLE_TEXTURE2D(_Control, sampler_Control, uv_Control);
+    float classify_weight = 1 / dot(1, classify);
+
+    physicalMaterial.alpha = 1;
+    physicalMaterial.smoothness = dot(classify , float4(_Smoothness0 , _Smoothness1 , _Smoothness2 , _Smoothness3));
+    physicalMaterial.metallic = dot(classify , float4(_Metallic0 , _Metallic1 , _Metallic2 , _Metallic3));
+    physicalMaterial.specular = 0.5f;
+    physicalMaterial.emission = 0;
+    physicalMaterial.occlusion = 1;
+    physicalMaterial.viewDirectionWS = SafeNormalize(input.viewDirWS);
 
 #if defined(REQUIRES_WORLD_SPACE_POS_INTERPOLATOR)
-    inputData.positionWS = input.positionWS;
+    physicalMaterial.positionWS = input.positionWS;
 #endif
 
-    half3 viewDirWS = SafeNormalize(input.viewDirWS);
+#ifdef _USE_VIRTUAL_TEXTURE
+    VirtualTexture virtualData = SampleVirtualTexture(input.positionWS);
+    physicalMaterial.albedo = virtualData.albedo;
+    physicalMaterial.normalWS = virtualData.normal;
+#else
+    float4 albedo =
+        classify.x * SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv0_Splat0) + 
+        classify.y * SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uv0_Splat1) +
+        classify.z * SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uv0_Splat2) + 
+        classify.w * SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uv0_Splat3);
 
-#ifdef PROCEDURAL_INSTANCING_ON
+    albedo *= classify_weight;
+
+    physicalMaterial.albedo = albedo;
+
+#   if _NORMALMAP
+    float3 normal = 
+        classify.x * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal0, sampler_Normal0, uv0_Splat0), _BumpScale0) +
+        classify.y * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal1, sampler_Normal0, uv0_Splat1), _BumpScale1) +
+        classify.z * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal2, sampler_Normal0, uv0_Splat2), _BumpScale2) +
+        classify.w * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_Normal0, uv0_Splat3), _BumpScale3);
+
+    normal *= classify_weight;
+
+    physicalMaterial.normalTS = normal;
+#   else
+    physicalMaterial.normalTS = float3(0,0,1);
+#   endif
+
+#   ifdef PROCEDURAL_INSTANCING_ON
     input.normalWS = TransformObjectToWorldNormal(normalize(SAMPLE_TEXTURE2D(_TerrainNormalMap, sampler_TerrainNormalMap, input.uv).rgb * 2 - 1));
-#endif
+#   endif
 
-#ifdef _NORMALMAP 
+#   ifdef _NORMALMAP 
     float sgn = input.tangentWS.w;      // should be either +1 or -1
     float3 bitangent = sgn * cross(input.normalWS.xyz, input.tangentWS.xyz);
-    inputData.normalWS = TransformTangentToWorld(normalTS, half3x3(input.tangentWS.xyz, bitangent.xyz, input.normalWS.xyz));
-#else
-    inputData.normalWS = input.normalWS;
+    physicalMaterial.normalWS = TransformTangentToWorld(physicalMaterial.normalTS, half3x3(input.tangentWS.xyz, bitangent.xyz, input.normalWS.xyz));
+#   else
+    physicalMaterial.normalWS = input.normalWS;
+#   endif
+
+    physicalMaterial.normalWS = NormalizeNormalPerPixel(physicalMaterial.normalWS);
 #endif
 
-    inputData.normalWS = NormalizeNormalPerPixel(inputData.normalWS);
-    inputData.viewDirectionWS = viewDirWS;
+#ifdef _WETNESS_ON
+    half wetness = SAMPLE_TEXTURE2D(_WetnessMap, sampler_WetnessMap, uv).a;
+    physicalMaterial.albedo = lerp(physicalMaterial.albedo, physicalMaterial.albedo * physicalMaterial.albedo, clamp(wetness, 0.0, 0.35));
+    physicalMaterial.smoothness = lerp(physicalMaterial.smoothness, 1.0, clamp(wetness, 0.2, 1.0));
+    physicalMaterial.specular = lerp(physicalMaterial.specular, 0.25, clamp(wetness, 0.25, 0.5));
+    physicalMaterial.occlusion = lerp(physicalMaterial.occlusion, 1.0, clamp(wetness, 0.45, 0.95));
+    physicalMaterial.normalTS = lerp(physicalMaterial.normalTS, half3(0, 0, 1), clamp(wetness, 0.45, 0.95));
+#endif
 
 #ifdef PROCEDURAL_INSTANCING_ON
-    inputData.bakedGI = SAMPLE_TEXTURE2D(_TerrainLightMap, sampler_TerrainLightMap, input.uv).rgb;
+    physicalMaterial.bakedGI = SAMPLE_TEXTURE2D(_TerrainLightMap, sampler_TerrainLightMap, input.uv).rgb;
 #else
-    inputData.bakedGI = SAMPLE_GI(input.lightmapUV, input.vertexSH, inputData.normalWS);
+    physicalMaterial.bakedGI = SAMPLE_GI(input.lightmapUV, input.vertexSH, physicalMaterial.normalWS);
 #endif
 }
 
@@ -130,35 +262,30 @@ FragmentOutput LitPassFragment(Varyings input)
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-    SurfaceData surfaceData;
-    InitializeStandardLitSurfaceData(input.uv, surfaceData);
-
-    InputData inputData;
-    InitializeInputData(input, surfaceData.normalTS, inputData);
+    PhysicalMaterial physicalMaterial;
+    InitializeStandardLitSurfaceData(input, physicalMaterial);
 
     BRDFData brdfData;
-    InitializeBRDFData(surfaceData.albedo, surfaceData.metallic, surfaceData.specular, surfaceData.smoothness, 1, brdfData);
+    InitializeBRDFData(physicalMaterial.albedo, physicalMaterial.metallic, physicalMaterial.specular, physicalMaterial.smoothness, 1, brdfData);
 
 #ifdef PROCEDURAL_INSTANCING_ON
-    surfaceData.emission += inputData.bakedGI * surfaceData.albedo;
+    physicalMaterial.emission += physicalMaterial.bakedGI * physicalMaterial.albedo;
 #else
-    surfaceData.emission += GlobalIllumination(brdfData, inputData.bakedGI, surfaceData.occlusion, inputData.normalWS, inputData.viewDirectionWS);
+    physicalMaterial.emission += GlobalIllumination(brdfData, physicalMaterial.bakedGI, physicalMaterial.occlusion, physicalMaterial.normalWS, physicalMaterial.viewDirectionWS);
 #endif
 
 #ifdef _SPECULAR_ANTIALIASING
-    surfaceData.smoothness = GeometricNormalFiltering(surfaceData.smoothness, inputData.normalWS, _specularAntiAliasingThreshold, 2);
+    physicalMaterial.smoothness = GeometricNormalFiltering(physicalMaterial.smoothness, physicalMaterial.normalWS, _specularAntiAliasingThreshold, 2);
 #endif
 
-    VirtualTexture virtualData = SampleVirtualTexture(input.uv);
-
     GbufferData data = (GbufferData)0;
-    data.albedo = virtualData.diffuse;//surfaceData.albedo;
-    data.normalWS = inputData.normalWS;
-    data.emission = 0;//surfaceData.emission;
-    data.specular = surfaceData.specular;
-    data.metallic = surfaceData.metallic;
-    data.smoothness = surfaceData.smoothness;
-    data.occlusion = surfaceData.occlusion;
+    data.albedo = physicalMaterial.albedo;
+    data.normalWS = physicalMaterial.normalWS;
+    data.emission = physicalMaterial.emission;
+    data.specular = physicalMaterial.specular;
+    data.metallic = physicalMaterial.metallic;
+    data.smoothness = physicalMaterial.smoothness;
+    data.occlusion = physicalMaterial.occlusion;
     data.translucency = 0;
 
     return EncodeGbuffer(data);
@@ -249,8 +376,8 @@ Varyings UniversalVertexMeta(Attributes input)
 
 half4 UniversalFragmentMeta(Varyings input) : SV_Target
 {
-    SurfaceData surfaceData;
-    InitializeStandardLitSurfaceData(input.uv, surfaceData);
+    PhysicalMaterial surfaceData;
+    InitializeStandardLitSurfaceData(input, surfaceData);
 
     BRDFData brdfData;
     InitializeBRDFData(surfaceData.albedo, surfaceData.metallic, surfaceData.specular, surfaceData.smoothness, surfaceData.alpha, brdfData);
@@ -263,23 +390,6 @@ half4 UniversalFragmentMeta(Varyings input) : SV_Target
     return MetaFragment(metaInput);
 }
 
-struct FeedbackAttributes
-{
-    float3 positionOS   : POSITION;
-    float4 color        : COLOR;
-    float2 texcoord     : TEXCOORD0;
-    UNITY_VERTEX_INPUT_INSTANCE_ID
-};
-
-struct FeedbackVaryings
-{
-    float2 uv                       : TEXCOORD0;
-    float4 positionCS               : SV_POSITION;
-
-    UNITY_VERTEX_INPUT_INSTANCE_ID
-    UNITY_VERTEX_OUTPUT_STEREO
-};
-
 FeedbackVaryings FeedbackVertex(FeedbackAttributes input)
 {
     FeedbackVaryings output = (FeedbackVaryings)0;
@@ -290,12 +400,11 @@ FeedbackVaryings FeedbackVertex(FeedbackAttributes input)
 
 #ifdef PROCEDURAL_INSTANCING_ON
     TerrainPositionInputs vertexInput = GetTerrainPositionInputs(input.positionOS.xyz, input.color);
-    output.uv = vertexInput.texcoord;
 #else
     VertexPositionInputs vertexInput = GetVertexPositionInputs(input.positionOS.xyz);
-    output.uv = input.texcoord;
 #endif
 
+    output.positionWS = vertexInput.positionWS;
     output.positionCS = vertexInput.positionCS;
 
     return output;
@@ -306,14 +415,8 @@ float4 FeedbackFragment(FeedbackVaryings input) : SV_TARGET
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-    float2 page = floor(input.uv * _VTFeedbackParam.x);
-
-    float2 uv = input.uv * _VTFeedbackParam.y;
-    float2 dx = ddx(uv);
-    float2 dy = ddy(uv);
-    int mip = clamp(int(0.5 * log2(max(dot(dx, dx), dot(dy, dy))) + 0.5 + _VTFeedbackParam.w), 0, _VTFeedbackParam.z);
-
-    return float4(page / 255.0, mip / 255.0, 1);
+    float2 texcoord = ComputePageTexcoord(input.positionWS);
+    return ComputePageMipLevel(texcoord);
 }
 
 #endif

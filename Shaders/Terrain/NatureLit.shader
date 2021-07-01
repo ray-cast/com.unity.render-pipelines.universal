@@ -14,11 +14,13 @@
         _Specular("镜面反射系数", Range(0.0, 1.0)) = 0.5
 
         [Space(20)]
-        [TexToggle(_ROOTMAP)][NoScaleOffset]_RootTex("根部贴图", 2D) = "white" {}
-        _RootSize("根部区域大小", Vector) = (0,0,1)
-        _RootCenter("根部区域中心", Vector) = (0,0,0)
+        [KeywordEnum(Albedo, Texture, VirtualTexture)]
+        _RootMode("根部纹理模式（基本颜色，自定义纹理，自适应）", Float) = 0
+        [EqualIf(_RootMode, 1)]_RootSize("根部区域大小", Vector) = (0,0,1)
+        [EqualIf(_RootMode, 1)]_RootCenter("根部区域中心", Vector) = (0,0,0)
         _RootStrength("根部混合权重", Range(0, 1)) = 0
         _RootBlendHeight("根部高度混合", Range(0, 1)) = 0.1
+        [EqualIf(_RootMode, 1)][NoScaleOffset]_RootTex("根部贴图", 2D) = "white" {}
 
         [Space(20)]
         _HeadColor("尖部颜色", Color) = (1,1,1,1)
@@ -45,6 +47,7 @@
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Wind.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/InstancingRendering.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/VirtualTexture.hlsl"
         #include "VegetationCommon.cginc"
 
         struct Attributes
@@ -63,6 +66,7 @@
             float2 uv          : TEXCOORD4;
             float4 color       : TEXCOORD5;
             float4 screenPos   : TEXCOORD6;
+            float3 pivotPositionWS : TEXCOORD7;
             UNITY_VERTEX_INPUT_INSTANCE_ID
         };
 
@@ -164,6 +168,7 @@
             float3 positionWS = TransformObjectToWindWorld(wind, positionOS);
 
             output.positionWS = float4(positionWS, rootBlend);
+            output.pivotPositionWS = pivotPositionWS;
             output.normalWS = float4(N, headBlend);
             output.color = float4(_MainColor, wind.storm * saturate(input.positionOS.y / 0.12));
             output.positionCS = TransformWorldToHClip(output.positionWS.xyz);
@@ -198,10 +203,13 @@
             StippleAlpha(alpha, input.screenPos.xy);
         #endif
 
-        #ifdef _ROOTMAP
+        #ifdef _ROOTMODE_TEXTURE
             half3 rootColor = SAMPLE_TEXTURE2D_LOD(_RootTex, sampler_RootTex, GetColorMapUV(input.positionWS.xyz, _RootCenter, _RootSize), 0);
+        #elif defined(_ROOTMODE_VIRTUALTEXTURE)
+            VirtualTexture virtualData = SampleVirtualTexture(input.pivotPositionWS);
+            half3 rootColor = virtualData.albedo;
         #else
-            half3 rootColor = albedo.xyz;
+            half3 rootColor = albedo.rgb;
         #endif
 
         #ifdef _HEADMAP
@@ -214,7 +222,12 @@
             GbufferData data = (GbufferData)0;
             data.albedo = lerp(rootColor, headColor.rgb, input.positionWS.a);
             data.albedo = lerp(data.albedo, data.albedo * _WindHightlightColor, input.color.a);
+        #if defined(_ROOTMODE_VIRTUALTEXTURE)
+            data.normalWS = virtualData.normal;
+        #else
             data.normalWS = input.normalWS.xyz;
+        #endif
+
             data.specular = _Specular;
             data.metallic = 0;
             data.smoothness = _Smoothness;
@@ -285,6 +298,7 @@
                 #pragma shader_feature_local _ROOTMAP
                 #pragma shader_feature_local _HEADMAP
                 #pragma shader_feature_local _ALBEDOMAP
+                #pragma shader_feature_local _ROOTMODE_ALBEDO _ROOTMODE_TEXTURE _ROOTMODE_VIRTUALTEXTURE
 
                 #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
                 #pragma instancing_options procedural:SetupInstancing

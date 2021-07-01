@@ -1,4 +1,4 @@
-﻿Shader "Universal Render Pipeline/Realtime Visual Texture"
+﻿Shader "Virtual Texture/Feedback"
 {
     HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"

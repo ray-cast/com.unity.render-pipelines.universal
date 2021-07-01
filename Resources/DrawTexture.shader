@@ -2,6 +2,7 @@ Shader "VirtualTexture/DrawTexture"
 {
     HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
 
         float4 _Control_ST;
         float4 _Splat0_ST;
@@ -22,6 +23,8 @@ Shader "VirtualTexture/DrawTexture"
         TEXTURE2D(_Splat1);
         TEXTURE2D(_Splat2);
         TEXTURE2D(_Splat3);
+
+        TEXTURE2D(_Normal); SAMPLER(sampler_Normal);
 
         TEXTURE2D(_Normal0); SAMPLER(sampler_Normal0);
         TEXTURE2D(_Normal1);
@@ -66,31 +69,36 @@ Shader "VirtualTexture/DrawTexture"
             float2 uv0_Splat2 = input.uv * _Splat2_ST.xy + _Splat2_ST.zw;
             float2 uv0_Splat3 = input.uv * _Splat3_ST.xy + _Splat3_ST.zw;
 
-            float4 classify = SAMPLE_TEXTURE2D(_Control, sampler_Control, uv_Control);
-            float classify_weight = 1 / dot(1, classify);
+            float4 blend = SAMPLE_TEXTURE2D(_Control, sampler_Control, uv_Control);
+            float blend_weight = 1 / dot(1, blend);
 
             VirtualOutput output;
 
             float4 albedo =
-                classify.x * SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv0_Splat0) + 
-                classify.y * SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uv0_Splat1) +
-                classify.z * SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uv0_Splat2) + 
-                classify.w * SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uv0_Splat3);
+                blend.x * SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv0_Splat0) + 
+                blend.y * SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uv0_Splat1) +
+                blend.z * SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uv0_Splat2) + 
+                blend.w * SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uv0_Splat3);
 
-            output.albedo = albedo.xyz * classify_weight;
+            output.albedo = albedo.xyz * blend_weight;
+
+            float3 normalWS = UnpackNormalMaxComponent(SAMPLE_TEXTURE2D(_Normal, sampler_Normal, uv_Control).xyz);
 
         #ifdef _NORMALMAP
-            float3 normal = 
-                classify.x * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal0, sampler_Normal0, uv0_Splat0), _BumpScale0) +
-                classify.y * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal1, sampler_Normal0, uv0_Splat1), _BumpScale1) +
-                classify.z * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal2, sampler_Normal0, uv0_Splat2), _BumpScale2) +
-                classify.w * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_Normal0, uv0_Splat3), _BumpScale3);
+            float3 normalTS = 
+                blend.x * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal0, sampler_Normal0, uv0_Splat0), _BumpScale0) +
+                blend.y * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal1, sampler_Normal0, uv0_Splat1), _BumpScale1) +
+                blend.z * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal2, sampler_Normal0, uv0_Splat2), _BumpScale2) +
+                blend.w * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_Normal0, uv0_Splat3), _BumpScale3);
 
-            normal *= classify_weight;
+            normalTS *= blend_weight;
 
-            output.normal = normal;
+            float3 tangentWS = float3(0, 0, 1);
+            float3 bitangent = cross(normalWS.xyz, tangentWS.xyz);
+
+            output.normal = PackNormalMaxComponent(TransformTangentToWorld(normalTS, half3x3(tangentWS.xyz, bitangent.xyz, normalWS.xyz)));
         #else
-            output.normal = 0;
+            output.normal = normalWS;
         #endif
 
             return output;

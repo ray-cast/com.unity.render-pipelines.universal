@@ -33,7 +33,6 @@ CBUFFER_START(UnityPerMaterial)
 CBUFFER_END
 
 float3 _LightDirection;
-float4 _VTFeedbackParam;
 
 TEXTURE2D(_Control); SAMPLER(sampler_Control);
 

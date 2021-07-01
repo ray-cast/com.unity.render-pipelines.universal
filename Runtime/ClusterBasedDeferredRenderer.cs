@@ -70,7 +70,8 @@
         Material _screenSpaceShadowMaterial;
         Material _screenSpaceOcclusionMaterial;
         Material _capsuleShadowMaterial;
-        Material _virtualTextureMaterial;
+        Material _feedbackMaterial;
+        Material _drawLookupMaterial;
         Material _samplingMaterial;
         Material _debugCluster;
         Material _heatMapCluster;
@@ -88,7 +89,8 @@
             _screenSpaceShadowMaterial = CoreUtils.CreateEngineMaterial(data.shaders.screenSpaceShadowPS);
             _screenSpaceOcclusionMaterial = CoreUtils.CreateEngineMaterial(data.shaders.screenSpaceOcclusionPS);
             _capsuleShadowMaterial = CoreUtils.CreateEngineMaterial(data.shaders.capsuleShadowPS);
-            _virtualTextureMaterial = CoreUtils.CreateEngineMaterial(data.shaders.virtualTexturePS);
+            _feedbackMaterial = CoreUtils.CreateEngineMaterial(data.shaders.feedbackPS);
+            _drawLookupMaterial = CoreUtils.CreateEngineMaterial(data.shaders.drawLookupPS);
 
 #if UNITY_EDITOR && !(UNITY_IOS || UNITY_STANDALONE_OSX)
             _debugCluster = CoreUtils.CreateEngineMaterial(data.shaders.clusterGS);
@@ -122,7 +124,7 @@
             _renderOpaqueForwardPass = new DrawObjectsPass("Render Opaques", true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
             _drawSkyboxPass = new DrawSkyboxPass(RenderPassEvent.BeforeRenderingOpaques, data.shaders);
             _copyDepthPass = new CopyDepthPass(RenderPassEvent.AfterRenderingOpaques, _copyDepthMaterial);
-            _feedbackPass = new FeedbackPass(RenderPassEvent.BeforeRenderingOpaques, data.opaqueLayerMask, _virtualTextureMaterial);
+            _feedbackPass = new FeedbackPass(RenderPassEvent.BeforeRenderingOpaques, data.opaqueLayerMask, _feedbackMaterial, _drawLookupMaterial);
             _hizPass = new HizPass(RenderPassEvent.AfterRenderingOpaques, data.shaders.HizCS);
             _copyOpaqueColorPass = new CopyColorPass(RenderPassEvent.AfterRenderingSkybox, _samplingMaterial);
             _copyTransparentColorPass = new CopyColorPass(RenderPassEvent.BeforeRenderingTransparents, _samplingMaterial);

@@ -1,6 +1,8 @@
-﻿namespace UnityEngine.Rendering.Universal
+﻿using System;
+
+namespace UnityEngine.Rendering.Universal
 {
-    public sealed class TiledTexture
+    public sealed class TiledTexture : IDisposable
     {
         /// <summary>
         /// 单个Tile的尺寸.
@@ -79,12 +81,12 @@
             _tilePool = new LruCache(regionSize.x * regionSize.y);
 
             tileTextures = new RenderTexture[2];
-            tileTextures[0] = new RenderTexture(this.width, this.height, 0);
-            tileTextures[0].useMipMap = false;
+            tileTextures[0] = RenderTexture.GetTemporary(this.width, this.height, 0);
+            tileTextures[0].filterMode = FilterMode.Point;
             tileTextures[0].wrapMode = TextureWrapMode.Clamp;
 
-            tileTextures[1] = new RenderTexture(this.width, this.height, 0);
-            tileTextures[1].useMipMap = false;
+            tileTextures[1] = RenderTexture.GetTemporary(this.width, this.height, 0);
+            tileTextures[1].filterMode = FilterMode.Point;
             tileTextures[1].wrapMode = TextureWrapMode.Clamp;
 
             tileBuffers = new RenderTargetIdentifier[2];
@@ -92,6 +94,11 @@
             tileBuffers[1] = tileTextures[1].colorBuffer;
 
             tileDepthBuffer = tileTextures[0].depthBuffer;
+        }
+
+        ~TiledTexture()
+        {
+            this.Dispose();
         }
 
         private Vector2Int IdToPos(int id)
@@ -118,5 +125,15 @@
 		{
             return new RectInt(tile.x * tileSizeWithPadding, tile.y * tileSizeWithPadding,  tileSizeWithPadding, tileSizeWithPadding);
 		}
-    }
+
+		public void Dispose()
+		{
+            if (tileTextures != null)
+            {
+                RenderTexture.ReleaseTemporary(tileTextures[0]);
+                RenderTexture.ReleaseTemporary(tileTextures[1]);
+                tileTextures = null;
+            }
+        }
+	}
 }

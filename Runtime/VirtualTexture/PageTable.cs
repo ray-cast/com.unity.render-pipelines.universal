@@ -40,6 +40,14 @@
                 pageLevelTable[i] = new PageLevelTable(i, pageSize);
         }
 
+        public TableNodeCell GetPage(int x, int y, int mip)
+        {
+            Debug.Assert(x >= 0 && y >= 0 && mip >= 0);
+            Debug.Assert(x < pageSize && y < pageSize && mip <= maxMipLevel);
+
+            return pageLevelTable[mip].Get(x, y);
+        }
+
         public TableNodeCell FindPage(int x, int y, int mip)
 		{
             if (mip > maxMipLevel || mip < 0 || x < 0 || y < 0 || x >= pageSize || y >= pageSize)

@@ -4,7 +4,7 @@ using Unity.Collections;
 
 namespace UnityEngine.Rendering.Universal
 {
-    public sealed class VirtualTextureSystem
+    public sealed class VirtualTextureSystem : IDisposable
     {
         static readonly Lazy<VirtualTextureSystem> s_Instance = new Lazy<VirtualTextureSystem>(() => new VirtualTextureSystem());
 
@@ -24,6 +24,17 @@ namespace UnityEngine.Rendering.Universal
         private RequestPageDataJob _requestPageJob;
 
         /// <summary>
+        /// Mip的偏移量
+        /// </summary>
+        private int _mipmapBias = 0;
+
+        /// <summary>
+        /// 页表尺寸.
+        /// </summary>
+        [SerializeField]
+        private Rect _pageRegion = new Rect(0, 0, 256, 256);
+
+        /// <summary>
         /// 页表尺寸.
         /// </summary>
         [SerializeField]
@@ -35,14 +46,23 @@ namespace UnityEngine.Rendering.Universal
         private PageTable _pageTable;
 
         /// <summary>
-        /// 查找表生成 Shader
+        /// 平面网格
         /// </summary>
-        private Material _drawLookupMat = null;
+        private Mesh _quad;
 
         /// <summary>
         /// 平面网格
         /// </summary>
-        private Mesh _quad;
+        public Mesh quad
+        {
+            get
+            {
+                if (_quad == null)
+                    InitializeQuadMesh();
+
+                return _quad;
+            }
+        }
 
         /// <summary>
         /// 导出的页表寻址贴图
@@ -53,6 +73,11 @@ namespace UnityEngine.Rendering.Universal
         /// 平铺贴图对象
         /// </summary>
         public TiledTexture tileTexture { get; private set; }
+
+        /// <summary>
+        /// 尺寸缩放.
+        /// </summary>
+        public ScaleFactor scale = ScaleFactor.Half;
 
         /// <summary>
         /// Tile尺寸.
@@ -70,6 +95,16 @@ namespace UnityEngine.Rendering.Universal
         public int pageSize { get { return _pageSize; } }
 
         /// <summary>
+        /// 页表尺寸.
+        /// </summary>
+        public Rect pageRegion { get => _pageRegion; }
+
+        /// <summary>
+        /// 每帧的请求数量.
+        /// </summary>
+        public int requestLimits { get => _requestPageJob.limit; set => _requestPageJob.limit = value; }
+
+        /// <summary>
         /// 画Tile的事件.
         /// </summary>
         public static event Action<RequestPageData, TiledTexture, Vector2Int> beginTileRendering;
@@ -81,34 +116,42 @@ namespace UnityEngine.Rendering.Universal
             public Vector2 drawPos;
         }
 
-        VirtualTextureSystem()
+        public void Init()
         {
             InitializeQuadMesh();
 
-            _requestPageJob = new RequestPageDataJob();
-            _requestPageJob.startRenderJob += OnRequestPageJob;
-            _requestPageJob.cancelRenderJob += OnCancelPageJob;
-
             _pageTable = new PageTable(_pageSize);
 
-            _drawLookupMat = new Material(Shader.Find("VirtualTexture/DrawLookup"));
-            _drawLookupMat.enableInstancing = true;
+            _requestPageJob = new RequestPageDataJob();
+            _requestPageJob.startRequestPageJob += OnStartRequestPageJob;
+            _requestPageJob.cancelRequestPageJob += OnCancelRequestPageJob;
+
+            if (lookupTexture)
+                RenderTexture.ReleaseTemporary(lookupTexture);
 
             lookupTexture = RenderTexture.GetTemporary(pageSize, pageSize, 0, RenderTextureFormat.ARGBHalf);
             lookupTexture.name = "LookupTexture";
             lookupTexture.filterMode = FilterMode.Point;
             lookupTexture.wrapMode = TextureWrapMode.Clamp;
 
+            tileTexture?.Dispose();
             tileTexture = new TiledTexture();
 
-            Shader.SetGlobalTexture("_VTDiffuse", tileTexture.tileTextures[0]);
-            Shader.SetGlobalTexture("_VTNormal", tileTexture.tileTextures[1]);
-            Shader.SetGlobalVector("_VTPageParam", new Vector4(pageSize, 1.0f / pageSize, _pageTable.maxMipLevel, 0));
-            Shader.SetGlobalVector("_VTTileParam", new Vector4(tileTexture.paddingSize, tileTexture.tileSize, tileTexture.width, tileTexture.height));
+            Shader.SetGlobalTexture("_VirtualLookupTexture", lookupTexture);
+            Shader.SetGlobalTexture("_VirtualAlbedoTexture", tileTexture.tileTextures[0]);
+            Shader.SetGlobalTexture("_VirtualNormalTexture", tileTexture.tileTextures[1]);
 
-            Shader.SetGlobalTexture("_VTLookupTex", lookupTexture);
+            Shader.SetGlobalVector("_VirtualPage_Params", new Vector4(pageSize, 1.0f / pageSize, _pageTable.maxMipLevel, 0));
+            Shader.SetGlobalVector("_VirtualPageRegion_Params", new Vector4(_pageRegion.x, _pageRegion.y, 1.0f / _pageRegion.width, 1.0f / _pageRegion.height));
+            Shader.SetGlobalVector("_VirtualTile_Params", new Vector4(tileTexture.paddingSize, tileTexture.tileSize, tileTexture.width, tileTexture.height));
+            Shader.SetGlobalVector("_VirtualFeedback_Params", new Vector4(pageSize, pageSize * tileSize * scale.ToFloat(), pageTable.maxMipLevel - 1, _mipmapBias));
 
             this.LoadPage(0, 0, _pageTable.maxMipLevel);
+        }
+
+        ~VirtualTextureSystem()
+        {
+            this.Dispose();
         }
 
         private void InitializeQuadMesh()
@@ -140,14 +183,116 @@ namespace UnityEngine.Rendering.Universal
             _quad.SetTriangles(quadTriangleList, 0);
         }
 
+        /// <summary>
+        /// 激活页表
+        /// </summary>
+        public TableNodeCell LoadPage(int x, int y, int mip)
+        {
+            var page = _pageTable.FindPage(x, y, mip);
+            if (page != null)
+            {
+                if (!page.payload.isReady)
+                {
+                    if (page.payload.loadRequest == null)
+                        page.payload.loadRequest = _requestPageJob.Request(x, y, page.mipLevel);
+
+                    //向上找到最近的父节点
+                    while (mip < _pageTable.maxMipLevel && !page.payload.isReady)
+                    {
+                        mip++;
+                        page = _pageTable.pageLevelTable[mip].Get(x, y);
+                    }
+                }
+
+                if (page.payload.isReady)
+                {
+                    tileTexture.SetActive(page.payload.tileIndex);
+
+                    page.payload.activeFrame = Time.frameCount;
+                }
+
+                return page;
+            }
+
+            return null;
+        }
+
+        public void LoadPages(NativeArray<Color32> pageData)
+        {
+            foreach (var data in pageData)
+			{
+                if (data.a == 0)
+                    continue;
+
+                var page = LoadPage(data.r, data.g, data.b);
+                if (page != null)
+				{
+                    if (page.payload.isReady)
+                    {
+                        tileTexture.SetActive(page.payload.tileIndex);
+
+                        page.payload.activeFrame = Time.frameCount;
+                    }
+                }
+            }
+        }
+
+        public void UpdatePage(Vector2Int center)
+        {
+            for (int i = 0; i < pageSize; i++)
+            {
+                for (int j = 0; j < pageSize; j++)
+                {
+                    var thisPos = new Vector2Int(i, j);
+                    Vector2Int ManhattanDistance = thisPos - center;
+                    int absX = Mathf.Abs(ManhattanDistance.x);
+                    int absY = Mathf.Abs(ManhattanDistance.y);
+                    int absMax = Mathf.Max(absX, absY);
+
+                    LoadPage(i, j, Mathf.Clamp(Mathf.FloorToInt(Mathf.Sqrt(2 * absMax)), 0, _pageTable.maxMipLevel));
+                }
+            }
+        }
+
+        public void SetPageRegion(Rect region)
+		{
+            if (!_pageRegion.Equals(region))
+			{
+                this.Reset();
+                _pageRegion = region;
+                Shader.SetGlobalVector("_VirtualPageRegion_Params", new Vector4(region.x, region.y, 1.0f / region.width, 1.0f / region.height));
+            }
+        }
+
+        public void ChangeViewRect(Vector2Int offset)
+        {
+            for (int i = 0; i <= _pageTable.maxMipLevel; i++)
+               _pageTable.pageLevelTable[i].ChangeViewRect(offset, this.InvalidatePage);
+
+            LoadPage(0, 0, _pageTable.maxMipLevel);
+        }
+
         public void Reset()
         {
             _pageTable.Reset();
             _activePages.Clear();
+            _requestPageJob.Clear();
         }
 
-        public void UpdateLookup()
+        public void ClearJob()
         {
+            _requestPageJob.Clear();
+        }
+
+        public void UpdateJob()
+        {
+            _requestPageJob.Update();
+        }
+
+        public void UpdateLookup(Material drawLookupMat, int pass = 0)
+        {
+            Debug.Assert(drawLookupMat != null);
+
             // 将页表数据写入页表贴图
             var currentFrame = (byte)Time.frameCount;
             var drawList = new List<DrawPageInfo>();
@@ -193,101 +338,33 @@ namespace UnityEngine.Rendering.Universal
                     pageInfos[i] = new Vector4(drawList[i].drawPos.x, drawList[i].drawPos.y, drawList[i].mip / 255f, 0);
                 }
 
-                if (_drawLookupMat != null)
-                {
-                    var propertyBlock = new MaterialPropertyBlock();
-                    propertyBlock.SetVectorArray("_PageInfo", pageInfos);
-                    propertyBlock.SetMatrixArray("_ImageMVP", mats);
+                var propertyBlock = new MaterialPropertyBlock();
+                propertyBlock.SetVectorArray("_PageInfo", pageInfos);
+                propertyBlock.SetMatrixArray("_ImageMVP", mats);
 
-                    var cmd = CommandBufferPool.Get();
-                    cmd.SetRenderTarget(lookupTexture);
-                    cmd.DrawMeshInstanced(_quad, 0, _drawLookupMat, 0, mats, mats.Length, propertyBlock);
+                var cmd = CommandBufferPool.Get();
+                cmd.SetRenderTarget(lookupTexture);
+                cmd.DrawMeshInstanced(this.quad, 0, drawLookupMat, pass, mats, mats.Length, propertyBlock);
 
-                    Graphics.ExecuteCommandBuffer(cmd);
-                    CommandBufferPool.Release(cmd);
-                }
+                Graphics.ExecuteCommandBuffer(cmd);
+                CommandBufferPool.Release(cmd);
             }
         }
 
         /// <summary>
-        /// 激活页表
+        /// 将页表置为活跃状态
         /// </summary>
-        public TableNodeCell LoadPage(int x, int y, int mip)
+        private void ActivatePage(Vector2Int tile, TableNodeCell page)
         {
-            var page = _pageTable.FindPage(x, y, mip);
-            if (page != null)
+            if (_activePages.TryGetValue(tile, out var node))
             {
-                if (!page.payload.isReady)
-                {
-                    if (page.payload.loadRequest == null)
-                        page.payload.loadRequest = _requestPageJob.Request(x, y, page.mipLevel);
-
-                    //向上找到最近的父节点
-                    while (mip < _pageTable.maxMipLevel && !page.payload.isReady)
-                    {
-                        mip++;
-                        page = _pageTable.pageLevelTable[mip].Get(x, y);
-                    }
-                }
-
-                if (page.payload.isReady)
-                {
-                    tileTexture.SetActive(page.payload.tileIndex);
-
-                    page.payload.activeFrame = Time.frameCount;
-                }
-
-                return page;
+                node.payload.ResetTileIndex();
+                _activePages.Remove(tile);
             }
 
-            return null;
-        }
+            page.payload.tileIndex = tile;
 
-        public void LoadPages(NativeArray<Color32> pageData)
-        {
-            foreach (var c in pageData)
-			{
-                var page = LoadPage(c.r, c.g, c.b);
-                if (page != null)
-				{
-                    if (page.payload.isReady)
-                    {
-                        tileTexture.SetActive(page.payload.tileIndex);
-
-                        page.payload.activeFrame = Time.frameCount;
-                    }
-                }
-            }
-        }
-
-        public void UpdatePage(Vector2Int center)
-        {
-            for (int i = 0; i < pageSize; i++)
-            {
-                for (int j = 0; j < pageSize; j++)
-                {
-                    var thisPos = new Vector2Int(i, j);
-                    Vector2Int ManhattanDistance = thisPos - center;
-                    int absX = Mathf.Abs(ManhattanDistance.x);
-                    int absY = Mathf.Abs(ManhattanDistance.y);
-                    int absMax = Mathf.Max(absX, absY);
-
-                    LoadPage(i, j, Mathf.Clamp(Mathf.FloorToInt(Mathf.Sqrt(2 * absMax)), 0, _pageTable.maxMipLevel));
-                }
-            }
-        }
-
-        public void ChangeViewRect(Vector2Int offset)
-        {
-            for (int i = 0; i <= _pageTable.maxMipLevel; i++)
-               _pageTable.pageLevelTable[i].ChangeViewRect(offset, this.InvalidatePage);
-
-            LoadPage(0, 0, _pageTable.maxMipLevel);
-        }
-
-        public void Update()
-        {
-            _requestPageJob.Update();
+            _activePages[tile] = page;
         }
 
         /// <summary>
@@ -305,40 +382,50 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// 请求页面加载
         /// </summary>
-        private void OnRequestPageJob(RequestPageData request)
+        private bool OnStartRequestPageJob(RequestPageData request)
         {
-            var node = _pageTable.pageLevelTable[request.mipLevel].Get(request.pageX, request.pageY);
-            if (node != null && node.payload.loadRequest == request)
+            if (beginTileRendering == null || beginTileRendering.GetInvocationList().Length == 0)
+                return false;
+
+            var page = _pageTable.GetPage(request.pageX, request.pageY, request.mipLevel);
+            if (page != null && page.payload.loadRequest == request)
             {
                 var tile = tileTexture.RequestTile();
-                node.payload.tileIndex = tile;
-                node.payload.loadRequest = null;
-
-                InvalidatePage(tile);
-
-                if (beginTileRendering != null)
+                if (tileTexture.SetActive(tile))
                 {
-                    if (tileTexture.SetActive(tile))
-                    {
-                        beginTileRendering(request, tileTexture, tile);
-                    }
-                }
+                    ActivatePage(tile, page);
 
-                _activePages[tile] = node;
+                    page.payload.loadRequest = null;
+
+                    beginTileRendering.Invoke(request, tileTexture, tile);
+
+                    return true;
+                }
             }
+
+            return false;
         }
 
         /// <summary>
         /// 取消页面加载
         /// </summary>
-        private void OnCancelPageJob(RequestPageData request)
+        private void OnCancelRequestPageJob(RequestPageData request)
 		{
-            var node = _pageTable.pageLevelTable[request.mipLevel].Get(request.pageX, request.pageY);
-            if (node != null)
+            var page = _pageTable.GetPage(request.pageX, request.pageY, request.mipLevel);
+            if (page != null)
             {
-                if (node.payload.loadRequest == request)
-                    node.payload.loadRequest = null;
+                if (page.payload.loadRequest == request)
+                    page.payload.loadRequest = null;
             }
         }
-    }
+
+		public void Dispose()
+		{
+            if (lookupTexture)
+            {
+                RenderTexture.ReleaseTemporary(lookupTexture);
+                lookupTexture = null;
+            }
+        }
+	}
 }
