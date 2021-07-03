@@ -24,8 +24,16 @@ namespace UnityEngine.Rendering.Universal
         public override void OnInspectorGUI()
         {
             PropertyField(_enable);
+
+            EditorGUI.BeginChangeCheck();            
+            PropertyField(_regionAdaptation);
+            if (EditorGUI.EndChangeCheck())
+                VirtualTextureSystem.instance.Reset();
+
+            EditorGUI.BeginDisabledGroup((target as VirtualTexture).regionAdaptation.value);
             PropertyField(_center);
             PropertyField(_size);
+            EditorGUI.EndDisabledGroup();
 
             GUILayout.Space(10);
 

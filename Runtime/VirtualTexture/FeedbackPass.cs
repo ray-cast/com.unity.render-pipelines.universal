@@ -22,6 +22,7 @@ namespace UnityEngine.Rendering.Universal
 
         private bool _isAsyncRequestComplete = true;
         private bool _shouldUpdateRegion = true;
+        private bool _shouldAsyncFeedback = false;
 
         private NativeArray<Color32> _feedbackData;
 
@@ -65,9 +66,12 @@ namespace UnityEngine.Rendering.Universal
             _virtualTexture = stack.GetComponent<VirtualTexture>();
             if (_virtualTexture.IsActive())
             {
-                var center = _virtualTexture.center.value;
-                var size = _virtualTexture.size.value;
-                _virtualTextureSystem.SetRegion(new Rect(center.x - size / 2, center.y - size / 2, size, size));
+                if (!_virtualTexture.regionAdaptation.value)
+                {
+                    var center = _virtualTexture.center.value;
+                    var size = _virtualTexture.size.value;
+                    _virtualTextureSystem.SetRegion(new Rect(center.x - size / 2, center.y - size / 2, size, size));
+                }
 
                 var width = Mathf.FloorToInt(baseDescriptor.width * _virtualTextureSystem.scale.ToFloat());
                 var height = Mathf.FloorToInt(baseDescriptor.height * _virtualTextureSystem.scale.ToFloat());
@@ -143,9 +147,9 @@ namespace UnityEngine.Rendering.Universal
                     if (Application.isPlaying)
 					{
                         if (_shouldUpdateRegion)
-                        {
-                            var fence = cmd.CreateGraphicsFence(GraphicsFenceType.CPUSynchronisation, SynchronisationStageFlags.PixelProcessing);
-                            cmd.WaitOnAsyncGraphicsFence(fence);
+						{
+                            _shouldAsyncFeedback = true;
+                            cmd.WaitAllAsyncReadbackRequests();
                         }
                     }
                     else
@@ -172,6 +176,12 @@ namespace UnityEngine.Rendering.Universal
         {
             _feedbackData = req.GetData<Color32>();
             _isAsyncRequestComplete = true;
+
+            if (_shouldAsyncFeedback)
+			{
+                _virtualTextureSystem.LoadPages(_feedbackData);
+                _shouldAsyncFeedback = false;
+            }
         }
 
         static class ShaderConstants
