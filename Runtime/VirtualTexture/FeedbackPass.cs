@@ -22,7 +22,6 @@ namespace UnityEngine.Rendering.Universal
 
         private bool _isAsyncRequestComplete = true;
         private bool _shouldUpdateRegion = true;
-        private bool _shouldUpdateJob = true;
 
         private NativeArray<Color32> _feedbackData;
 

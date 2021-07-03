@@ -68,7 +68,7 @@ namespace UnityEngine.Rendering.Universal
 
         public void Build(ClusterBasedDeferredRendererData.ShaderResources defaultResources)
 		{
-            this._cubemap = new Cubemap(128, DefaultFormat.HDR, TextureCreationFlags.None);
+            this._cubemap = new Cubemap(128, GraphicsFormat.R16G16B16A16_SFloat, TextureCreationFlags.None, 0);
             this._iblMaterial = CoreUtils.CreateEngineMaterial(defaultResources.imageBasedLightingPS);
             this._hdriMaterial = CoreUtils.CreateEngineMaterial(defaultResources.skyboxCubemapPS);
         }

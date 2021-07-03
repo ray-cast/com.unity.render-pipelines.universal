@@ -541,8 +541,9 @@ namespace UnityEngine.Rendering.Universal
                     args[3] = (uint)_instancePatchMesh.GetBaseVertex(0);
                     args[4] = 0;
 
-                    _shadowBuffer?.Release();
-                    _shadowBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
+                    if (_shadowBuffer == null)
+                        _shadowBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
+
                     _shadowBuffer.SetData(args);
                 }
                 else
@@ -626,6 +627,11 @@ namespace UnityEngine.Rendering.Universal
             var _Splat2_ST = instanceMaterial.GetVector("_Splat2_ST");
             var _Splat3_ST = instanceMaterial.GetVector("_Splat3_ST");
 
+            var normal0 = instanceMaterial.GetTexture("_Normal0");
+            var normal1 = instanceMaterial.GetTexture("_Normal1");
+            var normal2 = instanceMaterial.GetTexture("_Normal2");
+            var normal3 = instanceMaterial.GetTexture("_Normal3");
+
             _tileMaterial.SetMatrix("_ImageMVP", GL.GetGPUProjectionMatrix(mat, false));
 
             _tileMaterial.SetTexture("_Control", instanceMaterial.GetTexture("_Control"));
@@ -656,19 +662,23 @@ namespace UnityEngine.Rendering.Universal
             _tileMaterial.SetFloat("_Smoothness2", instanceMaterial.GetFloat("_Smoothness2"));
             _tileMaterial.SetFloat("_Smoothness3", instanceMaterial.GetFloat("_Smoothness3"));
 
-            if (instanceMaterial.IsKeywordEnabled("_NORMALMAP"))
+            if (instanceMaterial.IsKeywordEnabled("_NORMALMAP") && (normal0 || normal1 || normal2 || normal3))
             {
                 _tileMaterial.EnableKeyword("_NORMALMAP");
 
-                _tileMaterial.SetTexture("_Normal0", instanceMaterial.GetTexture("_Normal0"));
-                _tileMaterial.SetTexture("_Normal1", instanceMaterial.GetTexture("_Normal1"));
-                _tileMaterial.SetTexture("_Normal2", instanceMaterial.GetTexture("_Normal2"));
-                _tileMaterial.SetTexture("_Normal3", instanceMaterial.GetTexture("_Normal3"));
+                _tileMaterial.SetTexture("_Normal0", normal0);
+                _tileMaterial.SetTexture("_Normal1", normal1);
+                _tileMaterial.SetTexture("_Normal2", normal2);
+                _tileMaterial.SetTexture("_Normal3", normal3);
 
                 _tileMaterial.SetFloat("_BumpScale0", instanceMaterial.GetFloat("_BumpScale0"));
                 _tileMaterial.SetFloat("_BumpScale1", instanceMaterial.GetFloat("_BumpScale1"));
                 _tileMaterial.SetFloat("_BumpScale2", instanceMaterial.GetFloat("_BumpScale2"));
                 _tileMaterial.SetFloat("_BumpScale3", instanceMaterial.GetFloat("_BumpScale3"));
+            }
+            else
+			{
+                _tileMaterial.DisableKeyword("_NORMALMAP");
             }
 
             var cmd = CommandBufferPool.Get();
@@ -716,12 +726,6 @@ namespace UnityEngine.Rendering.Universal
                     int mask = camera.cullingMask & (1 << gameObject.layer);
                     if (mask == 0)
                         return;
-
-                    if (camera)
-                    {
-                        this.InitializeTerrainPatches(camera.transform.position);
-                        this.UpdateTerrainPatches();
-                    }
 
                     Graphics.DrawMeshInstancedIndirect(
                                 _instancePatchMesh,
@@ -773,6 +777,12 @@ namespace UnityEngine.Rendering.Universal
 
             if (!GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, _boundingBox))
                 return;
+
+            if (camera)
+            {
+                this.InitializeTerrainPatches(camera.transform.position);
+                this.UpdateTerrainPatches();
+            }
 
             if (_instanceCount == 0)
                 return;
