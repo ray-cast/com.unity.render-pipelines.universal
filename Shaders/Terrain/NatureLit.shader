@@ -15,7 +15,7 @@
 
         [Space(20)]
         [KeywordEnum(Albedo, Texture, VirtualTexture)]
-        _RootMode("根部纹理模式（基本颜色，自定义纹理，自适应）", Float) = 0
+        _RootMode("根部纹理模式（基本颜色，自定义纹理，自适应）", Float) = 1
         [EqualIf(_RootMode, 1)]_RootSize("根部区域大小", Vector) = (0,0,1)
         [EqualIf(_RootMode, 1)]_RootCenter("根部区域中心", Vector) = (0,0,0)
         _RootStrength("根部混合权重", Range(0, 1)) = 0
@@ -207,7 +207,7 @@
             half3 rootColor = SAMPLE_TEXTURE2D_LOD(_RootTex, sampler_RootTex, GetColorMapUV(input.positionWS.xyz, _RootCenter, _RootSize), 0);
         #elif defined(_ROOTMODE_VIRTUALTEXTURE)
             VirtualTexture virtualData = SampleVirtualTexture(input.pivotPositionWS);
-            half3 rootColor = virtualData.albedo;
+            half3 rootColor = virtualData.albedo * (1 - virtualData.metallic);
         #else
             half3 rootColor = albedo.rgb;
         #endif
@@ -233,7 +233,11 @@
             data.smoothness = _Smoothness;
             data.occlusion = 1;
             data.translucency = 0;
+        #if defined(_ROOTMODE_VIRTUALTEXTURE)
+            data.emission = virtualData.bakedGI * data.albedo;
+        #else
             data.emission = input.bakeGI * data.albedo;
+        #endif
 
             return EncodeGbuffer(data);
         }

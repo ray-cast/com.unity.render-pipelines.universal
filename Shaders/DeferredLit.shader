@@ -30,7 +30,6 @@ Shader "Universal Render Pipeline/Deferred Lit"
         _OcclusionStrength("遮蔽强度", Range(0.0, 1.0)) = 1.0
         [NoScaleOffset][TexToggle(_METALLICSPECGLOSSMAP)]_MetallicGlossMap("材质复合贴图", 2D) = "white" {}
 
-
         [Space(20)]
         [KeywordEnum(None, Color, Albedo, Texture)]
         _EmissionMode("自发光模式（无，颜色，主纹理，自定义纹理）", Float) = 0
@@ -51,8 +50,9 @@ Shader "Universal Render Pipeline/Deferred Lit"
         [PowerSlider(2.0)] _specularAntiAliasingThreshold("镜面抗锯齿程度", Range(0.0, 10.0)) = 1
 
         [Space(20)]
-        _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
-        _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
+        [Toggle(_VIRTUAL_BLEND_ON)]_UseVirtualBlend("启用环境混合", int) = 0
+        _VirtualBlendMaterial("环境纹理混合高度(米)", Range(0, 10)) = 0.1
+        _VirtualBlendNormal("环境法线混合高度(米)", Range(0, 10)) = 0.1
 
         [Space(20)]
         [Toggle(_WIND_ON)]_UseWind("启用风场", int) = 0
@@ -60,7 +60,11 @@ Shader "Universal Render Pipeline/Deferred Lit"
         _WindStormWeight("风浪影响程度", Range(0.0, 1.0)) = 1.0
 
         [Space(20)]
-        [Toggle]_DepthPrepass("深度预渲染", Float) = 0
+        [Toggle]_DepthPrepass("启用深度预渲染", Float) = 0
+
+        [Space(20)]
+        _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
+        _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
 
         [Space(20)]
         [ToggleOff(_SPECULARHIGHLIGHTS_OFF)] _SpecularHighlights("启用高光反射", Float) = 1.0
@@ -134,6 +138,7 @@ Shader "Universal Render Pipeline/Deferred Lit"
             #pragma shader_feature _RECEIVE_SHADOWS_OFF
 
             #pragma shader_feature_local _WIND_ON
+            #pragma shader_feature_local _VIRTUAL_BLEND_ON
             #pragma shader_feature_local _SPECULAR_ANTIALIASING
 
             #pragma multi_compile_local _ _STIPPLETEST_ON

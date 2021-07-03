@@ -56,7 +56,7 @@
             return pageLevelTable[mip].Get(x, y);
         }
 
-        public void Reset()
+        public void ResetTileIndex()
         {
             for (int i = 0; i <= maxMipLevel; i++)
             {
@@ -68,6 +68,12 @@
                     }
                 }
             }
+        }
+
+        public void ResetPageOffset()
+        {
+            for (int i = 0; i <= maxMipLevel; i++)
+                pageLevelTable[i].pageOffset = Vector2Int.zero;
         }
     }
 }

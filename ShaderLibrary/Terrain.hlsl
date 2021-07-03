@@ -71,10 +71,10 @@ TerrainPositionInputs GetTerrainPositionInputs(float3 positionOS, float4 color)
     }
 
     float2 position2D = rect.xy + rect.zw * (positionOS.xz + diff) * 0.25;
-    float2 pixelCoord = position2D / _TerrainSize.xz * (_TerrainHeightMap_TexelSize.zw - 1);
+    float2 pixelCoord = position2D / _TerrainSize.xz * _TerrainHeightMap_TexelSize.zw;
 
     positionOS = position2D.xyy;
-    positionOS.y = UnpackHeightmap(LOAD_TEXTURE2D(_TerrainHeightMap, pixelCoord).r) * _TerrainSize.y * 2;
+    positionOS.y = UnpackHeightmap(LOAD_TEXTURE2D(_TerrainHeightMap, pixelCoord)) * _TerrainSize.y * 2;
 
     UNITY_MATRIX_M = _PivotMatrixWS;
 
@@ -100,10 +100,10 @@ TerrainPositionInputs GetTerrainShadowPositionInputs(float3 positionOS)
     float4 rect = infoData.rect;
 
     float2 position2D = rect.xy + rect.zw * positionOS.xz * 0.25;
-    int2 pixelCoord = saturate(position2D / _TerrainSize.xz) * (_TerrainHeightMap_TexelSize.zw - 1);
+    float2 pixelCoord = position2D / _TerrainSize.xz * _TerrainHeightMap_TexelSize.zw;
 
     positionOS = position2D.xyy;
-    positionOS.y = UnpackHeightmap(LOAD_TEXTURE2D(_TerrainHeightMap, pixelCoord).r) * _TerrainSize.y * 2;
+    positionOS.y = UnpackHeightmap(LOAD_TEXTURE2D(_TerrainHeightMap, pixelCoord)) * _TerrainSize.y * 2;
 
     UNITY_MATRIX_M = _PivotMatrixWS;
 

@@ -1,19 +1,29 @@
 Shader "VirtualTexture/DrawTexture"
 {
     HLSLINCLUDE
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/VirtualTexture.hlsl"
 
         float4 _Control_ST;
         float4 _Splat0_ST;
         float4 _Splat1_ST;
         float4 _Splat2_ST;
         float4 _Splat3_ST;
+        float4 _TerrainHeight;
 
-        float _BumpScale0;
-        float _BumpScale1;
-        float _BumpScale2;
-        float _BumpScale3;
+        half _BumpScale0;
+        half _BumpScale1;
+        half _BumpScale2;
+        half _BumpScale3;
+
+        half _Metallic0;
+        half _Metallic1;
+        half _Metallic2;
+        half _Metallic3;
+
+        half _Smoothness0;
+        half _Smoothness1;
+        half _Smoothness2;
+        half _Smoothness3;
 
         float4x4 _ImageMVP;
 
@@ -25,6 +35,8 @@ Shader "VirtualTexture/DrawTexture"
         TEXTURE2D(_Splat3);
 
         TEXTURE2D(_Normal); SAMPLER(sampler_Normal);
+        TEXTURE2D(_Height); SAMPLER(sampler_Height);
+        TEXTURE2D(_LightMap); SAMPLER(sampler_LightMap);
 
         TEXTURE2D(_Normal0); SAMPLER(sampler_Normal0);
         TEXTURE2D(_Normal1);
@@ -45,12 +57,6 @@ Shader "VirtualTexture/DrawTexture"
             UNITY_VERTEX_OUTPUT_STEREO
         };
 
-        struct VirtualOutput
-        {
-            float3 albedo : SV_TARGET0;
-            float3 normal : SV_TARGET1;
-        };
-
         Varyings BakeVertex(Attributes input)
         {
             Varyings output = (Varyings)0;
@@ -64,44 +70,46 @@ Shader "VirtualTexture/DrawTexture"
         VirtualOutput BakeFragment(Varyings input)
         {
             float2 uv_Control = input.uv * _Control_ST.xy + _Control_ST.zw;
-            float2 uv0_Splat0 = input.uv * _Splat0_ST.xy + _Splat0_ST.zw;
-            float2 uv0_Splat1 = input.uv * _Splat1_ST.xy + _Splat1_ST.zw;
-            float2 uv0_Splat2 = input.uv * _Splat2_ST.xy + _Splat2_ST.zw;
-            float2 uv0_Splat3 = input.uv * _Splat3_ST.xy + _Splat3_ST.zw;
+            float2 uv_Splat0 = input.uv * _Splat0_ST.xy + _Splat0_ST.zw;
+            float2 uv_Splat1 = input.uv * _Splat1_ST.xy + _Splat1_ST.zw;
+            float2 uv_Splat2 = input.uv * _Splat2_ST.xy + _Splat2_ST.zw;
+            float2 uv_Splat3 = input.uv * _Splat3_ST.xy + _Splat3_ST.zw;
 
-            float4 blend = SAMPLE_TEXTURE2D(_Control, sampler_Control, uv_Control);
-            float blend_weight = 1 / dot(1, blend);
+            half4 blend = SAMPLE_TEXTURE2D_LOD(_Control, sampler_Control, uv_Control, 0);
+            blend *= rcp(max(1, dot(1, blend)));
 
-            VirtualOutput output;
+            half4 albedo =
+                blend.x * SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv_Splat0) + 
+                blend.y * SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uv_Splat1) +
+                blend.z * SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uv_Splat2) + 
+                blend.w * SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uv_Splat3);
 
-            float4 albedo =
-                blend.x * SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv0_Splat0) + 
-                blend.y * SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uv0_Splat1) +
-                blend.z * SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uv0_Splat2) + 
-                blend.w * SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uv0_Splat3);
-
-            output.albedo = albedo.xyz * blend_weight;
-
-            float3 normalWS = UnpackNormalMaxComponent(SAMPLE_TEXTURE2D(_Normal, sampler_Normal, uv_Control).xyz);
+            float3 normalWS = UnpackNormalMaxComponent(SAMPLE_TEXTURE2D_LOD(_Normal, sampler_Normal, uv_Control, 0).xyz);
+            float height = UnpackHeightmap(SAMPLE_TEXTURE2D(_Height, sampler_Height, uv_Control));
+            float3 bakedGI = SAMPLE_TEXTURE2D(_LightMap, sampler_LightMap, uv_Control);
 
         #ifdef _NORMALMAP
             float3 normalTS = 
-                blend.x * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal0, sampler_Normal0, uv0_Splat0), _BumpScale0) +
-                blend.y * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal1, sampler_Normal0, uv0_Splat1), _BumpScale1) +
-                blend.z * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal2, sampler_Normal0, uv0_Splat2), _BumpScale2) +
-                blend.w * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_Normal0, uv0_Splat3), _BumpScale3);
-
-            normalTS *= blend_weight;
+                blend.x * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal0, sampler_Normal0, uv_Splat0), _BumpScale0) +
+                blend.y * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal1, sampler_Normal0, uv_Splat1), _BumpScale1) +
+                blend.z * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal2, sampler_Normal0, uv_Splat2), _BumpScale2) +
+                blend.w * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_Normal0, uv_Splat3), _BumpScale3);
 
             float3 tangentWS = float3(0, 0, 1);
             float3 bitangent = cross(normalWS.xyz, tangentWS.xyz);
 
-            output.normal = PackNormalMaxComponent(TransformTangentToWorld(normalTS, half3x3(tangentWS.xyz, bitangent.xyz, normalWS.xyz)));
-        #else
-            output.normal = normalWS;
+            normalWS = normalize(TransformTangentToWorld(normalTS, half3x3(tangentWS.xyz, bitangent.xyz, normalWS.xyz)));
         #endif
 
-            return output;
+            VirtualTexture output;
+            output.albedo = albedo.xyz;
+            output.normal = normalWS;
+            output.smoothness = dot(blend, half4(_Smoothness0 , _Smoothness1 , _Smoothness2 , _Smoothness3));
+            output.metallic = dot(blend, half4(_Metallic0 , _Metallic1 , _Metallic2 , _Metallic3));
+            output.height = height * _TerrainHeight.x * 2 + _TerrainHeight.y;
+            output.bakedGI = bakedGI;
+
+            return EncodeVirtualBuffer(output);
         }
 
     ENDHLSL

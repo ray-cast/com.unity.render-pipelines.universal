@@ -7,6 +7,9 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Wind.hlsl"
 
+float4 _TerrainSize;
+TEXTURE2D(_TerrainHeightMap);      SAMPLER(sampler_TerrainHeightMap);
+
 struct Attributes
 {
     float4 positionOS   : POSITION;
@@ -150,6 +153,15 @@ Varyings LitPassVertex(Attributes input)
     return output;
 }
 
+float3 slerp(float3 start, float3 end, float percent)
+{
+     float angle = dot(start, end);
+     angle = clamp(angle, -1.0f, 1.0f);
+     float theta = acos(angle) * percent;
+     float3 relativeVec = normalize(end - start * angle);
+     return ((start * cos(theta)) + (relativeVec * sin(theta)));
+}
+
 FragmentOutput LitPassFragment(Varyings input)
 {
     UNITY_SETUP_INSTANCE_ID(input);
@@ -172,9 +184,29 @@ FragmentOutput LitPassFragment(Varyings input)
     InputData inputData;
     InitializeInputData(input, surfaceData.normalTS, inputData);
 
+#ifdef _VIRTUAL_BLEND_ON
+    real height = SampleVirtualHeight(input.positionWS);
+    real heightDiff = abs(input.positionWS.y - height);
+    real virtualTextureBlend = smoothstep(0, _VirtualBlendMaterial, heightDiff);
+    real virtualNormalBlend = smoothstep(0, _VirtualBlendNormal, heightDiff);
+    VirtualTexture virtualData = SampleVirtualTexture(input.positionWS - input.normalWS * heightDiff);
+    surfaceData.albedo = lerp(virtualData.albedo, surfaceData.albedo, virtualTextureBlend);
+    surfaceData.metallic = lerp(virtualData.metallic, surfaceData.metallic, virtualTextureBlend);
+    surfaceData.smoothness = lerp(virtualData.smoothness, surfaceData.smoothness, virtualTextureBlend);
+    inputData.bakedGI = lerp(virtualData.bakedGI, inputData.bakedGI, virtualTextureBlend);
+    inputData.normalWS = lerp(virtualData.normal, inputData.normalWS, virtualNormalBlend);
+    inputData.normalWS = NormalizeNormalPerPixel(inputData.normalWS);
+#endif
+
     BRDFData brdfData;
     InitializeBRDFData(surfaceData.albedo, surfaceData.metallic, surfaceData.specular, surfaceData.smoothness, 1, brdfData);
+
+#ifdef _VIRTUAL_BLEND_ON
+    half3 bakedGI = brdfData.diffuse * inputData.bakedGI;
+    surfaceData.emission += lerp(bakedGI, GlobalIllumination(brdfData, inputData.bakedGI, surfaceData.occlusion, inputData.normalWS, inputData.viewDirectionWS), virtualTextureBlend);
+#else
     surfaceData.emission += GlobalIllumination(brdfData, inputData.bakedGI, surfaceData.occlusion, inputData.normalWS, inputData.viewDirectionWS);
+#endif
 
 #if _SPECULAR_ANTIALIASING
     surfaceData.smoothness = GeometricNormalFiltering(surfaceData.smoothness, inputData.normalWS, _specularAntiAliasingThreshold, 2);

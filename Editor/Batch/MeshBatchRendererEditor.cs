@@ -37,7 +37,7 @@ namespace UnityEditor.Rendering.Universal
             _drawSettingsFoldout = new SavedBool($"{target.GetType()}.DrawSettingsFoldout", false);
         }
 
-        public override void OnInspectorGUI()
+		public override void OnInspectorGUI()
         {
             if (_renderer.instanceMaterial != null)
                 _materialEditor = CreateEditor(_renderer.instanceMaterial) as MaterialEditor;

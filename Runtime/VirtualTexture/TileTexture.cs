@@ -80,19 +80,18 @@ namespace UnityEngine.Rendering.Universal
         {
             _tilePool = new LruCache(regionSize.x * regionSize.y);
 
-            tileTextures = new RenderTexture[2];
-            tileTextures[0] = RenderTexture.GetTemporary(this.width, this.height, 0);
-            tileTextures[0].filterMode = FilterMode.Point;
-            tileTextures[0].wrapMode = TextureWrapMode.Clamp;
+            tileTextures = new RenderTexture[4];
+            tileBuffers = new RenderTargetIdentifier[tileTextures.Length];
 
-            tileTextures[1] = RenderTexture.GetTemporary(this.width, this.height, 0);
-            tileTextures[1].filterMode = FilterMode.Point;
-            tileTextures[1].wrapMode = TextureWrapMode.Clamp;
+            for (int i = 0; i < tileTextures.Length; i++)
+			{
+                tileTextures[i] = RenderTexture.GetTemporary(this.width, this.height, 0, Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm);
+                tileTextures[i].filterMode = FilterMode.Point;
+                tileTextures[i].wrapMode = TextureWrapMode.Clamp;
 
-            tileBuffers = new RenderTargetIdentifier[2];
-            tileBuffers[0] = tileTextures[0].colorBuffer;
-            tileBuffers[1] = tileTextures[1].colorBuffer;
-
+                tileBuffers[i] = tileTextures[i].colorBuffer;
+            }
+            
             tileDepthBuffer = tileTextures[0].depthBuffer;
         }
 
@@ -126,12 +125,26 @@ namespace UnityEngine.Rendering.Universal
             return new RectInt(tile.x * tileSizeWithPadding, tile.y * tileSizeWithPadding,  tileSizeWithPadding, tileSizeWithPadding);
 		}
 
+        public void Clear()
+		{
+            _tilePool = new LruCache(regionSize.x * regionSize.y);
+
+            if (tileTextures != null)
+            {
+                var cmd = CommandBufferPool.Get();
+                cmd.SetRenderTarget(tileBuffers, tileDepthBuffer);
+                cmd.ClearRenderTarget(true, true, Color.clear);
+                Graphics.ExecuteCommandBuffer(cmd);
+            }
+        }
+
 		public void Dispose()
 		{
             if (tileTextures != null)
             {
-                RenderTexture.ReleaseTemporary(tileTextures[0]);
-                RenderTexture.ReleaseTemporary(tileTextures[1]);
+                for (int i = 0; i < tileTextures.Length; i++)
+                    RenderTexture.ReleaseTemporary(tileTextures[i]);
+
                 tileTextures = null;
             }
         }

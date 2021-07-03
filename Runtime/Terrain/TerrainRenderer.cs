@@ -25,6 +25,7 @@ namespace UnityEngine.Rendering.Universal
     [ExecuteAlways]
     public class TerrainRenderer : MonoBehaviour
     {
+        public bool shouldVirtualTexture = true;
         public bool shouldOcclusionCulling = true;
 
         public Material instanceMaterial;
@@ -214,9 +215,6 @@ namespace UnityEngine.Rendering.Universal
                         _worldBoundingBox.max = max;
                     }
                 }
-
-                var pageRegion = new Rect(_worldBoundingBox.min.x, _worldBoundingBox.min.z, _worldBoundingBox.size.x, _worldBoundingBox.size.z);
-                VirtualTextureSystem.instance.SetPageRegion(pageRegion);
             }
         }
 
@@ -355,6 +353,9 @@ namespace UnityEngine.Rendering.Universal
                 this.InitializeLightMap();
                 this.InitializeNormalMap();
                 this.InitializeTerrainTree();
+
+                Shader.SetGlobalVector(ShaderConstants._TerrainSize, terrainData.size);
+                Shader.SetGlobalTexture(ShaderConstants._TerrainHeightMap, terrainData.heightmapTexture);
             }
         }
 
@@ -500,7 +501,7 @@ namespace UnityEngine.Rendering.Universal
 
                     if (_visibleInstancesIndexBuffer == null || _visibleInstancesIndexBuffer != null && _visibleInstancesIndexBuffer.count < instancePatches.Length)
                     {
-                        _visibleInstancesIndexBuffer?.Dispose();
+                        _visibleInstancesIndexBuffer?.Release();
                         _visibleInstancesIndexBuffer = new ComputeBuffer(Mathf.CeilToInt(instancePatches.Length / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize, sizeof(uint));
 
                         if (instanceMaterial)
@@ -509,7 +510,7 @@ namespace UnityEngine.Rendering.Universal
 
                     if (_allInstancesPatchBuffer == null || _allInstancesPatchBuffer != null && _allInstancesPatchBuffer.count < instancePatches.Length)
                     {
-                        _allInstancesPatchBuffer?.Dispose();
+                        _allInstancesPatchBuffer?.Release();
                         _allInstancesPatchBuffer = new ComputeBuffer(Mathf.CeilToInt(instancePatches.Length / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize, Marshal.SizeOf<TerrainPatch>());
 
                         if (instanceMaterial)
@@ -520,7 +521,7 @@ namespace UnityEngine.Rendering.Universal
 
                     if (_visibleShadowIndexBuffer == null || _visibleShadowIndexBuffer != null && _visibleShadowIndexBuffer.count < instancePatches.Length)
                     {
-                        _visibleShadowIndexBuffer?.Dispose();
+                        _visibleShadowIndexBuffer?.Release();
                         _visibleShadowIndexBuffer = new ComputeBuffer(Mathf.CeilToInt(instancePatches.Length / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize, sizeof(uint));
 
                         if (instanceMaterial)
@@ -540,7 +541,7 @@ namespace UnityEngine.Rendering.Universal
                     args[3] = (uint)_instancePatchMesh.GetBaseVertex(0);
                     args[4] = 0;
 
-                    _shadowBuffer?.Dispose();
+                    _shadowBuffer?.Release();
                     _shadowBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
                     _shadowBuffer.SetData(args);
                 }
@@ -562,10 +563,8 @@ namespace UnityEngine.Rendering.Universal
             x = x - x % perSize;
             y = y - y % perSize;
 
-            var tileRect = tileTexture.TileToRect(tile);
-
             var pageSize = VirtualTextureSystem.instance.pageSize;
-            var pageRegion = VirtualTextureSystem.instance.pageRegion;
+            var pageRegion = VirtualTextureSystem.instance.regionRange;
 
             var paddingEffect = tileTexture.paddingSize * perSize * (pageRegion.width / pageSize) / tileTexture.tileSize;
             var realRect = new Rect(pageRegion.xMin + (float)x / pageSize * pageRegion.width - paddingEffect,
@@ -578,6 +577,10 @@ namespace UnityEngine.Rendering.Universal
             terRect.width = terrainData.size.x;
             terRect.height = terrainData.size.z;
 
+            if (!realRect.Overlaps(terRect))
+                return;
+
+            var tileRect = tileTexture.TileToRect(tile);
             var needDrawRect = realRect;
             needDrawRect.xMin = Mathf.Max(realRect.xMin, terRect.xMin);
             needDrawRect.yMin = Mathf.Max(realRect.yMin, terRect.yMin);
@@ -629,6 +632,10 @@ namespace UnityEngine.Rendering.Universal
             _tileMaterial.SetVector("_Control_ST", new Vector4(_Control_ST.x * scaleOffset.x, _Control_ST.y * scaleOffset.y, _Control_ST.x * scaleOffset.z, _Control_ST.y * scaleOffset.w));
 
             _tileMaterial.SetTexture("_Normal", _normalMap);
+            _tileMaterial.SetTexture("_LightMap", _lightMap);
+            _tileMaterial.SetTexture("_Height", _heightMap);
+            _tileMaterial.SetVector("_TerrainHeight", new Vector2(terrainData.size.y, transform.position.y));
+
             _tileMaterial.SetTexture("_Splat0", instanceMaterial.GetTexture("_Splat0"));
             _tileMaterial.SetTexture("_Splat1", instanceMaterial.GetTexture("_Splat1"));
             _tileMaterial.SetTexture("_Splat2", instanceMaterial.GetTexture("_Splat2"));
@@ -637,7 +644,17 @@ namespace UnityEngine.Rendering.Universal
             _tileMaterial.SetVector("_Splat0_ST", new Vector4(_Splat0_ST.x * scaleOffset.x, _Splat0_ST.y * scaleOffset.y, _Splat0_ST.x * scaleOffset.z, _Splat0_ST.y * scaleOffset.w));
             _tileMaterial.SetVector("_Splat1_ST", new Vector4(_Splat1_ST.x * scaleOffset.x, _Splat1_ST.y * scaleOffset.y, _Splat1_ST.x * scaleOffset.z, _Splat1_ST.y * scaleOffset.w));
             _tileMaterial.SetVector("_Splat2_ST", new Vector4(_Splat2_ST.x * scaleOffset.x, _Splat2_ST.y * scaleOffset.y, _Splat2_ST.x * scaleOffset.z, _Splat2_ST.y * scaleOffset.w));
-            _tileMaterial.SetVector("_Splat3_ST", new Vector4(_Splat3_ST.x * scaleOffset.x, _Splat0_ST.y * scaleOffset.y, _Splat3_ST.x * scaleOffset.z, _Splat3_ST.y * scaleOffset.w));
+            _tileMaterial.SetVector("_Splat3_ST", new Vector4(_Splat3_ST.x * scaleOffset.x, _Splat3_ST.y * scaleOffset.y, _Splat3_ST.x * scaleOffset.z, _Splat3_ST.y * scaleOffset.w));
+
+            _tileMaterial.SetFloat("_Metallic0", instanceMaterial.GetFloat("_Metallic0"));
+            _tileMaterial.SetFloat("_Metallic1", instanceMaterial.GetFloat("_Metallic1"));
+            _tileMaterial.SetFloat("_Metallic2", instanceMaterial.GetFloat("_Metallic2"));
+            _tileMaterial.SetFloat("_Metallic3", instanceMaterial.GetFloat("_Metallic3"));
+
+            _tileMaterial.SetFloat("_Smoothness0", instanceMaterial.GetFloat("_Smoothness0"));
+            _tileMaterial.SetFloat("_Smoothness1", instanceMaterial.GetFloat("_Smoothness1"));
+            _tileMaterial.SetFloat("_Smoothness2", instanceMaterial.GetFloat("_Smoothness2"));
+            _tileMaterial.SetFloat("_Smoothness3", instanceMaterial.GetFloat("_Smoothness3"));
 
             if (instanceMaterial.IsKeywordEnabled("_NORMALMAP"))
             {
@@ -669,6 +686,11 @@ namespace UnityEngine.Rendering.Universal
             
             if (_instancePatchMesh && terrainData && instanceMaterial)
             {
+                if (shouldVirtualTexture)
+                    instanceMaterial.EnableKeyword("_USE_VIRTUAL_TEXTURE");
+                else
+                    instanceMaterial.DisableKeyword("_USE_VIRTUAL_TEXTURE");
+
                 instanceMaterial.EnableKeyword("PROCEDURAL_INSTANCING_ON");
                 instanceMaterial.SetInt(ShaderConstants._unity_BaseInstanceID, 0);
                 instanceMaterial.SetMatrix(ShaderConstants._PivotMatrixWS, transform.localToWorldMatrix);
@@ -694,6 +716,12 @@ namespace UnityEngine.Rendering.Universal
                     int mask = camera.cullingMask & (1 << gameObject.layer);
                     if (mask == 0)
                         return;
+
+                    if (camera)
+                    {
+                        this.InitializeTerrainPatches(camera.transform.position);
+                        this.UpdateTerrainPatches();
+                    }
 
                     Graphics.DrawMeshInstancedIndirect(
                                 _instancePatchMesh,
@@ -745,12 +773,6 @@ namespace UnityEngine.Rendering.Universal
 
             if (!GeometryUtility.TestPlanesAABB(_cameraFrustumPlanes, _boundingBox))
                 return;
-
-            if (camera)
-            {
-                this.InitializeTerrainPatches(camera.transform.position);
-                this.UpdateTerrainPatches();
-            }
 
             if (_instanceCount == 0)
                 return;

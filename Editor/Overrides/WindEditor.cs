@@ -67,7 +67,7 @@ namespace UnityEngine.Rendering.Universal
 
                 switch (wind.scale.value)
                 {
-                    case WindLevel.Level0: V = 0.2f; break;
+                    case WindLevel.Level0: V = 0.0f; break;
                     case WindLevel.Level1: V = 1.5f; break;
                     case WindLevel.Level2: V = 3.3f; break;
                     case WindLevel.Level3: V = 5.4f; break;

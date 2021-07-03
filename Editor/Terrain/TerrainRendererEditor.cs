@@ -38,6 +38,9 @@ namespace UnityEditor.Rendering.Universal
 		public void OnDisable()
 		{
             VirtualTextureSystem.beginTileRendering -= beginTileRendering;
+
+            if (_materialEditor != null)
+                DestroyImmediate(_materialEditor);
         }
 
         public void beginTileRendering(RequestPageData request, TiledTexture tileTexture, Vector2Int tile)
@@ -130,6 +133,7 @@ namespace UnityEditor.Rendering.Universal
 
                 _renderer.debugMode = EditorGUILayout.Toggle(string.Format("实例绘制数量:{0}", _renderer.drawInstancedCount), _renderer.debugMode);
                 _renderer.shouldOcclusionCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driven）", _renderer.shouldOcclusionCulling);
+                _renderer.shouldVirtualTexture = EditorGUILayout.Toggle("启用虚拟纹理（Virtual Texture）", _renderer.shouldVirtualTexture);
 
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
@@ -143,6 +147,11 @@ namespace UnityEditor.Rendering.Universal
             _debugViewFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_debugViewFoldout.value, Styles.debugSettingsText);
             if (_debugViewFoldout.value)
             {
+                if (GUILayout.Button("重建虚拟纹理"))
+				{
+                    VirtualTextureSystem.instance.Reset();
+                }
+
                 var lookupTexture = VirtualTextureSystem.instance.lookupTexture;
                 if (lookupTexture != null)
                 {

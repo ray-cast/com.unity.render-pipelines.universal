@@ -80,7 +80,6 @@
 
         public ClusterBasedDeferredRenderer(ClusterBasedDeferredRendererData data) : base(data)
         {
-
             _blitMaterial = CoreUtils.CreateEngineMaterial(data.shaders.blitPS);
             _copyDepthMaterial = CoreUtils.CreateEngineMaterial(data.shaders.copyDepthPS);
             _samplingMaterial = CoreUtils.CreateEngineMaterial(data.shaders.samplingPS);

@@ -21,7 +21,7 @@ namespace UnityEngine.Rendering.Universal
                 RenderTexture.ReleaseTemporary(texture.Value);
 
             _skyTextures.Clear();
-            _gradientSky = new GradientSky();
+            _gradientSky = ScriptableObject.CreateInstance<GradientSky>();
 
             if (defaultResources != null)
 			{

@@ -37,6 +37,15 @@
             tail = allNodes[count - 1];
         }
 
+        public void Clear()
+		{
+            if (allNodes.Length > 0)
+			{
+                head = allNodes[0];
+                tail = allNodes[allNodes.Length - 1];
+            }
+        }
+
         public bool SetActive(int id)
         {
             if (id < 0 || id >= allNodes.Length)

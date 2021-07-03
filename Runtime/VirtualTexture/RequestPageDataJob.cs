@@ -81,7 +81,7 @@ namespace UnityEngine.Rendering.Universal
             _pendingRequests.Clear();
         }
 
-        public void Update()
+        public void Update(CommandBuffer cmd)
         {
             if (startRequestPageJob != null && _pendingRequests.Count > 0)
             {
