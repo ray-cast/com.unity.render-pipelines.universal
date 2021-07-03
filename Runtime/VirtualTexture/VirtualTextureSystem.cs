@@ -255,7 +255,7 @@ namespace UnityEngine.Rendering.Universal
             return null;
         }
 
-        public void LoadPages(NativeArray<Color32> pageData)
+        public void LoadPages(Color32[] pageData)
         {
             foreach (var data in pageData)
 			{

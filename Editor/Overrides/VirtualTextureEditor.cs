@@ -19,6 +19,18 @@ namespace UnityEngine.Rendering.Universal
             _center = Unpack(o.Find(x => x.center));
             _size = Unpack(o.Find(x => x.size));
             _regionAdaptation = Unpack(o.Find(x => x.regionAdaptation));
+
+            VirtualTextureSystem.beginTileRendering += beginTileRendering;
+        }
+
+        public override void OnDisable()
+        {
+            VirtualTextureSystem.beginTileRendering -= beginTileRendering;
+        }
+
+        public void beginTileRendering(RequestPageData request, TiledTexture tileTexture, Vector2Int tile)
+        {
+            Repaint();
         }
 
         public override void OnInspectorGUI()
@@ -40,6 +52,27 @@ namespace UnityEngine.Rendering.Universal
             if (GUILayout.Button("Rebuild"))
             {
                 VirtualTextureSystem.instance.Reset();
+            }
+
+            var lookupTexture = VirtualTextureSystem.instance.lookupTexture;
+            if (lookupTexture != null)
+            {
+                EditorGUILayout.LabelField("–Èƒ‚Œ∆¿Ì≤È’“±Ì:");
+                EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)lookupTexture.width / lookupTexture.height), lookupTexture);
+            }
+
+            EditorGUILayout.Space();
+
+            var virtualTexture = VirtualTextureSystem.instance.tileTexture;
+            if (virtualTexture != null && virtualTexture.tileTextures.Length >= 2)
+            {
+                var albedoTexture = virtualTexture.tileTextures[0];
+                var normalTexture = virtualTexture.tileTextures[1];
+
+                EditorGUILayout.LabelField("–Èƒ‚Œ∆¿Ì:");
+
+                EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)albedoTexture.width / albedoTexture.height), albedoTexture);
+                EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)normalTexture.width / normalTexture.height), normalTexture);
             }
         }
     }

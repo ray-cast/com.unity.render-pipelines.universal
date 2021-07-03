@@ -24,7 +24,7 @@ namespace UnityEngine.Rendering.Universal
         private bool _shouldUpdateRegion = true;
         private bool _shouldAsyncFeedback = false;
 
-        private NativeArray<Color32> _feedbackData;
+        private Color32[] _feedbackData;
 
         private Vector3 _center = Vector3.zero;
         private Quaternion _rotation = Quaternion.identity;
@@ -91,6 +91,8 @@ namespace UnityEngine.Rendering.Universal
                     _maxFeedbackTexture = RenderTexture.GetTemporary(width / 8, height / 8, 0, GraphicsFormat.R8G8B8A8_UNorm);
                     _maxFeedbackTexture.wrapMode = TextureWrapMode.Clamp;
                     _maxFeedbackTexture.filterMode = FilterMode.Point;
+
+                    _feedbackData = new Color32[_maxFeedbackTexture.width * _maxFeedbackTexture.height];
 
                     _width = width;
                     _height = height;
@@ -174,11 +176,13 @@ namespace UnityEngine.Rendering.Universal
 
         private void OnAsyncFeedbackRequest(AsyncGPUReadbackRequest req)
         {
-            _feedbackData = req.GetData<Color32>();
+            var data = req.GetData<Color32>();
+            data.CopyTo(_feedbackData);
+
             _isAsyncRequestComplete = true;
 
             if (_shouldAsyncFeedback)
-			{
+            {
                 _virtualTextureSystem.LoadPages(_feedbackData);
                 _shouldAsyncFeedback = false;
             }

@@ -15,12 +15,10 @@ namespace UnityEditor.Rendering.Universal
             public static GUIContent drawSettingsText = EditorGUIUtility.TrTextContent("画刷设置");
             public static GUIContent materialSettingsText = EditorGUIUtility.TrTextContent("材质设置");
             public static GUIContent renderingSettingsText = EditorGUIUtility.TrTextContent("渲染设置");
-            public static GUIContent debugSettingsText = EditorGUIUtility.TrTextContent("调试");
         }
 
         SavedBool _materialSettingsFoldout;
         SavedBool _renderingSettingsFoldout;
-        SavedBool _debugViewFoldout;
 
         TerrainRenderer _renderer { get { return target as TerrainRenderer; } }
 
@@ -28,25 +26,15 @@ namespace UnityEditor.Rendering.Universal
 
         public void OnEnable()
         {
-            VirtualTextureSystem.beginTileRendering += beginTileRendering;
-
             _materialSettingsFoldout = new SavedBool($"{target.GetType()}.MaterialSettingsFoldout", true);
             _renderingSettingsFoldout = new SavedBool($"{target.GetType()}.CullingSettingsFoldout", true);
-            _debugViewFoldout = new SavedBool($"{target.GetType()}.DebugSettingsFoldout", true);
         }
 
 		public void OnDisable()
 		{
-            VirtualTextureSystem.beginTileRendering -= beginTileRendering;
-
             if (_materialEditor != null)
                 DestroyImmediate(_materialEditor);
         }
-
-        public void beginTileRendering(RequestPageData request, TiledTexture tileTexture, Vector2Int tile)
-		{
-            Repaint();
-		}
 
 		public override void OnInspectorGUI()
         {
@@ -57,7 +45,6 @@ namespace UnityEditor.Rendering.Universal
 
             this.DrawMaterialSettings();
             this.DrawRenderingSettings();
-            this.DrawDebugFoldout();
 
             EditorGUILayout.EndVertical();
 
@@ -134,44 +121,6 @@ namespace UnityEditor.Rendering.Universal
                 _renderer.debugMode = EditorGUILayout.Toggle(string.Format("实例绘制数量:{0}", _renderer.drawInstancedCount), _renderer.debugMode);
                 _renderer.shouldOcclusionCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driven）", _renderer.shouldOcclusionCulling);
                 _renderer.shouldVirtualTexture = EditorGUILayout.Toggle("启用虚拟纹理（Virtual Texture）", _renderer.shouldVirtualTexture);
-
-                EditorGUILayout.Space();
-                EditorGUILayout.Space();
-            }
-
-            EditorGUILayout.EndFoldoutHeaderGroup();
-        }
-
-        void DrawDebugFoldout()
-        {
-            _debugViewFoldout.value = EditorGUILayout.BeginFoldoutHeaderGroup(_debugViewFoldout.value, Styles.debugSettingsText);
-            if (_debugViewFoldout.value)
-            {
-                if (GUILayout.Button("重建虚拟纹理"))
-				{
-                    VirtualTextureSystem.instance.Reset();
-                }
-
-                var lookupTexture = VirtualTextureSystem.instance.lookupTexture;
-                if (lookupTexture != null)
-                {
-                    EditorGUILayout.LabelField("虚拟纹理查找表:");
-                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)lookupTexture.width / lookupTexture.height), lookupTexture);
-                }
-
-                EditorGUILayout.Space();
-
-                var virtualTexture = VirtualTextureSystem.instance.tileTexture;
-                if (virtualTexture != null && virtualTexture.tileTextures.Length >= 2)
-                {
-                    var albedoTexture = virtualTexture.tileTextures[0];
-                    var normalTexture = virtualTexture.tileTextures[1];
-
-                    EditorGUILayout.LabelField("虚拟纹理:");
-
-                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)albedoTexture.width / albedoTexture.height), albedoTexture);
-                    EditorGUI.DrawPreviewTexture(GUILayoutUtility.GetAspectRect((float)normalTexture.width / normalTexture.height), normalTexture);
-                }
 
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();
