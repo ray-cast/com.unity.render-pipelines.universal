@@ -621,7 +621,14 @@ namespace UnityEngine.Rendering.Universal
             var mat = Matrix4x4.TRS(new Vector3(tileX, tileY, 0), Quaternion.identity, new Vector3(width, height, 0));
             //var mat2 = Matrix4x4.Ortho(35, tileTexture.regionSize.x, 35, tileTexture.regionSize.y, 0.01f, 1000);
 
+            var _Control = instanceMaterial.GetTexture("_Control");
             var _Control_ST = instanceMaterial.GetVector("_Control_ST");
+
+            var _Splat0 = instanceMaterial.GetTexture("_Splat0");
+            var _Splat1 = instanceMaterial.GetTexture("_Splat1");
+            var _Splat2 = instanceMaterial.GetTexture("_Splat2");
+            var _Splat3 = instanceMaterial.GetTexture("_Splat3");
+
             var _Splat0_ST = instanceMaterial.GetVector("_Splat0_ST");
             var _Splat1_ST = instanceMaterial.GetVector("_Splat1_ST");
             var _Splat2_ST = instanceMaterial.GetVector("_Splat2_ST");
@@ -634,7 +641,7 @@ namespace UnityEngine.Rendering.Universal
 
             _tileMaterial.SetMatrix("_ImageMVP", GL.GetGPUProjectionMatrix(mat, false));
 
-            _tileMaterial.SetTexture("_Control", instanceMaterial.GetTexture("_Control"));
+            _tileMaterial.SetTexture("_Control", _Control ? _Control : Texture2D.redTexture);
             _tileMaterial.SetVector("_Control_ST", new Vector4(_Control_ST.x * scaleOffset.x, _Control_ST.y * scaleOffset.y, _Control_ST.x * scaleOffset.z, _Control_ST.y * scaleOffset.w));
 
             _tileMaterial.SetTexture("_Normal", _normalMap);
@@ -642,10 +649,10 @@ namespace UnityEngine.Rendering.Universal
             _tileMaterial.SetTexture("_Height", _heightMap);
             _tileMaterial.SetVector("_TerrainHeight", new Vector2(terrainData.size.y, transform.position.y));
 
-            _tileMaterial.SetTexture("_Splat0", instanceMaterial.GetTexture("_Splat0"));
-            _tileMaterial.SetTexture("_Splat1", instanceMaterial.GetTexture("_Splat1"));
-            _tileMaterial.SetTexture("_Splat2", instanceMaterial.GetTexture("_Splat2"));
-            _tileMaterial.SetTexture("_Splat3", instanceMaterial.GetTexture("_Splat3"));
+            _tileMaterial.SetTexture("_Splat0", _Splat0);
+            _tileMaterial.SetTexture("_Splat1", _Splat1);
+            _tileMaterial.SetTexture("_Splat2", _Splat2);
+            _tileMaterial.SetTexture("_Splat3", _Splat3);
 
             _tileMaterial.SetVector("_Splat0_ST", new Vector4(_Splat0_ST.x * scaleOffset.x, _Splat0_ST.y * scaleOffset.y, _Splat0_ST.x * scaleOffset.z, _Splat0_ST.y * scaleOffset.w));
             _tileMaterial.SetVector("_Splat1_ST", new Vector4(_Splat1_ST.x * scaleOffset.x, _Splat1_ST.y * scaleOffset.y, _Splat1_ST.x * scaleOffset.z, _Splat1_ST.y * scaleOffset.w));

@@ -145,6 +145,57 @@ namespace UnityEditor.Rendering.Universal
 
     static class TerrainMenuItems
     {
+        private static Texture2D _defaultCheckerGray;
+
+        public static Texture2D defaultCheckerGray
+        {
+            get
+            {
+                if (!_defaultCheckerGray)
+                    _defaultCheckerGray = FindBuiltinExtraResources<Texture2D>("Default-Checker-Gray");
+
+                return _defaultCheckerGray;
+            }
+        }
+
+        public static T FindBuiltinExtraResources<T>(string assetName) where T : UnityEngine.Object
+        {
+            foreach (T asset in AssetDatabase.LoadAllAssetsAtPath("Resources/unity_builtin_extra").Where(o => o is T))
+            {
+                if (assetName == asset.name)
+                    return asset;
+            }
+
+            return default(T);
+        }
+
+        static void CreateTexture2DArray(Texture2D[] source, TextureFormat format = TextureFormat.RGBA32, int mipCount = 0, bool linear = false)
+        {
+            Debug.Assert(source.Length > 0);
+
+            Texture2DArray texture2DArray = new Texture2DArray(source[0].width, source[0].height, source.Length, format, mipCount, linear);
+            texture2DArray.filterMode = FilterMode.Bilinear;
+            texture2DArray.wrapMode = TextureWrapMode.Repeat;
+
+            for (int i = 0; i < source.Length; i++)
+            {
+                for (int m = 0; m < source[i].mipmapCount; m++)
+                {
+                    Graphics.CopyTexture(source[i], 0, m, texture2DArray, i, m);
+                }
+            }
+
+            texture2DArray.Apply(false);
+
+            string path = EditorUtility.SaveFilePanel("Save Texture", "TextureArray", "asset", "Please enter a file name to save the texture to");
+            if (path.Length != 0)
+            {
+                Undo.RecordObject(texture2DArray, "texture");
+                AssetDatabase.CreateAsset(texture2DArray, path);
+                AssetDatabase.Refresh();
+            }
+        }
+
         [MenuItem("GameObject/GPU Driven/Terrain", priority = CoreUtils.gameObjectMenuPriority)]
         static void CreateTerrain(MenuCommand menuCommand)
         {
@@ -189,9 +240,25 @@ namespace UnityEditor.Rendering.Universal
                 if (editorResourcesAsset)
 				{
                     terrainRenderer.instanceMaterial = Material.Instantiate(editorResourcesAsset.materials.terrainBatchLit);
-                    terrainRenderer.instanceMaterial.SetTexture("_Control", terrainData.GetAlphamapTexture(0));
+
+                    if (terrainData.alphamapTextureCount > 0)
+                        terrainRenderer.instanceMaterial.SetTexture("_Control", terrainData.alphamapTextures[0]);
+                    else
+                        terrainRenderer.instanceMaterial.SetTexture("_Control", Texture2D.redTexture);
+
+                    if (terrainData.terrainLayers.Length > 0)
+					{
+                        terrainRenderer.instanceMaterial.SetInt("_UseNormal", 1);
+                        terrainRenderer.instanceMaterial.EnableKeyword("_NORMALMAP");
+                    }
+                    else
+					{
+                        terrainRenderer.instanceMaterial.SetInt("_UseNormal", 0);
+                        terrainRenderer.instanceMaterial.DisableKeyword("_NORMALMAP");
+                    }
 
                     var size = terrainData.size;
+                    var extents = terrainData.bounds.extents;
 
                     for (var i = 0; i < terrainData.terrainLayers.Length && i < 4; i++)
 					{
@@ -204,6 +271,13 @@ namespace UnityEditor.Rendering.Universal
                         terrainRenderer.instanceMaterial.SetFloat("_BumpScale" + i, layer.normalScale);
                         terrainRenderer.instanceMaterial.SetFloat("_Metallic" + i, layer.metallic);
                         terrainRenderer.instanceMaterial.SetFloat("_Smoothness" + i, layer.smoothness);
+                    }
+
+                    for (var i = terrainData.terrainLayers.Length; i < 4; i++)
+					{
+                        terrainRenderer.instanceMaterial.SetTexture("_Splat" + i, defaultCheckerGray);
+                        terrainRenderer.instanceMaterial.SetTextureOffset("_Splat" + i, Vector2.zero);
+                        terrainRenderer.instanceMaterial.SetTextureScale("_Splat" + i, new Vector2(extents.x, extents.z));
                     }
                 }
             }
