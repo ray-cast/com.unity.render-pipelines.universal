@@ -65,11 +65,17 @@ namespace UnityEngine.Rendering.Universal
         [Tooltip("摇摆频率")]
         public MinFloatParameter frequency = new MinFloatParameter(1.0f, 0);
 
-        [Tooltip("摇摆扰动")]
-        public Vector2Parameter random = new Vector2Parameter(Vector2.one);
-
         [Tooltip("摇摆弯曲程度")]
         public MinFloatParameter bending = new MinFloatParameter(0.1f, 0f);
+
+        [Tooltip("摇摆朝向")]
+        public ClampedFloatParameter lean = new ClampedFloatParameter(0.0f, 0f, 1f);
+
+        [Tooltip("摇摆倾斜程度")]
+        public ClampedFloatParameter angle = new ClampedFloatParameter(0.0f, 0f, 1f);
+
+        [Tooltip("摇摆扰动")]
+        public Vector2Parameter random = new Vector2Parameter(Vector2.one);
 
         [Tooltip("波浪平铺次数")]
         public Vector2Parameter tiling = new Vector2Parameter(Vector2.one * 10);

@@ -140,6 +140,16 @@ struct PhysicalMaterial
     half3   bakedGI;
 };
 
+#ifdef _ALPHATEST_ON
+TEXTURE2D(_TerrainHolesTexture); SAMPLER(sampler_TerrainHolesTexture);
+
+void ClipHoles(float2 uv)
+{
+    float hole = SAMPLE_TEXTURE2D(_TerrainHolesTexture, sampler_TerrainHolesTexture, uv).r;
+    clip(hole == 0.0f ? -1 : 1);
+}
+#endif
+
 inline void InitializeStandardLitSurfaceData(Varyings input, out PhysicalMaterial physicalMaterial)
 {
     float2 uv_Control = input.uv * _Control_ST.xy + _Control_ST.zw;
@@ -158,7 +168,7 @@ inline void InitializeStandardLitSurfaceData(Varyings input, out PhysicalMateria
     physicalMaterial.positionWS = input.positionWS;
 #endif
 
-#ifdef _USE_VIRTUAL_TEXTURE
+#if defined(_USE_VIRTUAL_TEXTURE) && defined(_VIRTUAL_TEXTURE_HQ)
     VirtualTexture virtualData = SampleVirtualTexture(input.positionWS);
     physicalMaterial.albedo = virtualData.albedo;
     physicalMaterial.normalWS = virtualData.normal;
@@ -202,8 +212,8 @@ inline void InitializeStandardLitSurfaceData(Varyings input, out PhysicalMateria
 #   endif
 
 #   ifdef _NORMALMAP 
-    float3 tangentWS = float3(0, 0, 1);
-    float3 bitangent = cross(input.normalWS.xyz, tangentWS.xyz);
+    float3 tangentWS = float3(1, 0, 0);
+    float3 bitangent = cross(tangentWS.xyz, input.normalWS.xyz);
     physicalMaterial.normalWS = TransformTangentToWorld(normalTS, half3x3(tangentWS.xyz, bitangent.xyz, input.normalWS.xyz));
 #   else
     physicalMaterial.normalWS = input.normalWS;
@@ -258,6 +268,10 @@ FragmentOutput LitPassFragment(Varyings input)
 {
     UNITY_SETUP_INSTANCE_ID(input);
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+#ifdef _ALPHATEST_ON
+    ClipHoles(input.uv);
+#endif
 
     PhysicalMaterial physicalMaterial;
     InitializeStandardLitSurfaceData(input, physicalMaterial);
@@ -345,7 +359,11 @@ VaryingsLean DepthOnlyVertex(AttributesLean input)
     output.positionCS = vertexInput.positionCS;
 
 #ifdef _ALPHATEST_ON
-    output.texcoord = v.texcoord;
+#   ifdef PROCEDURAL_INSTANCING_ON
+    output.texcoord = vertexInput.texcoord;
+#   else
+    output.texcoord = input.texcoord;
+#   endif
 #endif
 
     return output;

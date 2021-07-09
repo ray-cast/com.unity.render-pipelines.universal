@@ -20,6 +20,7 @@
         [EqualIf(_RootMode, 1)]_RootCenter("根部区域中心", Vector) = (0,0,0)
         _RootStrength("根部混合权重", Range(0, 1)) = 0
         _RootBlendHeight("根部高度混合", Range(0, 1)) = 0.1
+        [EqualIf(_RootMode, 2)]_RootBlendNormal("根部法线混合", Range(0, 1)) = 1
         [EqualIf(_RootMode, 1)][NoScaleOffset]_RootTex("根部贴图", 2D) = "white" {}
 
         [Space(20)]
@@ -92,6 +93,7 @@
             float4x4 _PivotMatrixWS;
 
             float _RootBlendHeight;
+            float _RootBlendNormal;
             float _RootStrength;
             float3 _RootCenter;
             float3 _RootSize;
@@ -205,9 +207,10 @@
 
         #ifdef _ROOTMODE_TEXTURE
             half3 rootColor = SAMPLE_TEXTURE2D_LOD(_RootTex, sampler_RootTex, GetColorMapUV(input.positionWS.xyz, _RootCenter, _RootSize), 0);
-        #elif defined(_ROOTMODE_VIRTUALTEXTURE)
+        #elif defined(_ROOTMODE_VIRTUALTEXTURE) && defined(_VIRTUAL_TEXTURE_HQ)
+            VirtualTexture virtualAlbedo = SampleVirtualTexture(input.positionWS);
             VirtualTexture virtualData = SampleVirtualTexture(input.pivotPositionWS);
-            half3 rootColor = virtualData.albedo * (1 - virtualData.metallic);
+            half3 rootColor = virtualAlbedo.albedo * (1 - virtualAlbedo.metallic);
         #else
             half3 rootColor = albedo.rgb;
         #endif
@@ -222,8 +225,8 @@
             GbufferData data = (GbufferData)0;
             data.albedo = lerp(rootColor, headColor.rgb, input.positionWS.a);
             data.albedo = lerp(data.albedo, data.albedo * _WindHightlightColor, input.color.a);
-        #if defined(_ROOTMODE_VIRTUALTEXTURE)
-            data.normalWS = virtualData.normal;
+        #if defined(_ROOTMODE_VIRTUALTEXTURE) && defined(_VIRTUAL_TEXTURE_HQ)
+            data.normalWS = lerp(input.normalWS.xyz, virtualData.normal, _RootBlendNormal);
         #else
             data.normalWS = input.normalWS.xyz;
         #endif
@@ -233,7 +236,7 @@
             data.smoothness = _Smoothness;
             data.occlusion = 1;
             data.translucency = 0;
-        #if defined(_ROOTMODE_VIRTUALTEXTURE)
+        #if defined(_ROOTMODE_VIRTUALTEXTURE) && defined(_VIRTUAL_TEXTURE_HQ)
             data.emission = virtualData.bakedGI * data.albedo;
         #else
             data.emission = input.bakeGI * data.albedo;
@@ -305,6 +308,8 @@
                 #pragma shader_feature_local _ROOTMODE_ALBEDO _ROOTMODE_TEXTURE _ROOTMODE_VIRTUALTEXTURE
 
                 #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+                #pragma multi_compile _ _VIRTUAL_TEXTURE_HQ
+
                 #pragma instancing_options procedural:SetupInstancing
 
                 #pragma vertex LitPassVertex

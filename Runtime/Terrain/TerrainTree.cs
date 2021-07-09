@@ -6,15 +6,15 @@ namespace UnityEngine.Rendering.Universal
     {
         public Rect rect;
         public int mip;
-        public int index;
+        public float roughness;
         public TerrainPatch patch;
         public TerrainTree[] children;
 
         public TerrainTree(Rect r)
         {
             this.rect = r;
-            this.index = -1;
             this.mip = -1;
+            this.roughness = 1;
         }
 
         public TerrainTree(Rect r, int m)
@@ -22,7 +22,7 @@ namespace UnityEngine.Rendering.Universal
             this.rect = r;
             this.mip = m;
             this.patch = new TerrainPatch(new Vector4(r.xMin, r.yMin, r.width, r.height), m);
-            this.index = -1;
+            this.roughness = 1.0f;
 
             if (this.mip > 0)
             {
@@ -37,43 +37,58 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        public TerrainTree GetActiveNode(Vector2 center)
-        {
-            if (rect.Contains(center))
-            {
-                if (index >= 0)
-                {
-                    return this;
-                }
-                else
-                {
+        public void setHole(float x, float y)
+		{
+            if (x >= rect.x && y >= rect.y && x <= (rect.x + rect.width) && y <= (rect.y + rect.height))
+			{
+                this.patch.hole = 1;
+
+                if (children != null)
+				{
                     foreach (var child in children)
-                    {
-                        var ans = child.GetActiveNode(center);
-                        if (ans != null)
-                        {
-                            return ans;
-                        }
-                    }
+                        child.setHole(x, y);
                 }
             }
+		}
 
-            return null;
+        public float Evaluate(TerrainData terrainData)
+		{
+            var width = terrainData.size.x;
+            var height = terrainData.size.z;
+            var dh = new Rect(rect.x / (float)width, rect.y / (float)height, rect.width / (float)width, rect.height / (float)height);
+            var dh0 = terrainData.GetInterpolatedHeight(dh.center.x, dh.center.y);
+            var dh1 = terrainData.GetInterpolatedHeight(dh.center.x, dh.yMax);
+            var dh2 = terrainData.GetInterpolatedHeight(dh.xMin, dh.center.y);
+            var dh3 = terrainData.GetInterpolatedHeight(dh.center.x, dh.yMin);
+            var dh4 = terrainData.GetInterpolatedHeight(dh.xMax, dh.center.y);
+
+            this.roughness = Mathf.Max(Mathf.Max(Mathf.Max(Mathf.Max(dh0, dh1), dh2), dh3), dh4) / rect.width;
+
+            if (mip > 1)
+			{
+                foreach (var child in children)
+                    this.roughness = Mathf.Max(roughness, child.Evaluate(terrainData));
+            }
+
+            return roughness;
         }
 
-        public void CollectNodeInfo(Vector2 center, float factor, List<TerrainPatch> pacthes)
+        public void CollectNodeInfo(Vector2 center, float factor, ref List<TerrainPatch> pacthes)
         {
-            if (mip >= 0 && (mip == 0 || (center - rect.center).magnitude >= (factor * Mathf.Pow(2, mip))))
+            // http://files.cppblog.com/AstaTus/largeLOD.pdf
+            var l = (center - rect.center).magnitude;
+            var r = roughness + this.patch.hole;
+            var f = l / (rect.width * r);
+
+            if (mip == 0 || f >= factor)
             {
-                this.index = pacthes.Count;
                 pacthes.Add(this.patch);
             }
             else
             {
-                this.index = -1;
                 foreach (var child in children)
                 {
-                    child.CollectNodeInfo(center, factor, pacthes);
+                    child.CollectNodeInfo(center, factor, ref pacthes);
                 }
             }
         }

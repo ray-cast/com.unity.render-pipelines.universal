@@ -9,7 +9,7 @@ struct TerrainPatch
     float4 rect;
     int mipmap;
     int neighbor;
-    int padding1;
+    int hole;
     int padding2;
 };
 
@@ -23,19 +23,21 @@ float4x4 _CameraViewMatrix;
 float4x4 _CameraViewProjection;
 
 float4 _HizTexture_Size;
-float4 _HeightMapTexture_TexelSize;
 
 float4 _ShadowBias;
 float3 _LightDirection;
 float3 _TerrainSize;
 
-Texture2D<float> _HeightMap;
+Texture2D<float> _TerrainHeightMap;
 Texture2D<float> _HizTexture;
+SAMPLER(sampler_LinearClamp);
 
-StructuredBuffer<TerrainPatch> _AllInstancesPatchBuffer;
+StructuredBuffer<TerrainPatch> _TerrainPatchBuffer;
 
-RWStructuredBuffer<uint> _RWVisibleIndirectArgumentBuffer;
-RWStructuredBuffer<uint> _RWVisibleInstancesIndexBuffer;
+RWStructuredBuffer<uint> _RWVisibleHoleIndexBuffer;
+RWStructuredBuffer<uint> _RWVisibleHoleArgumentBuffer;
+RWStructuredBuffer<uint> _RWVisiblePatchArgumentBuffer;
+RWStructuredBuffer<uint> _RWVisiblePatchIndexBuffer;
 
 #define _CameraInvFov _CameraDrawParams.x
 #define _CameraMipScale _CameraDrawParams.y
@@ -93,7 +95,8 @@ float3 ApplyShadowBias(float3 positionWS, float3 normalWS, float3 lightDirection
 [numthreads(1, 1, 1)]
 void ClearIndirectArgument(uint3 id : SV_DispatchThreadID)
 {
-    _RWVisibleIndirectArgumentBuffer[1] = 0;
+    _RWVisibleHoleArgumentBuffer[1] = 0;
+    _RWVisiblePatchArgumentBuffer[1] = 0;
 }
 
 [numthreads(64, 1, 1)]
@@ -102,22 +105,34 @@ void ComputeFrustumCulling(uint3 id : SV_DispatchThreadID)
     uint instanceIndex = id.x;
     if (instanceIndex < _OffsetParams)
     {
-        float4 rect = _AllInstancesPatchBuffer[id.x].rect;
+        float4 rect = _TerrainPatchBuffer[id.x].rect;
 
-        float2 minPos = rect.xy;
+        float2 minPos = rect.xy * 0.9;
         float2 maxPos = rect.xy + rect.zw;
 
-        uint2 minUV = uint2(saturate(minPos / _TerrainSize.xz) * (_HeightMapTexture_TexelSize.zw - 1));
-        uint2 maxUV = uint2(saturate(maxPos / _TerrainSize.xz) * (_HeightMapTexture_TexelSize.zw - 1));
+        float2 minUV = minPos / _TerrainSize.xz;
+        float2 maxUV = maxPos / _TerrainSize.xz;
 
-        float3 minPoint = float3(minPos.x, _HeightMap[minUV] * _TerrainSize.y * 2, minPos.y);
-        float3 maxPoint = float3(maxPos.x, _HeightMap[maxUV] * _TerrainSize.y * 2, maxPos.y);
+        float minHeight = UnpackHeightmap(SAMPLE_TEXTURE2D_LOD(_TerrainHeightMap, sampler_LinearClamp, minUV, 0));
+        float maxHeight = UnpackHeightmap(SAMPLE_TEXTURE2D_LOD(_TerrainHeightMap, sampler_LinearClamp, maxUV, 0));
+
+        float3 minPoint = float3(minPos.x, minHeight * _TerrainSize.y * 2, minPos.y);
+        float3 maxPoint = float3(maxPos.x, maxHeight * _TerrainSize.y * 2, maxPos.y);
 
         if (ComputeFrustumBoxIntersection(minPoint, maxPoint))
         {
-            uint index = 0;
-            InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
-            _RWVisibleInstancesIndexBuffer[index] = id.x;
+            if (_TerrainPatchBuffer[id.x].hole)
+            {
+                uint index = 0;
+                InterlockedAdd(_RWVisibleHoleArgumentBuffer[1], 1, index);
+                _RWVisibleHoleIndexBuffer[index] = id.x;
+            }
+            else
+            {
+                uint index = 0;
+                InterlockedAdd(_RWVisiblePatchArgumentBuffer[1], 1, index);
+                _RWVisiblePatchIndexBuffer[index] = id.x;
+            }
         }
     }
 }
@@ -128,16 +143,19 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
     uint instanceIndex = id.x;
     if (instanceIndex < _OffsetParams)
     {
-        float4 rect = _AllInstancesPatchBuffer[id.x].rect;
+        float4 rect = _TerrainPatchBuffer[id.x].rect;
 
-        float2 minPos = rect.xy;
+        float2 minPos = rect.xy * 0.9;
         float2 maxPos = rect.xy + rect.zw;
 
-        uint2 minUV = uint2(saturate(minPos / _TerrainSize.xz) * (_HeightMapTexture_TexelSize.zw - 1));
-        uint2 maxUV = uint2(saturate(maxPos / _TerrainSize.xz) * (_HeightMapTexture_TexelSize.zw - 1));
+        float2 minUV = minPos / _TerrainSize.xz;
+        float2 maxUV = maxPos / _TerrainSize.xz;
 
-        float3 minPoint = float3(minPos.x, _HeightMap[minUV] * _TerrainSize.y * 2, minPos.y);
-        float3 maxPoint = float3(maxPos.x, _HeightMap[maxUV] * _TerrainSize.y * 2, maxPos.y);
+        float minHeight = UnpackHeightmap(SAMPLE_TEXTURE2D_LOD(_TerrainHeightMap, sampler_LinearClamp, minUV, 0));
+        float maxHeight = UnpackHeightmap(SAMPLE_TEXTURE2D_LOD(_TerrainHeightMap, sampler_LinearClamp, maxUV, 0));
+
+        float3 minPoint = float3(minPos.x, minHeight * _TerrainSize.y * 2, minPos.y);
+        float3 maxPoint = float3(maxPos.x, maxHeight * _TerrainSize.y * 2, maxPos.y);
 
         if (ComputeFrustumBoxIntersection(minPoint, maxPoint))
         {
@@ -170,9 +188,18 @@ void ComputeOcclusionCulling(uint3 id : SV_DispatchThreadID)
 
                 if (centerCS.w < LinearEyeDepth(deviceHizDepth, _CameraZBufferParams))
                 {
-                    uint index = 0;
-                    InterlockedAdd(_RWVisibleIndirectArgumentBuffer[1], 1, index);
-                    _RWVisibleInstancesIndexBuffer[index] = id.x;
+                    if (_TerrainPatchBuffer[id.x].hole)
+                    {
+                        uint index = 0;
+                        InterlockedAdd(_RWVisibleHoleArgumentBuffer[1], 1, index);
+                        _RWVisibleHoleIndexBuffer[index] = id.x;
+                    }
+                    else
+                    {
+                        uint index = 0;
+                        InterlockedAdd(_RWVisiblePatchArgumentBuffer[1], 1, index);
+                        _RWVisiblePatchIndexBuffer[index] = id.x;
+                    }
                 }
             }
         }

@@ -15,7 +15,7 @@ namespace UnityEngine.Rendering.Universal
 
         public float mipScaleLevel = 16;
         public float distanceCulling = 0.8f;
-        public float maxDrawDistance = 100;
+        public float maxDrawDistance = 25;
 
         public Material instanceMaterial;
         public MeshBatchData instanceBatchData;

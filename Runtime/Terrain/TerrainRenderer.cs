@@ -25,9 +25,11 @@ namespace UnityEngine.Rendering.Universal
     [ExecuteAlways]
     public class TerrainRenderer : MonoBehaviour
     {
-        public bool shouldVirtualTexture = true;
+        public bool shouldVirtualTexture = false;
         public bool shouldOcclusionCulling = true;
+        public bool shouldHoleCulling = true;
 
+        public int quality = 4;
         public Material instanceMaterial;
         public TerrainData terrainData;
 
@@ -43,15 +45,18 @@ namespace UnityEngine.Rendering.Universal
 
         private Mesh _tileQuadMesh;
         private Material _tileMaterial;
+        private Material _holeMaterial;
 
         private Mesh _instancePatchMesh;
 
         private ComputeShader _computeShader;
         private ComputeBuffer _allInstancesPatchBuffer;
-        private ComputeBuffer _visibleInstancesIndexBuffer;
+        private ComputeBuffer _visibleHoleIndexBuffer;
+        private ComputeBuffer _visableHoleArgsBuffer;
+        private ComputeBuffer _visiblePatchIndexBuffer;
+        private ComputeBuffer _visablePatchArgsBuffer;
         private ComputeBuffer _visibleShadowIndexBuffer;
-        private ComputeBuffer _argsBuffer;
-        private ComputeBuffer _shadowBuffer;
+        private ComputeBuffer _visibleShadowArgsBuffer;
 
         private int _clearUniqueCounterKernel;
         private int _computeOcclusionCullingKernel;
@@ -92,19 +97,23 @@ namespace UnityEngine.Rendering.Universal
             _terrainPatchesCaches = new Dictionary<int, TerrainPatch[]>();
 
             uint[] args = new uint[5];
-            args[0] = (uint)_instancePatchMesh.GetIndexCount(0);
-            args[1] = (uint)0;
-            args[2] = (uint)_instancePatchMesh.GetIndexStart(0);
-            args[3] = (uint)_instancePatchMesh.GetBaseVertex(0);
+            args[0] = _instancePatchMesh.GetIndexCount(0);
+            args[1] = 0;
+            args[2] = _instancePatchMesh.GetIndexStart(0);
+            args[3] = _instancePatchMesh.GetBaseVertex(0);
             args[4] = 0;
 
-            _argsBuffer?.Dispose();
-            _argsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
-            _argsBuffer.SetData(args);
+            _visablePatchArgsBuffer?.Dispose();
+            _visablePatchArgsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
+            _visablePatchArgsBuffer.SetData(args);
 
-            _shadowBuffer?.Dispose();
-            _shadowBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
-            _shadowBuffer.SetData(args);
+            _visableHoleArgsBuffer?.Dispose();
+            _visableHoleArgsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
+            _visableHoleArgsBuffer.SetData(args);
+
+            _visibleShadowArgsBuffer?.Dispose();
+            _visibleShadowArgsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
+            _visibleShadowArgsBuffer.SetData(args);
 
             RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
             RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
@@ -130,9 +139,10 @@ namespace UnityEngine.Rendering.Universal
 #endif
 
             _allInstancesPatchBuffer?.Dispose();
-            _visibleInstancesIndexBuffer?.Dispose();
-            _argsBuffer?.Dispose();
-            _shadowBuffer?.Dispose();
+            _visibleHoleIndexBuffer?.Dispose();
+            _visiblePatchIndexBuffer?.Dispose();
+            _visablePatchArgsBuffer?.Dispose();
+            _visibleShadowArgsBuffer?.Dispose();
 
             if (_normalMap != null)
                 DestroyImmediate(_normalMap);
@@ -141,9 +151,10 @@ namespace UnityEngine.Rendering.Universal
                 DestroyImmediate(_lightMap);
 
             _allInstancesPatchBuffer = null;
-            _visibleInstancesIndexBuffer = null;
-            _argsBuffer = null;
-            _shadowBuffer = null;
+            _visibleHoleIndexBuffer = null;
+            _visiblePatchIndexBuffer = null;
+            _visablePatchArgsBuffer = null;
+            _visibleShadowArgsBuffer = null;
             _normalMap = null;
             _lightMap = null;
         }
@@ -307,33 +318,51 @@ namespace UnityEngine.Rendering.Universal
         {
 			if (terrainData)
 			{
-				var rect = new Rect(0, 0, terrainData.size.x, terrainData.size.z);
+                var width = terrainData.size.x;
+                var height = terrainData.size.z;
 
                 var written = 0;
 
-                var chunkX = Mathf.CeilToInt(rect.width / ShaderConstants.chunkSize);
-				var chunkY = Mathf.CeilToInt(rect.height / ShaderConstants.chunkSize);
-				var children = new TerrainTree[chunkX * chunkY];
+                var chunkX = Mathf.CeilToInt(width / ShaderConstants.chunkSize);
+				var chunkY = Mathf.CeilToInt(height / ShaderConstants.chunkSize);
+
+                _boundingBox.min = Vector3.zero;
+                _boundingBox.max = terrainData.size;
+
+                _terrainTree = new TerrainTree(new Rect(0, 0, width, height));
+                _terrainTree.children = new TerrainTree[chunkX * chunkY];
                 
-                for (var i = 0; i < rect.width; i += ShaderConstants.chunkSize)
+                for (var i = 0; i < width; i += ShaderConstants.chunkSize)
 				{
-					for (var j = 0; j < rect.height; j += ShaderConstants.chunkSize)
+					for (var j = 0; j < height; j += ShaderConstants.chunkSize)
 					{
-						children[written++] = new TerrainTree(new Rect(i, j, ShaderConstants.chunkSize, ShaderConstants.chunkSize), 3);
-					}
+                        var patch = new Rect(i, j, ShaderConstants.chunkSize, ShaderConstants.chunkSize);
+                        var patchTree = new TerrainTree(patch, 3);
+                        patchTree.Evaluate(terrainData);
+
+                        _terrainTree.children[written++] = patchTree;
+                    }
 				}
+                
+                if (shouldHoleCulling)
+				{
+                    for (var i = 0; i < terrainData.holesResolution; i++)
+                    {
+                        for (var j = 0; j < terrainData.holesResolution; j++)
+                        {
+                            if (terrainData.IsHole(i, j))
+                            {
+                                float u = i / (float)(terrainData.holesResolution - 1);
+                                float v = j / (float)(terrainData.holesResolution - 1);
 
-                _boundingBox.min = new Vector3(rect.min.x, 0, rect.min.y);
-				_boundingBox.max = new Vector3(rect.max.x, terrainData.size.y, rect.max.y);
+                                _terrainTree.setHole(u * terrainData.size.x, v * terrainData.size.z);
+                            }
+                        }
+                    }
+                }
+            }
 
-				_terrainTree = new TerrainTree(rect);
-				_terrainTree.children = children;
-                _terrainPatchesCaches.Clear();
-            }
-			else
-			{
-                _terrainPatchesCaches.Clear();
-            }
+            _terrainPatchesCaches.Clear();
         }
 
         void InitializeTerrainData()
@@ -356,62 +385,6 @@ namespace UnityEngine.Rendering.Universal
 
                 Shader.SetGlobalVector(ShaderConstants._TerrainSize, terrainData.size);
                 Shader.SetGlobalTexture(ShaderConstants._TerrainHeightMap, terrainData.heightmapTexture);
-            }
-        }
-
-        public struct NeighborJob : IJob
-        {
-            public int patchSize;
-            public int patchX;
-            public int patchY;
-            public NativeArray<TerrainPatch> patches;
-            public NativeArray<int> flags;
-
-            public void Execute()
-            {
-                for (var i = 0; i < patches.Length; i++)
-                {
-                    var patch = patches[i];
-
-                    int u = ((int)patch.rect.x) / patchSize;
-                    int v = ((int)patch.rect.y) / patchSize;
-
-                    int w = u + ((int)patch.rect.z) / patchSize;
-                    int h = v + ((int)patch.rect.w) / patchSize;
-
-                    for (int y = v; y < h; y++)
-                    {
-                        for (int x = u; x < w; x++)
-                        {
-                            flags[y * patchY + x] = patch.mip;
-                        }
-                    }
-                }
-
-                for (var i = 0; i < patches.Length; i++)
-				{
-                    var patch = patches[i];
-                    int x = Mathf.FloorToInt(patch.rect.x + patch.rect.z / 2) / patchSize;
-                    int y = Mathf.FloorToInt(patch.rect.y + patch.rect.w / 2) / patchSize;
-
-                    int w = Mathf.FloorToInt(patch.rect.z) / patchSize;
-                    int h = Mathf.FloorToInt(patch.rect.w) / patchSize;
-
-                    var top = (y + h) * patchY + x;
-                    var bottom = (y - h) * patchY + x;
-                    var left = y * patchY + x - w;
-                    var right = y * patchY + x + w;
-
-                    var topNode = top > 0 && top < flags.Length ? flags[top] : 0;
-                    var bottomNode = bottom > 0 && bottom < flags.Length ? flags[bottom] : 0;
-                    var leftNode = left > 0 && left < flags.Length ? flags[left] : 0;
-                    var rightNode = right > 0 && right < flags.Length ? flags[right] : 0;
-                    var nei = new bool4(topNode > patch.mip, bottomNode > patch.mip, leftNode > patch.mip, rightNode > patch.mip);
-
-                    patch.neighbor = (nei.x ? 1 : 0) + ((1 << 1) * (nei.y ? 1 : 0)) + ((1 << 2) * (nei.z ? 1 : 0)) + ((1 << 3) * (nei.w ? 1 : 0));
-
-                    patches[i] = patch;
-                }
             }
         }
 
@@ -439,14 +412,12 @@ namespace UnityEngine.Rendering.Universal
                 var patchX = ShaderConstants.chunkSize / patchSize * chunkX;
                 var patchY = ShaderConstants.chunkSize / patchSize * chunkZ;
                 var patches = new List<TerrainPatch>();
-                var pathchFlag = new NativeArray<int>(patchX * patchY, Allocator.Temp);
+                var pathchFlag = new int[patchX * patchY];
 
-                _terrainTree.CollectNodeInfo(new Vector2(chunkPos.x, chunkPos.z), ShaderConstants.chunkSize, patches);
+                _terrainTree.CollectNodeInfo(new Vector2(chunkPos.x, chunkPos.z), quality, ref patches);
 
-                for (var i = 0; i < patches.Count; i++)
+                foreach (var patch in patches)
                 {
-                    var patch = patches[i];
-
                     int u = ((int)patch.rect.x) / patchSize;
                     int v = ((int)patch.rect.y) / patchSize;
 
@@ -463,6 +434,7 @@ namespace UnityEngine.Rendering.Universal
                 for (var i = 0; i < patches.Count; i++)
                 {
                     var patch = patches[i];
+
                     int x = Mathf.FloorToInt(patch.rect.x + patch.rect.z / 2) / patchSize;
                     int y = Mathf.FloorToInt(patch.rect.y + patch.rect.w / 2) / patchSize;
 
@@ -486,8 +458,6 @@ namespace UnityEngine.Rendering.Universal
                 }
 
                 _terrainPatchesCaches.Add(_sectorID, patches.ToArray());
-
-                pathchFlag.Dispose();
             }
         }
 
@@ -499,33 +469,30 @@ namespace UnityEngine.Rendering.Universal
 				{
                     _instanceCount = instancePatches.Length;
 
-                    if (_visibleInstancesIndexBuffer == null || _visibleInstancesIndexBuffer != null && _visibleInstancesIndexBuffer.count < instancePatches.Length)
-                    {
-                        _visibleInstancesIndexBuffer?.Release();
-                        _visibleInstancesIndexBuffer = new ComputeBuffer(Mathf.CeilToInt(instancePatches.Length / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize, sizeof(uint));
-
-                        if (instanceMaterial)
-                            instanceMaterial.SetBuffer(ShaderConstants._VisibleInstancesIndexBuffer, _visibleInstancesIndexBuffer);
-                    }
-
                     if (_allInstancesPatchBuffer == null || _allInstancesPatchBuffer != null && _allInstancesPatchBuffer.count < instancePatches.Length)
                     {
-                        _allInstancesPatchBuffer?.Release();
+                        _allInstancesPatchBuffer?.Dispose();
                         _allInstancesPatchBuffer = new ComputeBuffer(Mathf.CeilToInt(instancePatches.Length / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize, Marshal.SizeOf<TerrainPatch>());
-
-                        if (instanceMaterial)
-                            instanceMaterial.SetBuffer(ShaderConstants._AllInstancesPatchBuffer, _allInstancesPatchBuffer);
                     }
 
                     _allInstancesPatchBuffer.SetData(instancePatches);
 
+                    if (_visiblePatchIndexBuffer == null || _visiblePatchIndexBuffer != null && _visiblePatchIndexBuffer.count < instancePatches.Length)
+                    {
+                        _visiblePatchIndexBuffer?.Dispose();
+                        _visiblePatchIndexBuffer = new ComputeBuffer(Mathf.CeilToInt(instancePatches.Length / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize, sizeof(uint));
+                    }
+
+                    if (_visibleHoleIndexBuffer == null || _visibleHoleIndexBuffer != null && _visibleHoleIndexBuffer.count < instancePatches.Length)
+                    {
+                        _visibleHoleIndexBuffer?.Dispose();
+                        _visibleHoleIndexBuffer = new ComputeBuffer(Mathf.CeilToInt(instancePatches.Length / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize, sizeof(uint));
+                    }
+
                     if (_visibleShadowIndexBuffer == null || _visibleShadowIndexBuffer != null && _visibleShadowIndexBuffer.count < instancePatches.Length)
                     {
-                        _visibleShadowIndexBuffer?.Release();
+                        _visibleShadowIndexBuffer?.Dispose();
                         _visibleShadowIndexBuffer = new ComputeBuffer(Mathf.CeilToInt(instancePatches.Length / (float)_maxComputeWorkGroupSize) * _maxComputeWorkGroupSize, sizeof(uint));
-
-                        if (instanceMaterial)
-                            instanceMaterial.SetBuffer(ShaderConstants._VisibleShadowIndexBuffer, _visibleShadowIndexBuffer);
                     }
 
                     uint[] shadowIndex = new uint[instancePatches.Length];
@@ -541,10 +508,10 @@ namespace UnityEngine.Rendering.Universal
                     args[3] = (uint)_instancePatchMesh.GetBaseVertex(0);
                     args[4] = 0;
 
-                    if (_shadowBuffer == null)
-                        _shadowBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
+                    if (_visibleShadowArgsBuffer == null)
+                        _visibleShadowArgsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
 
-                    _shadowBuffer.SetData(args);
+                    _visibleShadowArgsBuffer.SetData(args);
                 }
                 else
 				{
@@ -555,7 +522,7 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        private void OnBeginTileRendering(RequestPageData request, TiledTexture tileTexture, Vector2Int tile)
+        private void OnBeginTileRendering(CommandBuffer cmd, RequestPageData request, TiledTexture tileTexture, int tile)
 		{
             int x = request.pageX;
             int y = request.pageY;
@@ -581,45 +548,17 @@ namespace UnityEngine.Rendering.Universal
             if (!realRect.Overlaps(terRect))
                 return;
 
-            var tileRect = tileTexture.TileToRect(tile);
             var needDrawRect = realRect;
             needDrawRect.xMin = Mathf.Max(realRect.xMin, terRect.xMin);
             needDrawRect.yMin = Mathf.Max(realRect.yMin, terRect.yMin);
             needDrawRect.xMax = Mathf.Min(realRect.xMax, terRect.xMax);
             needDrawRect.yMax = Mathf.Min(realRect.yMax, terRect.yMax);
-            var scaleFactor = tileRect.width / realRect.width;
-
-            var position = new Rect(tileRect.x + (needDrawRect.xMin - realRect.xMin) * scaleFactor,
-                                    tileRect.y + (needDrawRect.yMin - realRect.yMin) * scaleFactor,
-                                    needDrawRect.width * scaleFactor,
-                                    needDrawRect.height * scaleFactor);
-
+           
             var scaleOffset = new Vector4(
                         needDrawRect.width / terRect.width,
                         needDrawRect.height / terRect.height,
                         (needDrawRect.xMin - terRect.xMin) / terRect.width,
                         (needDrawRect.yMin - terRect.yMin) / terRect.height);
-
-            float l = position.x * 2.0f / tileTexture.width - 1;
-            float b = position.y * 2.0f / tileTexture.height - 1;
-            float r = (position.x + position.width) * 2.0f / tileTexture.width - 1;
-            float t = (position.y + position.height) * 2.0f / tileTexture.height - 1;
-            /*var mat = new Matrix4x4();
-            mat.m00 = r - l;
-            mat.m03 = l;
-            mat.m11 = t - b;
-            mat.m13 = b;
-            mat.m23 = -1;
-            mat.m33 = 1;*/
-
-            var tileX = tileRect.x / (float)tileTexture.width * 2 - 1;
-            var tileY = 1 - (tileRect.y + tileRect.height) / (float)tileTexture.height * 2;
-
-            var width = tileRect.width * 2 / (float)tileTexture.width;
-            var height = tileRect.height * 2 / (float)tileTexture.height;
-
-            var mat = Matrix4x4.TRS(new Vector3(tileX, tileY, 0), Quaternion.identity, new Vector3(width, height, 0));
-            //var mat2 = Matrix4x4.Ortho(35, tileTexture.regionSize.x, 35, tileTexture.regionSize.y, 0.01f, 1000);
 
             var _Control = instanceMaterial.GetTexture("_Control");
             var _Control_ST = instanceMaterial.GetVector("_Control_ST");
@@ -639,61 +578,56 @@ namespace UnityEngine.Rendering.Universal
             var normal2 = instanceMaterial.GetTexture("_Normal2");
             var normal3 = instanceMaterial.GetTexture("_Normal3");
 
-            _tileMaterial.SetMatrix("_ImageMVP", GL.GetGPUProjectionMatrix(mat, false));
+            var propertyBlock =  new MaterialPropertyBlock();
 
-            _tileMaterial.SetTexture("_Control", _Control ? _Control : Texture2D.redTexture);
-            _tileMaterial.SetVector("_Control_ST", new Vector4(_Control_ST.x * scaleOffset.x, _Control_ST.y * scaleOffset.y, _Control_ST.x * scaleOffset.z, _Control_ST.y * scaleOffset.w));
+            propertyBlock.SetTexture("_Control", _Control ? _Control : Texture2D.redTexture);
+            propertyBlock.SetTexture("_Normal", _normalMap);
+            propertyBlock.SetTexture("_LightMap", _lightMap);
+            propertyBlock.SetTexture("_Height", _heightMap);
+            propertyBlock.SetTexture("_Splat0", _Splat0);
+            propertyBlock.SetTexture("_Splat1", _Splat1);
+            propertyBlock.SetTexture("_Splat2", _Splat2);
+            propertyBlock.SetTexture("_Splat3", _Splat3);
 
-            _tileMaterial.SetTexture("_Normal", _normalMap);
-            _tileMaterial.SetTexture("_LightMap", _lightMap);
-            _tileMaterial.SetTexture("_Height", _heightMap);
-            _tileMaterial.SetVector("_TerrainHeight", new Vector2(terrainData.size.y, transform.position.y));
+            propertyBlock.SetVector("_Control_ST", new Vector4(_Control_ST.x * scaleOffset.x, _Control_ST.y * scaleOffset.y, _Control_ST.x * scaleOffset.z, _Control_ST.y * scaleOffset.w));
+            propertyBlock.SetVector("_TerrainHeight", new Vector2(terrainData.size.y, transform.position.y));
 
-            _tileMaterial.SetTexture("_Splat0", _Splat0);
-            _tileMaterial.SetTexture("_Splat1", _Splat1);
-            _tileMaterial.SetTexture("_Splat2", _Splat2);
-            _tileMaterial.SetTexture("_Splat3", _Splat3);
+            propertyBlock.SetVector("_Splat0_ST", new Vector4(_Splat0_ST.x * scaleOffset.x, _Splat0_ST.y * scaleOffset.y, _Splat0_ST.x * scaleOffset.z, _Splat0_ST.y * scaleOffset.w));
+            propertyBlock.SetVector("_Splat1_ST", new Vector4(_Splat1_ST.x * scaleOffset.x, _Splat1_ST.y * scaleOffset.y, _Splat1_ST.x * scaleOffset.z, _Splat1_ST.y * scaleOffset.w));
+            propertyBlock.SetVector("_Splat2_ST", new Vector4(_Splat2_ST.x * scaleOffset.x, _Splat2_ST.y * scaleOffset.y, _Splat2_ST.x * scaleOffset.z, _Splat2_ST.y * scaleOffset.w));
+            propertyBlock.SetVector("_Splat3_ST", new Vector4(_Splat3_ST.x * scaleOffset.x, _Splat3_ST.y * scaleOffset.y, _Splat3_ST.x * scaleOffset.z, _Splat3_ST.y * scaleOffset.w));
 
-            _tileMaterial.SetVector("_Splat0_ST", new Vector4(_Splat0_ST.x * scaleOffset.x, _Splat0_ST.y * scaleOffset.y, _Splat0_ST.x * scaleOffset.z, _Splat0_ST.y * scaleOffset.w));
-            _tileMaterial.SetVector("_Splat1_ST", new Vector4(_Splat1_ST.x * scaleOffset.x, _Splat1_ST.y * scaleOffset.y, _Splat1_ST.x * scaleOffset.z, _Splat1_ST.y * scaleOffset.w));
-            _tileMaterial.SetVector("_Splat2_ST", new Vector4(_Splat2_ST.x * scaleOffset.x, _Splat2_ST.y * scaleOffset.y, _Splat2_ST.x * scaleOffset.z, _Splat2_ST.y * scaleOffset.w));
-            _tileMaterial.SetVector("_Splat3_ST", new Vector4(_Splat3_ST.x * scaleOffset.x, _Splat3_ST.y * scaleOffset.y, _Splat3_ST.x * scaleOffset.z, _Splat3_ST.y * scaleOffset.w));
+            propertyBlock.SetFloat("_Metallic0", instanceMaterial.GetFloat("_Metallic0"));
+            propertyBlock.SetFloat("_Metallic1", instanceMaterial.GetFloat("_Metallic1"));
+            propertyBlock.SetFloat("_Metallic2", instanceMaterial.GetFloat("_Metallic2"));
+            propertyBlock.SetFloat("_Metallic3", instanceMaterial.GetFloat("_Metallic3"));
 
-            _tileMaterial.SetFloat("_Metallic0", instanceMaterial.GetFloat("_Metallic0"));
-            _tileMaterial.SetFloat("_Metallic1", instanceMaterial.GetFloat("_Metallic1"));
-            _tileMaterial.SetFloat("_Metallic2", instanceMaterial.GetFloat("_Metallic2"));
-            _tileMaterial.SetFloat("_Metallic3", instanceMaterial.GetFloat("_Metallic3"));
-
-            _tileMaterial.SetFloat("_Smoothness0", instanceMaterial.GetFloat("_Smoothness0"));
-            _tileMaterial.SetFloat("_Smoothness1", instanceMaterial.GetFloat("_Smoothness1"));
-            _tileMaterial.SetFloat("_Smoothness2", instanceMaterial.GetFloat("_Smoothness2"));
-            _tileMaterial.SetFloat("_Smoothness3", instanceMaterial.GetFloat("_Smoothness3"));
+            propertyBlock.SetFloat("_Smoothness0", instanceMaterial.GetFloat("_Smoothness0"));
+            propertyBlock.SetFloat("_Smoothness1", instanceMaterial.GetFloat("_Smoothness1"));
+            propertyBlock.SetFloat("_Smoothness2", instanceMaterial.GetFloat("_Smoothness2"));
+            propertyBlock.SetFloat("_Smoothness3", instanceMaterial.GetFloat("_Smoothness3"));
 
             if (instanceMaterial.IsKeywordEnabled("_NORMALMAP") && (normal0 || normal1 || normal2 || normal3))
             {
                 _tileMaterial.EnableKeyword("_NORMALMAP");
+                
+                propertyBlock.SetTexture("_Normal0", normal0 ? normal0 : Texture2D.normalTexture);
+                propertyBlock.SetTexture("_Normal1", normal1 ? normal1 : Texture2D.normalTexture);
+                propertyBlock.SetTexture("_Normal2", normal2 ? normal2 : Texture2D.normalTexture);
+                propertyBlock.SetTexture("_Normal3", normal3 ? normal3 : Texture2D.normalTexture);
 
-                _tileMaterial.SetTexture("_Normal0", normal0);
-                _tileMaterial.SetTexture("_Normal1", normal1);
-                _tileMaterial.SetTexture("_Normal2", normal2);
-                _tileMaterial.SetTexture("_Normal3", normal3);
-
-                _tileMaterial.SetFloat("_BumpScale0", instanceMaterial.GetFloat("_BumpScale0"));
-                _tileMaterial.SetFloat("_BumpScale1", instanceMaterial.GetFloat("_BumpScale1"));
-                _tileMaterial.SetFloat("_BumpScale2", instanceMaterial.GetFloat("_BumpScale2"));
-                _tileMaterial.SetFloat("_BumpScale3", instanceMaterial.GetFloat("_BumpScale3"));
+                propertyBlock.SetFloat("_BumpScale0", instanceMaterial.GetFloat("_BumpScale0"));
+                propertyBlock.SetFloat("_BumpScale1", instanceMaterial.GetFloat("_BumpScale1"));
+                propertyBlock.SetFloat("_BumpScale2", instanceMaterial.GetFloat("_BumpScale2"));
+                propertyBlock.SetFloat("_BumpScale3", instanceMaterial.GetFloat("_BumpScale3"));
             }
             else
 			{
                 _tileMaterial.DisableKeyword("_NORMALMAP");
             }
 
-            var cmd = CommandBufferPool.Get();
             cmd.SetRenderTarget(tileTexture.tileBuffers, tileTexture.tileDepthBuffer);
-            cmd.DrawMesh(_tileQuadMesh, Matrix4x4.identity, _tileMaterial, 0);
-
-            Graphics.ExecuteCommandBuffer(cmd);
-            CommandBufferPool.Release(cmd);
+            cmd.DrawMesh(_tileQuadMesh, tileTexture.GetMatrix(tile), _tileMaterial, 0, 0, propertyBlock);
         }
 
         public void OnBeginFrameRendering(ScriptableRenderContext context, Camera[] cameras)
@@ -709,10 +643,9 @@ namespace UnityEngine.Rendering.Universal
                     instanceMaterial.DisableKeyword("_USE_VIRTUAL_TEXTURE");
 
                 instanceMaterial.EnableKeyword("PROCEDURAL_INSTANCING_ON");
+
                 instanceMaterial.SetInt(ShaderConstants._unity_BaseInstanceID, 0);
                 instanceMaterial.SetMatrix(ShaderConstants._PivotMatrixWS, transform.localToWorldMatrix);
-
-#if UNITY_EDITOR
                 instanceMaterial.SetVector(ShaderConstants._TerrainSize, terrainData.size);
                 instanceMaterial.SetVector(ShaderConstants._TerrainHeightMap_TexelSize, new Vector4(_heightMap.texelSize.x, _heightMap.texelSize.y, _heightMap.width, _heightMap.height));
 
@@ -720,26 +653,25 @@ namespace UnityEngine.Rendering.Universal
                 instanceMaterial.SetTexture(ShaderConstants._TerrainNormalMap, _normalMap);
                 instanceMaterial.SetTexture(ShaderConstants._TerrainHeightMap, _heightMap);
 
-                instanceMaterial.SetBuffer(ShaderConstants._AllInstancesPatchBuffer, _allInstancesPatchBuffer);
-                instanceMaterial.SetBuffer(ShaderConstants._VisibleInstancesIndexBuffer, _visibleInstancesIndexBuffer);
+                instanceMaterial.SetBuffer(ShaderConstants._TerrainPatchBuffer, _allInstancesPatchBuffer);
+                instanceMaterial.SetBuffer(ShaderConstants._VisiblePatchIndexBuffer, _visiblePatchIndexBuffer);
                 instanceMaterial.SetBuffer(ShaderConstants._VisibleShadowIndexBuffer, _visibleShadowIndexBuffer);
-#endif
 
                 foreach (var camera in cameras)
                 {
                     if (camera.cameraType == CameraType.Preview)
-                        return;
+                        continue;
 
                     int mask = camera.cullingMask & (1 << gameObject.layer);
                     if (mask == 0)
-                        return;
+                        continue;
 
                     Graphics.DrawMeshInstancedIndirect(
                                 _instancePatchMesh,
                                 0,
                                 instanceMaterial,
                                 _worldBoundingBox,
-                                _shadowBuffer,
+                                _visibleShadowArgsBuffer,
                                 0,
                                 null,
                                 ShadowCastingMode.ShadowsOnly,
@@ -754,7 +686,7 @@ namespace UnityEngine.Rendering.Universal
                                 0,
                                 instanceMaterial,
                                 _worldBoundingBox,
-                                _argsBuffer,
+                                _visablePatchArgsBuffer,
                                 0,
                                 null,
                                 ShadowCastingMode.Off,
@@ -763,6 +695,62 @@ namespace UnityEngine.Rendering.Universal
                                 camera,
                                 LightProbeUsage.Off
                         );
+                }
+
+                if (shouldHoleCulling)
+                {
+                    if (_holeMaterial == null)
+                    {
+                        _holeMaterial = new Material(instanceMaterial.shader);
+                        _holeMaterial.CopyPropertiesFromMaterial(instanceMaterial);
+                    }
+
+                    if (shouldVirtualTexture)
+                        _holeMaterial.EnableKeyword("_USE_VIRTUAL_TEXTURE");
+                    else
+                        _holeMaterial.DisableKeyword("_USE_VIRTUAL_TEXTURE");
+
+                    _holeMaterial.EnableKeyword("PROCEDURAL_INSTANCING_ON");
+                    _holeMaterial.EnableKeyword("_ALPHATEST_ON");
+
+                    _holeMaterial.SetInt(ShaderConstants._unity_BaseInstanceID, 0);
+                    _holeMaterial.SetMatrix(ShaderConstants._PivotMatrixWS, transform.localToWorldMatrix);
+                    _holeMaterial.SetVector(ShaderConstants._TerrainSize, terrainData.size);
+                    _holeMaterial.SetVector(ShaderConstants._TerrainHeightMap_TexelSize, new Vector4(_heightMap.texelSize.x, _heightMap.texelSize.y, _heightMap.width, _heightMap.height));
+
+                    _holeMaterial.SetTexture(ShaderConstants._TerrainLightMap, _lightMap);
+                    _holeMaterial.SetTexture(ShaderConstants._TerrainNormalMap, _normalMap);
+                    _holeMaterial.SetTexture(ShaderConstants._TerrainHeightMap, _heightMap);
+                    _holeMaterial.SetTexture(ShaderConstants._TerrainHoleMap, terrainData.holesTexture);
+
+                    _holeMaterial.SetBuffer(ShaderConstants._TerrainPatchBuffer, _allInstancesPatchBuffer);
+                    _holeMaterial.SetBuffer(ShaderConstants._VisiblePatchIndexBuffer, _visibleHoleIndexBuffer);
+                    _holeMaterial.SetBuffer(ShaderConstants._VisibleShadowIndexBuffer, _visibleShadowIndexBuffer);
+
+                    foreach (var camera in cameras)
+                    {
+                        if (camera.cameraType == CameraType.Preview)
+                            continue;
+
+                        int mask = camera.cullingMask & (1 << gameObject.layer);
+                        if (mask == 0)
+                            continue;
+
+                        Graphics.DrawMeshInstancedIndirect(
+                            _instancePatchMesh,
+                            0,
+                            _holeMaterial,
+                            _worldBoundingBox,
+                            _visableHoleArgsBuffer,
+                            0,
+                            null,
+                            ShadowCastingMode.Off,
+                            false,
+                            this.gameObject.layer,
+                            camera,
+                            LightProbeUsage.Off
+                        );
+                    }
                 }
             }
         }
@@ -827,13 +815,12 @@ namespace UnityEngine.Rendering.Universal
                 var occlusionKernel = depthEstimation.hizTexture && this.shouldOcclusionCulling ? _computeOcclusionCullingKernel : _computeFrustumCullingKernel;
                 var tanFov = 1.0f / Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f);
 
-                cmd.SetComputeBufferParam(_computeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+                cmd.SetComputeBufferParam(_computeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisibleHoleArgumentBuffer, _visableHoleArgsBuffer);
+                cmd.SetComputeBufferParam(_computeShader, _clearUniqueCounterKernel, ShaderConstants._RWVisiblePatchArgumentBuffer, _visablePatchArgsBuffer);
                 cmd.DispatchCompute(_computeShader, _clearUniqueCounterKernel, 1, 1, 1);
 
                 cmd.SetComputeIntParam(_computeShader, ShaderConstants._OffsetParams, _instanceCount);
-
                 cmd.SetComputeVectorParam(_computeShader, ShaderConstants._TerrainSize, terrainData.size);
-                cmd.SetComputeVectorParam(_computeShader, ShaderConstants._HeightMapTexture_TexelSize, new Vector4(_heightMap.texelSize.x, _heightMap.texelSize.y, _heightMap.width, _heightMap.height));
 
                 cmd.SetComputeVectorParam(_computeShader, ShaderConstants._CameraZBufferParams, zBufferParams);
                 cmd.SetComputeVectorParam(_computeShader, ShaderConstants._CameraDrawParams, new Vector4(tanFov, 64, camera.nearClipPlane, camera.farClipPlane));
@@ -841,10 +828,12 @@ namespace UnityEngine.Rendering.Universal
                 cmd.SetComputeMatrixParam(_computeShader, ShaderConstants._CameraViewMatrix, depthEstimation.viewMatrix * transform.localToWorldMatrix);
                 cmd.SetComputeMatrixParam(_computeShader, ShaderConstants._CameraViewProjection, depthEstimation.viewProjectionMatrix * transform.localToWorldMatrix);
 
-                cmd.SetComputeTextureParam(_computeShader, occlusionKernel, ShaderConstants._HeightMap, _heightMap);
-                cmd.SetComputeBufferParam(_computeShader, occlusionKernel, ShaderConstants._AllInstancesPatchBuffer, _allInstancesPatchBuffer);
-                cmd.SetComputeBufferParam(_computeShader, occlusionKernel, ShaderConstants._RWVisibleInstancesIndexBuffer, _visibleInstancesIndexBuffer);
-                cmd.SetComputeBufferParam(_computeShader, occlusionKernel, ShaderConstants._RWVisibleIndirectArgumentBuffer, _argsBuffer);
+                cmd.SetComputeTextureParam(_computeShader, occlusionKernel, ShaderConstants._TerrainHeightMap, _heightMap);
+                cmd.SetComputeBufferParam(_computeShader, occlusionKernel, ShaderConstants._TerrainPatchBuffer, _allInstancesPatchBuffer);
+                cmd.SetComputeBufferParam(_computeShader, occlusionKernel, ShaderConstants._RWVisibleHoleIndexBuffer, _visibleHoleIndexBuffer);
+                cmd.SetComputeBufferParam(_computeShader, occlusionKernel, ShaderConstants._RWVisiblePatchIndexBuffer, _visiblePatchIndexBuffer);
+                cmd.SetComputeBufferParam(_computeShader, occlusionKernel, ShaderConstants._RWVisibleHoleArgumentBuffer, _visableHoleArgsBuffer);
+                cmd.SetComputeBufferParam(_computeShader, occlusionKernel, ShaderConstants._RWVisiblePatchArgumentBuffer, _visablePatchArgsBuffer);
 
                 if (occlusionKernel == _computeOcclusionCullingKernel)
                 {
@@ -856,7 +845,7 @@ namespace UnityEngine.Rendering.Universal
 
 #if UNITY_EDITOR
                 if (this.debugMode)
-                    cmd.RequestAsyncReadback(_argsBuffer, OnAsyncGPUReadbackRequest);
+                    cmd.RequestAsyncReadback(_visablePatchArgsBuffer, OnAsyncGPUReadbackRequest);
 #endif
             }
 
@@ -874,12 +863,13 @@ namespace UnityEngine.Rendering.Universal
 
         private void OnBakeCompleted()
         {
-            _shouldUpdateTerrain = true;
+            this.UploadTerrainData();
         }
 
-		private void Update()
+		public void UploadTerrainData()
 		{
-		}
+            _shouldUpdateTerrain = true;
+        }
 
 		static class ShaderConstants
         {
@@ -898,24 +888,25 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int _OffsetParams = Shader.PropertyToID("_OffsetParams");
             public static readonly int _PivotMatrixWS = Shader.PropertyToID("_PivotMatrixWS");
 
-            public static readonly int _HeightMap = Shader.PropertyToID("_HeightMap");
-            public static readonly int _HeightMapTexture_TexelSize = Shader.PropertyToID("_HeightMapTexture_TexelSize");
+            public static readonly int _HizTexture = Shader.PropertyToID("_HizTexture");
+            public static readonly int _HizTexture_Size = Shader.PropertyToID("_HizTexture_Size");
 
             public static readonly int _TerrainSize = Shader.PropertyToID("_TerrainSize");
             public static readonly int _TerrainLightMap = Shader.PropertyToID("_TerrainLightMap");
             public static readonly int _TerrainNormalMap = Shader.PropertyToID("_TerrainNormalMap");
             public static readonly int _TerrainHeightMap = Shader.PropertyToID("_TerrainHeightMap");
+            public static readonly int _TerrainHoleMap = Shader.PropertyToID("_TerrainHolesTexture");
             public static readonly int _TerrainHeightMap_TexelSize = Shader.PropertyToID("_TerrainHeightMap_TexelSize");
+            public static readonly int _TerrainPatchBuffer = Shader.PropertyToID("_TerrainPatchBuffer");
 
-            public static readonly int _HizTexture = Shader.PropertyToID("_HizTexture");
-            public static readonly int _HizTexture_Size = Shader.PropertyToID("_HizTexture_Size");
-
-            public static readonly int _AllInstancesPatchBuffer = Shader.PropertyToID("_AllInstancesPatchBuffer");
-            public static readonly int _VisibleInstancesIndexBuffer = Shader.PropertyToID("_VisibleInstancesIndexBuffer");
+            public static readonly int _VisibleHoleIndexBuffer = Shader.PropertyToID("_VisibleHoleIndexBuffer");
+            public static readonly int _VisiblePatchIndexBuffer = Shader.PropertyToID("_VisiblePatchIndexBuffer");
             public static readonly int _VisibleShadowIndexBuffer = Shader.PropertyToID("_VisibleShadowIndexBuffer");
 
-            public static readonly int _RWVisibleInstancesIndexBuffer = Shader.PropertyToID("_RWVisibleInstancesIndexBuffer");
-            public static readonly int _RWVisibleIndirectArgumentBuffer = Shader.PropertyToID("_RWVisibleIndirectArgumentBuffer");
+            public static readonly int _RWVisibleHoleIndexBuffer = Shader.PropertyToID("_RWVisibleHoleIndexBuffer");
+            public static readonly int _RWVisibleHoleArgumentBuffer = Shader.PropertyToID("_RWVisibleHoleArgumentBuffer");
+            public static readonly int _RWVisiblePatchIndexBuffer = Shader.PropertyToID("_RWVisiblePatchIndexBuffer");
+            public static readonly int _RWVisiblePatchArgumentBuffer = Shader.PropertyToID("_RWVisiblePatchArgumentBuffer");
         }
     }
 }

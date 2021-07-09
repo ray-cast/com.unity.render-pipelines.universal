@@ -25,13 +25,14 @@ float4 _TerrainHeightMap_TexelSize;
 
 float4x4 _PivotMatrixWS;
 
+StructuredBuffer<uint> _VisiblePatchIndexBuffer;
+StructuredBuffer<uint> _VisibleShadowIndexBuffer;
+
+StructuredBuffer<TerrainPatch> _TerrainPatchBuffer;
+
 TEXTURE2D(_TerrainLightMap); SAMPLER(sampler_TerrainLightMap);
 TEXTURE2D(_TerrainHeightMap); SAMPLER(sampler_TerrainHeightMap);
 TEXTURE2D(_TerrainNormalMap); SAMPLER(sampler_TerrainNormalMap);
-
-StructuredBuffer<TerrainPatch> _AllInstancesPatchBuffer;
-StructuredBuffer<uint> _VisibleInstancesIndexBuffer;
-StructuredBuffer<uint> _VisibleShadowIndexBuffer;
 
 void SetupTerrainInstancing()
 {
@@ -39,15 +40,9 @@ void SetupTerrainInstancing()
 
 #ifdef PROCEDURAL_INSTANCING_ON
 
-float2 TransformObjectToTexcoord(float3 positionOS)
-{
-    float2 pixelCoord = positionOS.xz / _TerrainSize.xz * (_TerrainHeightMap_TexelSize.zw - 1);
-    return pixelCoord * _TerrainHeightMap_TexelSize.xy;
-}
-
 TerrainPositionInputs GetTerrainPositionInputs(float3 positionOS, float4 color)
 {
-    TerrainPatch infoData = _AllInstancesPatchBuffer[_VisibleInstancesIndexBuffer[unity_InstanceID]];
+    TerrainPatch infoData = _TerrainPatchBuffer[_VisiblePatchIndexBuffer[unity_InstanceID]];
 
     float4 rect = infoData.rect;
     float2 diff = 0;
@@ -95,7 +90,7 @@ TerrainPositionInputs GetTerrainPositionInputs(float3 positionOS, float4 color)
 
 TerrainPositionInputs GetTerrainShadowPositionInputs(float3 positionOS)
 {
-    TerrainPatch infoData = _AllInstancesPatchBuffer[_VisibleShadowIndexBuffer[unity_InstanceID]];
+    TerrainPatch infoData = _TerrainPatchBuffer[_VisibleShadowIndexBuffer[unity_InstanceID]];
 
     float4 rect = infoData.rect;
 

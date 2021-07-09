@@ -41,6 +41,8 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
         _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
         _ShadowNormalBias("阴影法线偏移", Range(0.0, 10.0)) = 1.0
 
+        [HideInInspector] _TerrainHolesTexture("镂空贴图", 2D) = "white" {}
+
         [HideInInspector] [MainColor] _BaseColor("基本颜色", Color) = (1,1,1,1)
         [HideInInspector] [MainTexture] _BaseMap("基本贴图", 2D) = "white" {}
         [HideInInspector] _Cutoff("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
@@ -101,12 +103,14 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma shader_feature_local _USE_WETNESSMAP2
             #pragma shader_feature_local _USE_WETNESSMAP3
             #pragma shader_feature_local _USE_WETNESSMAP4
-            #pragma shader_feature_local _USE_VIRTUAL_TEXTURE
             #pragma shader_feature_local _SPECULAR_ANTIALIASING
 
             #pragma shader_feature _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature _ENVIRONMENTREFLECTIONS_OFF
             #pragma shader_feature _RECEIVE_SHADOWS_OFF
+
+            #pragma multi_compile _ _ALPHATEST_ON
+            #pragma multi_compile_local _ _USE_VIRTUAL_TEXTURE
 
             // -------------------------------------
             // Universal Pipeline keywords
@@ -116,6 +120,7 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile _ _SHADOWS_SOFT
             #pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
+            #pragma multi_compile _ _VIRTUAL_TEXTURE_HQ
 
             // -------------------------------------
             // Unity defined keywords
@@ -151,7 +156,9 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma vertex ShadowPassVertex
             #pragma fragment ShadowPassFragment
 
+            #pragma multi_compile _ _ALPHATEST_ON
             #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+
             #pragma instancing_options procedural:SetupTerrainInstancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 
@@ -176,7 +183,9 @@ Shader "Universal Render Pipeline/Terrain/Deferred Lit"
             #pragma vertex DepthOnlyVertex
             #pragma fragment DepthOnlyFragment
 
+            #pragma multi_compile _ _ALPHATEST_ON
             #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+
             #pragma instancing_options procedural:SetupTerrainInstancing
             #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
 

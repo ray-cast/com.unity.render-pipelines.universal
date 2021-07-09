@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using UnityEditorInternal;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -20,9 +19,9 @@ namespace UnityEditor.Rendering.Universal
         SavedBool _materialSettingsFoldout;
         SavedBool _renderingSettingsFoldout;
 
-        TerrainRenderer _renderer { get { return target as TerrainRenderer; } }
+        MaterialEditor _materialEditor;
 
-        private MaterialEditor _materialEditor;
+        TerrainRenderer _renderer { get { return target as TerrainRenderer; } }
 
         public void OnEnable()
         {
@@ -52,7 +51,6 @@ namespace UnityEditor.Rendering.Universal
 
             if (GUI.changed)
             {
-                Debug.LogFormat("GUI.changed={0}", GUI.changed);
                 EditorUtility.SetDirty(target);
             }
         }
@@ -119,8 +117,12 @@ namespace UnityEditor.Rendering.Universal
                 GUILayout.Label(string.Format("实例数量:{0}", _renderer.instanceCount));
 
                 _renderer.debugMode = EditorGUILayout.Toggle(string.Format("实例绘制数量:{0}", _renderer.drawInstancedCount), _renderer.debugMode);
+                _renderer.quality = Mathf.Max(1, EditorGUILayout.IntField(string.Format("细分质量:{0}", _renderer.quality), _renderer.quality));
                 _renderer.shouldOcclusionCulling = EditorGUILayout.Toggle("启用遮挡剔除（GPU Driven）", _renderer.shouldOcclusionCulling);
                 _renderer.shouldVirtualTexture = EditorGUILayout.Toggle("启用虚拟纹理（Virtual Texture）", _renderer.shouldVirtualTexture);
+
+                if (GUILayout.Button("刷新地形"))
+                    _renderer.UploadTerrainData();
 
                 EditorGUILayout.Space();
                 EditorGUILayout.Space();

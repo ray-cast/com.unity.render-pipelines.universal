@@ -14,7 +14,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// 渲染完成的事件回调.
         /// </summary>
-        public event Predicate<RequestPageData> startRequestPageJob;
+        public event Func<CommandBuffer, RequestPageData, bool> startRequestPageJob;
 
         /// <summary>
         /// 渲染取消的事件回调.
@@ -91,7 +91,7 @@ namespace UnityEngine.Rendering.Universal
                 {
                     var req = _pendingRequests[_pendingRequests.Count - 1];
 
-                    if (startRequestPageJob(req))
+                    if (startRequestPageJob(cmd, req))
 					{
                         _pendingRequests.RemoveAt(_pendingRequests.Count - 1);
                         _pendingRequestPool.Release(req);

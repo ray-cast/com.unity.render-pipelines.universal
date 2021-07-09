@@ -80,13 +80,14 @@ namespace UnityEngine.Rendering.Universal
         {
             _tilePool = new LruCache(regionSize.x * regionSize.y);
 
-            tileTextures = new RenderTexture[4];
+            tileTextures = new RenderTexture[3];
             tileBuffers = new RenderTargetIdentifier[tileTextures.Length];
 
             for (int i = 0; i < tileTextures.Length; i++)
 			{
                 tileTextures[i] = RenderTexture.GetTemporary(this.width, this.height, 0, Experimental.Rendering.GraphicsFormat.R8G8B8A8_UNorm);
-                tileTextures[i].filterMode = FilterMode.Point;
+                tileTextures[i].name = "VirtualBufferTexture" + i;
+                tileTextures[i].filterMode = FilterMode.Bilinear;
                 tileTextures[i].wrapMode = TextureWrapMode.Clamp;
 
                 tileBuffers[i] = tileTextures[i].colorBuffer;
@@ -100,30 +101,47 @@ namespace UnityEngine.Rendering.Universal
             this.Dispose();
         }
 
-        private Vector2Int IdToPos(int id)
+        public Vector2Int IdToPos(int id)
         {
             return new Vector2Int(id % regionSize.x, id / regionSize.x);
         }
 
-        private int PosToId(Vector2Int tile)
+        public int PosToId(Vector2Int tile)
         {
             return tile.y * regionSize.x + tile.x;
         }
 
-        public Vector2Int RequestTile()
+        public int RequestTile()
         {
-            return IdToPos(_tilePool.first);
+            return _tilePool.first;
         }
 
-        public bool SetActive(Vector2Int tile)
+        public bool SetActive(int tile)
         {
-            return _tilePool.SetActive(PosToId(tile));
+            return _tilePool.SetActive(tile);
         }
 
         public RectInt TileToRect(Vector2Int tile)
 		{
             return new RectInt(tile.x * tileSizeWithPadding, tile.y * tileSizeWithPadding,  tileSizeWithPadding, tileSizeWithPadding);
 		}
+
+        public Matrix4x4 GetMatrix(int id)
+        {
+            return GetMatrix(IdToPos(id));
+        }
+
+        public Matrix4x4 GetMatrix(Vector2Int tile)
+		{
+            var tileRect = TileToRect(tile);
+
+            var tileX = tileRect.x / (float)width * 2 - 1;
+            var tileY = 1 - (tileRect.y + tileRect.height) / (float)height * 2;
+            var tileWidth = tileRect.width * 2 / (float)width;
+            var tileHeight = tileRect.height * 2 / (float)height;
+
+            return Matrix4x4.TRS(new Vector3(tileX, tileY, 0), Quaternion.identity, new Vector3(tileWidth, tileHeight, 0));
+        }
 
         public void Clear()
 		{

@@ -321,8 +321,11 @@
                 EnqueuePass(_screenSpaceShadowResolvePass);
             }
 
-            if (_feedbackPass.Setup(cameraTargetDescriptor))
-                EnqueuePass(_feedbackPass);
+            if (camera.cameraType != CameraType.Preview && renderingData.cameraData.renderType != CameraRenderType.Overlay)
+			{
+                if (_feedbackPass.Setup(cameraTargetDescriptor))
+                    EnqueuePass(_feedbackPass);
+            }
 
             if (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled)
 			{

@@ -26,7 +26,7 @@ namespace UnityEngine.Rendering.Universal
 
         private Color32[] _feedbackData;
 
-        private Vector3 _center = Vector3.zero;
+        private Vector3 _center = Vector3.positiveInfinity;
         private Quaternion _rotation = Quaternion.identity;
 
         private VirtualTexture _virtualTexture;
@@ -66,6 +66,9 @@ namespace UnityEngine.Rendering.Universal
             _virtualTexture = stack.GetComponent<VirtualTexture>();
             if (_virtualTexture.IsActive())
             {
+                Shader.EnableKeyword("_VIRTUAL_TEXTURE_HQ");
+                _virtualTextureSystem.requestLimits = _virtualTexture.requestLimit.value;
+
                 if (!_virtualTexture.regionAdaptation.value)
                 {
                     var center = _virtualTexture.center.value;
@@ -100,6 +103,10 @@ namespace UnityEngine.Rendering.Universal
 
                 return true;
             }
+            else
+			{
+                Shader.DisableKeyword("_VIRTUAL_TEXTURE_HQ");
+            }
 
             return false;
         }
@@ -129,7 +136,10 @@ namespace UnityEngine.Rendering.Universal
                 if (_virtualTexture.regionAdaptation.value)
 				{
                     if (_virtualTextureSystem.UpdateRegion(camera.transform.position))
-                        _shouldUpdateRegion |= true;
+					{
+                        _shouldUpdateRegion = true;
+                        _shouldAsyncFeedback = true;
+                    }
                 }
 
                 if (!_isAsyncRequestComplete && (_center != camera.transform.position || _rotation != camera.transform.rotation || _shouldUpdateRegion))
@@ -144,15 +154,13 @@ namespace UnityEngine.Rendering.Universal
                     cmd.SetGlobalTexture(ShaderConstants._MainTex, _feedbackTexture);
                     cmd.DrawProcedural(Matrix4x4.identity, _feedbackMaterial, 0, MeshTopology.Triangles, 3);
 
-                    cmd.RequestAsyncReadback(_maxFeedbackTexture, OnAsyncFeedbackRequest);
+                    if (_virtualTextureSystem.regionRange.center.x == 0 && _virtualTextureSystem.regionRange.center.y == 0)
+                        cmd.RequestAsyncReadback(_maxFeedbackTexture, OnAsyncFeedbackRequest);
 
                     if (Application.isPlaying)
 					{
                         if (_shouldUpdateRegion)
-						{
-                            _shouldAsyncFeedback = true;
                             cmd.WaitAllAsyncReadbackRequests();
-                        }
                     }
                     else
                     {

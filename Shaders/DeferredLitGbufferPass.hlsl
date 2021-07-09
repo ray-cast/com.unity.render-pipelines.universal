@@ -184,7 +184,7 @@ FragmentOutput LitPassFragment(Varyings input)
     InputData inputData;
     InitializeInputData(input, surfaceData.normalTS, inputData);
 
-#ifdef _VIRTUAL_BLEND_ON
+#if defined(_VIRTUAL_BLEND_ON) && defined(_VIRTUAL_TEXTURE_HQ)
     real height = SampleVirtualHeight(input.positionWS);
     real heightDiff = abs(input.positionWS.y - height);
     real virtualTextureBlend = smoothstep(0, _VirtualBlendMaterial, heightDiff);
@@ -201,7 +201,7 @@ FragmentOutput LitPassFragment(Varyings input)
     BRDFData brdfData;
     InitializeBRDFData(surfaceData.albedo, surfaceData.metallic, surfaceData.specular, surfaceData.smoothness, 1, brdfData);
 
-#ifdef _VIRTUAL_BLEND_ON
+#if defined(_VIRTUAL_BLEND_ON) && defined(_VIRTUAL_TEXTURE_HQ)
     half3 bakedGI = brdfData.diffuse * inputData.bakedGI;
     surfaceData.emission += lerp(bakedGI, GlobalIllumination(brdfData, inputData.bakedGI, surfaceData.occlusion, inputData.normalWS, inputData.viewDirectionWS), virtualTextureBlend);
 #else

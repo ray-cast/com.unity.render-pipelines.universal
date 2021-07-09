@@ -19,6 +19,11 @@
         _Specular("镜面反射系数", Range(0.0, 1.0)) = 0.5
 
         [Space(20)]
+        [Toggle(_VIRTUAL_BLEND_ON)]_UseVirtualBlend("启用环境混合", int) = 0
+        _VirtualBlendMaterial("环境纹理混合高度(米)", Range(0, 10)) = 0.1
+        _VirtualBlendNormal("环境法线混合高度(米)", Range(0, 10)) = 0.1
+
+        [Space(20)]
         _WindWeight("风场影响程度", Range(0.0, 1.0)) = 1.0
         _WindStormWeight("风浪影响程度", Range(0.0, 1.0)) = 1.0
 
@@ -38,6 +43,7 @@
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Wind.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/InstancingRendering.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/VirtualTexture.hlsl"
         #include "VegetationCommon.cginc"
 
         struct Attributes
@@ -56,6 +62,7 @@
             float3 bakeGI      : TEXCOORD1;
             float3 normalWS    : TEXCOORD2;
             float4 tangentWS   : TEXCOORD3;
+            float3 positionWS  : TEXCOORD4;
             UNITY_VERTEX_INPUT_INSTANCE_ID
         };
 
@@ -88,10 +95,13 @@
             float _Width;
             float _Height;
 
-            float _WindWeight;
-            float _WindStormWeight;
+            half _VirtualBlendNormal;
+            half _VirtualBlendMaterial;
 
-            float _BendStrength;//按压弯曲程度
+            half _WindWeight;
+            half _WindStormWeight;
+
+            half _BendStrength;//按压弯曲程度
         CBUFFER_END
 
         TEXTURE2D(_MainTex);       SAMPLER(sampler_MainTex);
@@ -120,6 +130,7 @@
             wind.intensity *= positionOS.y * _WindWeight;
             float3 positionWS = TransformObjectToWindWorld(wind, positionOS);
             
+            output.positionWS = positionWS;
             output.positionCS = TransformWorldToHClip(positionWS);
             output.normalWS = normalInput.normalWS;
             output.tangentWS = half4(normalInput.tangentWS.xyz, input.tangentOS.w * GetOddNegativeScale());
@@ -166,6 +177,20 @@
             data.occlusion = 1;
             data.translucency = 0;
             data.emission = input.bakeGI * data.albedo;
+
+        #if defined(_VIRTUAL_BLEND_ON) && defined(_VIRTUAL_TEXTURE_HQ)
+            real height = SampleVirtualHeight(input.positionWS);
+            real heightDiff = abs(input.positionWS.y - height);
+            real virtualTextureBlend = smoothstep(0, _VirtualBlendMaterial, heightDiff);
+            real virtualNormalBlend = smoothstep(0, _VirtualBlendNormal, heightDiff);
+            VirtualTexture virtualData = SampleVirtualTexture(input.positionWS - input.normalWS * heightDiff);
+            data.albedo = lerp(virtualData.albedo, data.albedo, virtualTextureBlend);
+            data.metallic = lerp(virtualData.metallic, data.metallic, virtualTextureBlend);
+            data.smoothness = lerp(virtualData.smoothness, data.smoothness, virtualTextureBlend);
+            data.emission = lerp(virtualData.bakedGI * data.albedo, data.emission, virtualTextureBlend);
+            data.normalWS = lerp(virtualData.normal, data.normalWS, virtualNormalBlend);
+            data.normalWS = NormalizeNormalPerPixel(data.normalWS);
+        #endif
 
             return EncodeGbuffer(data);
         }
@@ -235,8 +260,11 @@
 
                 #pragma shader_feature_local _ALBEDOMAP
                 #pragma shader_feature_local _VERTEX_NORMAL_OFF
+                #pragma shader_feature_local _VIRTUAL_BLEND_ON
 
+                #pragma multi_compile _ _VIRTUAL_TEXTURE_HQ
                 #pragma multi_compile _ PROCEDURAL_INSTANCING_ON
+
                 #pragma instancing_options procedural:SetupInstancing
                 #pragma instancing_options assumeuniformscaling
             ENDHLSL

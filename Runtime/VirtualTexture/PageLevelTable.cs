@@ -45,27 +45,35 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        public void ChangeViewRect(Vector2Int offset, Action<Vector2Int> InvalidatePage)
+        public void ChangeViewRect(Vector2Int offset, Action<int> InvalidatePage)
         {
-            if (Mathf.Abs(offset.x) >= nodeCellCount || Mathf.Abs(offset.y) > nodeCellCount ||
-                offset.x % perCellSize != 0 || offset.y % perCellSize != 0)
+            if (Mathf.Abs(offset.x) >= nodeCellCount || Mathf.Abs(offset.y) > nodeCellCount || offset.x % perCellSize != 0 || offset.y % perCellSize != 0)
             {
                 for (int i = 0; i < nodeCellCount; i++)
+				{
                     for (int j = 0; j < nodeCellCount; j++)
                     {
                         var transXY = GetTransXY(i, j);
-                        cell[transXY.x, transXY.y].payload.loadRequest = null;
-                        InvalidatePage(cell[transXY.x, transXY.y].payload.tileIndex);
+                        ref var page = ref cell[transXY.x, transXY.y];
+                        page.payload.loadRequest = null;
+
+                        if (page.payload.isReady)
+                        {
+                            InvalidatePage(page.payload.tileIndex);
+                        }
                     }
+                }
+
                 pageOffset = Vector2Int.zero;
                 return;
             }
+
             offset.x /= perCellSize;
             offset.y /= perCellSize;
             #region clip map
             if (offset.x > 0)
             {
-                for(int i = 0;i < offset.x; i++)
+                for (int i = 0;i < offset.x; i++)
                 {
                     for (int j = 0;j < nodeCellCount;j++)
                     {
@@ -75,15 +83,20 @@ namespace UnityEngine.Rendering.Universal
                     }
                 }
             }
-            else if(offset.x < 0)
+            else if (offset.x < 0)
             {
-                for(int i = 1; i <= -offset.x; i++)
+                for (int i = 1; i <= -offset.x; i++)
                 {
                     for (int j = 0; j < nodeCellCount; j++)
                     {
                         var transXY = GetTransXY(nodeCellCount - i, j);
-                        cell[transXY.x, transXY.y].payload.loadRequest = null;
-                        InvalidatePage(cell[transXY.x, transXY.y].payload.tileIndex);
+                        ref var page = ref cell[transXY.x, transXY.y];
+                        page.payload.loadRequest = null;
+                        
+                        if (page.payload.isReady)
+						{
+                            InvalidatePage(page.payload.tileIndex);
+                        }
                     }
                 }
             }
@@ -113,14 +126,10 @@ namespace UnityEngine.Rendering.Universal
             }
             #endregion
             pageOffset += offset;
-            while(pageOffset.x < 0)
-            {
-                pageOffset.x += nodeCellCount;
-            }
-            while (pageOffset.y < 0)
-            {
-                pageOffset.y += nodeCellCount;
-            }
+            
+            while(pageOffset.x < 0) pageOffset.x += nodeCellCount;
+            while (pageOffset.y < 0) pageOffset.y += nodeCellCount;
+
             pageOffset.x %= nodeCellCount;
             pageOffset.y %= nodeCellCount;
         }

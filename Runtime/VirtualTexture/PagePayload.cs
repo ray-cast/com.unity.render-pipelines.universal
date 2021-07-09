@@ -5,12 +5,12 @@
     /// </summary>
     public class PagePayload
     {
-        private static Vector2Int s_InvalidTileIndex = new Vector2Int(-1, -1);
+        private static int s_InvalidTileIndex = -1;
 
         /// <summary>
         /// 对应平铺贴图中的id
         /// </summary>
-		public Vector2Int tileIndex = s_InvalidTileIndex;
+		public int tileIndex = s_InvalidTileIndex;
 
         /// <summary>
         /// 激活的帧序号

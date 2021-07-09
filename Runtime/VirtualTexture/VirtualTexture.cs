@@ -6,7 +6,7 @@ namespace UnityEngine.Rendering.Universal
     public class VirtualTexture : VolumeComponent, IPostProcessComponent
     {
         [Tooltip("启用虚拟纹理")]
-        public BoolParameter enable = new BoolParameter(true);
+        public BoolParameter enable = new BoolParameter(false);
 
         [Tooltip("区域中心")]
         public NoInterpVector2Parameter center = new NoInterpVector2Parameter(Vector2.zero);
@@ -16,6 +16,9 @@ namespace UnityEngine.Rendering.Universal
 
         [Tooltip("自适应区域")]
         public BoolParameter regionAdaptation = new BoolParameter(false);
+
+        [Tooltip("每帧加载数量")]
+        public NoInterpIntParameter requestLimit = new NoInterpIntParameter(2);
 
         public bool IsActive() => this.enable.value;
 

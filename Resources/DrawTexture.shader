@@ -25,8 +25,6 @@ Shader "VirtualTexture/DrawTexture"
         half _Smoothness2;
         half _Smoothness3;
 
-        float4x4 _ImageMVP;
-
         TEXTURE2D(_Control); SAMPLER(sampler_Control);
 
         TEXTURE2D(_Splat0); SAMPLER(sampler_Splat0);
@@ -62,7 +60,7 @@ Shader "VirtualTexture/DrawTexture"
             Varyings output = (Varyings)0;
             UNITY_SETUP_INSTANCE_ID(input);
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
-            output.positionCS = mul(_ImageMVP, input.positionOS);
+            output.positionCS = float4(TransformObjectToWorld(input.positionOS.xyz), 1);
             output.uv = input.uv;
             return output;
         }
@@ -78,15 +76,15 @@ Shader "VirtualTexture/DrawTexture"
             half4 blend = SAMPLE_TEXTURE2D_LOD(_Control, sampler_Control, uv_Control, 0);
             blend *= rcp(max(1, dot(1, blend)));
 
-            half4 albedo =
-                blend.x * SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv_Splat0) + 
-                blend.y * SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uv_Splat1) +
-                blend.z * SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uv_Splat2) + 
-                blend.w * SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uv_Splat3);
+            half3 albedo =
+                blend.x * SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uv_Splat0).rgb + 
+                blend.y * SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uv_Splat1).rgb +
+                blend.z * SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uv_Splat2).rgb + 
+                blend.w * SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uv_Splat3).rgb;
 
             float3 normalWS = UnpackNormalMaxComponent(SAMPLE_TEXTURE2D_LOD(_Normal, sampler_Normal, uv_Control, 0).xyz);
-            float height = UnpackHeightmap(SAMPLE_TEXTURE2D(_Height, sampler_Height, uv_Control));
-            float3 bakedGI = SAMPLE_TEXTURE2D(_LightMap, sampler_LightMap, uv_Control);
+            float height = UnpackHeightmap(SAMPLE_TEXTURE2D_LOD(_Height, sampler_Height, uv_Control, 0));
+            half3 bakedGI = SAMPLE_TEXTURE2D_LOD(_LightMap, sampler_LightMap, uv_Control, 0).rgb;
 
         #ifdef _NORMALMAP
             float3 normalTS = 
@@ -95,14 +93,15 @@ Shader "VirtualTexture/DrawTexture"
                 blend.z * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal2, sampler_Normal0, uv_Splat2), _BumpScale2) +
                 blend.w * UnpackNormalScale(SAMPLE_TEXTURE2D(_Normal3, sampler_Normal0, uv_Splat3), _BumpScale3);
 
-            float3 tangentWS = float3(0, 0, 1);
-            float3 bitangent = cross(normalWS.xyz, tangentWS.xyz);
+            float3 tangentWS = float3(1, 0, 0);
+            float3 bitangent = cross(tangentWS, normalWS);
+            float3x3 TBN = half3x3(tangentWS.xyz, bitangent.xyz, normalWS.xyz);
 
-            normalWS = normalize(TransformTangentToWorld(normalTS, half3x3(tangentWS.xyz, bitangent.xyz, normalWS.xyz)));
+            normalWS = normalize(TransformTangentToWorld(normalTS, TBN));
         #endif
 
             VirtualTexture output;
-            output.albedo = albedo.xyz;
+            output.albedo = albedo;
             output.normal = normalWS;
             output.smoothness = dot(blend, half4(_Smoothness0 , _Smoothness1 , _Smoothness2 , _Smoothness3));
             output.metallic = dot(blend, half4(_Metallic0 , _Metallic1 , _Metallic2 , _Metallic3));

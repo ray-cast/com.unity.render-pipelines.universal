@@ -6,6 +6,7 @@
 float4 _WindParams1;
 float4 _WindParams2;
 float4 _WindParams3;
+float4 _WindParams4;
 
 TEXTURE2D(_WindNoiseMap);  SAMPLER(sampler_WindNoiseMap);
 
@@ -106,18 +107,18 @@ Wind GetMainWind(float3 position, half weight)
     return wind;
 }
 
-float3 ApplyWind(Wind wind, float3 position)
+float3 ApplyWind(Wind wind, float3 position, float weight)
 {
-	float small = sin(_Time.y * wind.frequency + dot(1, position.xz * wind.random)) * wind.bending;
+	float small = sin(_Time.y * wind.frequency + dot(1, position.xz * wind.random));
 
     float windStrength = 0;
-    windStrength += small;
+    windStrength += lerp(small, small * 0.5 + 0.5, _WindParams4.x) * wind.bending;
     windStrength += wind.storm;
     windStrength *= wind.distanceAttenuation;
     windStrength *= wind.intensity;
     windStrength = clamp(windStrength, -1, 1);
 
-    float rad = windStrength * PI / 2;
+    float rad = saturate(_WindParams4.y + windStrength) * PI / 2 * weight;
     float3 grassUpWS = float3(0, 1, 0);
     float3 windDir = wind.direction;
     windDir = windDir - dot(windDir, grassUpWS);
@@ -133,7 +134,7 @@ float3 ApplyWind(Wind wind, float3 position)
 float3 TransformObjectToWindWorld(Wind wind, float3 positionOS)
 {
     float3 positionWS = TransformObjectToWorld(positionOS);
-    return positionWS + ApplyWind(wind, positionWS);
+    return positionWS + ApplyWind(wind, positionWS, positionOS.y);
 }
 
 VertexPositionInputs GetWindVertexPositionInputs(Wind wind, float3 positionOS)

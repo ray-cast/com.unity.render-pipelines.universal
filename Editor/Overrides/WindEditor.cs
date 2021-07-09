@@ -16,10 +16,12 @@ namespace UnityEngine.Rendering.Universal
         SerializedDataParameter _loads;
 
         SerializedDataParameter _frequency;
-        SerializedDataParameter _random;
         SerializedDataParameter _bending;
+        SerializedDataParameter _lean;
+        SerializedDataParameter _random;
 
         SerializedDataParameter _tiling;
+        SerializedDataParameter _angle;
         SerializedDataParameter _noise;
 
         public override void OnEnable()
@@ -37,9 +39,11 @@ namespace UnityEngine.Rendering.Universal
 
             _frequency = Unpack(o.Find(x => x.frequency));
             _bending = Unpack(o.Find(x => x.bending));
+            _lean = Unpack(o.Find(x => x.lean));
             _random = Unpack(o.Find(x => x.random));
 
             _tiling = Unpack(o.Find(x => x.tiling));
+            _angle = Unpack(o.Find(x => x.angle));
             _noise = Unpack(o.Find(x => x.noise));
         }
 
@@ -99,6 +103,8 @@ namespace UnityEngine.Rendering.Universal
 
             PropertyField(_frequency);
             PropertyField(_bending);
+            PropertyField(_lean);
+            PropertyField(_angle);
             PropertyField(_random);
 
             EditorGUILayout.LabelField("Storm", EditorStyles.miniLabel);

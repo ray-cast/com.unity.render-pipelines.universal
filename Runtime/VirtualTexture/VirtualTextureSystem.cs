@@ -16,7 +16,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// 当前活跃的页表
         /// </summary>
-        private Dictionary<Vector2Int, TableNodeCell> _activePages = new Dictionary<Vector2Int, TableNodeCell>();
+        private Dictionary<int, TableNodeCell> _activePages = new Dictionary<int, TableNodeCell>();
 
         /// <summary>
         /// RT Job对象
@@ -133,7 +133,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// 画Tile的事件.
         /// </summary>
-        public static event Action<RequestPageData, TiledTexture, Vector2Int> beginTileRendering;
+        public static event Action<CommandBuffer, RequestPageData, TiledTexture, int> beginTileRendering;
 
         /// <summary>
         /// 重置Page事件.
@@ -170,11 +170,10 @@ namespace UnityEngine.Rendering.Universal
             tileTexture?.Dispose();
             tileTexture = new TiledTexture();
 
+            for (int i = 0; i < tileTexture.tileTextures.Length; i++)
+                Shader.SetGlobalTexture("_VirtualBufferTexture" + i, tileTexture.tileTextures[i]);
+
             Shader.SetGlobalTexture("_VirtualLookupTexture", lookupTexture);
-            Shader.SetGlobalTexture("_VirtualBufferTexture0", tileTexture.tileTextures[0]);
-            Shader.SetGlobalTexture("_VirtualBufferTexture1", tileTexture.tileTextures[1]);
-            Shader.SetGlobalTexture("_VirtualBufferTexture2", tileTexture.tileTextures[2]);
-            Shader.SetGlobalTexture("_VirtualBufferTexture3", tileTexture.tileTextures[3]);
 
             Shader.SetGlobalVector("_VirtualPage_Params", new Vector4(pageSize, 1.0f / pageSize, _pageTable.maxMipLevel, 0));
             Shader.SetGlobalVector("_VirtualRegion_Params", new Vector4(_regionRange.x, _regionRange.y, 1.0f / _regionRange.width, 1.0f / _regionRange.height));
@@ -326,6 +325,9 @@ namespace UnityEngine.Rendering.Universal
                     for (int i = 0; i <= _pageTable.maxMipLevel; i++)
                         _pageTable.pageLevelTable[i].ChangeViewRect(offset, this.InvalidatePage);
 
+                    foreach (var kv in _activePages)
+                        _activePages[kv.Key].payload.activeFrame = Time.frameCount;
+
                     return true;
                 }
             }
@@ -341,11 +343,10 @@ namespace UnityEngine.Rendering.Universal
 
             tileTexture?.Clear();
 
+            for (int i = 0; i < tileTexture.tileTextures.Length; i++)
+                Shader.SetGlobalTexture("_VirtualBufferTexture" + i, tileTexture.tileTextures[i]);
+
             Shader.SetGlobalTexture("_VirtualLookupTexture", lookupTexture);
-            Shader.SetGlobalTexture("_VirtualBufferTexture0", tileTexture.tileTextures[0]);
-            Shader.SetGlobalTexture("_VirtualBufferTexture1", tileTexture.tileTextures[1]);
-            Shader.SetGlobalTexture("_VirtualBufferTexture2", tileTexture.tileTextures[2]);
-            Shader.SetGlobalTexture("_VirtualBufferTexture3", tileTexture.tileTextures[3]);
 
             Shader.SetGlobalVector("_VirtualPage_Params", new Vector4(pageSize, 1.0f / pageSize, _pageTable.maxMipLevel, 0));
             Shader.SetGlobalVector("_VirtualRegion_Params", new Vector4(_regionRange.x, _regionRange.y, 1.0f / _regionRange.width, 1.0f / _regionRange.height));
@@ -366,7 +367,6 @@ namespace UnityEngine.Rendering.Universal
         public void UpdateJob(CommandBuffer cmd)
         {
             Debug.Assert(_requestPageJob != null);
-
             _requestPageJob.Update(cmd);
         }
 
@@ -374,38 +374,36 @@ namespace UnityEngine.Rendering.Universal
         {
             Debug.Assert(drawLookupMat != null);
 
-            // 将页表数据写入页表贴图
             var currentFrame = (byte)Time.frameCount;
             var drawList = new List<DrawPageInfo>();
 
             foreach (var kv in _activePages)
             {
                 var page = kv.Value;
-
-                // 只写入当前帧活跃的页表
                 if (page.payload.activeFrame != Time.frameCount)
                     continue;
 
                 var table = _pageTable.pageLevelTable[page.mipLevel];
                 var offset = table.pageOffset;
                 var perSize = table.perCellSize;
-                var lb = new Vector2Int((page.rect.xMin - offset.x * perSize), (page.rect.yMin - offset.y * perSize));
+                var lb = new Vector2Int(page.rect.xMin - offset.x * perSize, page.rect.yMin - offset.y * perSize);
 
                 while (lb.x < 0) lb.x += pageSize;
                 while (lb.y < 0) lb.y += pageSize;
+
+                var tileIndex = tileTexture.IdToPos(page.payload.tileIndex);
 
                 drawList.Add(new DrawPageInfo()
                 {
                     rect = new Rect(lb.x, lb.y, page.rect.width, page.rect.height),
                     mip = page.mipLevel,
-                    drawPos = new Vector2((float)page.payload.tileIndex.x / 255,
-                    (float)page.payload.tileIndex.y / 255),
+                    drawPos = new Vector2((float)tileIndex.x / 255.0f, (float)tileIndex.y / 255.0f),
                 });
             }
 
             if (drawList.Count > 0)
             {
-                drawList.Sort((a, b) => { return -(a.mip.CompareTo(b.mip)); });
+                drawList.Sort((a, b) => { return -a.mip.CompareTo(b.mip); });
 
                 var mats = new Matrix4x4[drawList.Count];
                 var pageInfos = new Vector4[drawList.Count];
@@ -443,7 +441,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// 将页表置为活跃状态
         /// </summary>
-        private void ActivatePage(Vector2Int tile, TableNodeCell page)
+        private void ActivatePage(int tile, TableNodeCell page)
         {
             if (_activePages.TryGetValue(tile, out var node))
             {
@@ -459,7 +457,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// 将页表置为非活跃状态
         /// </summary>
-        private void InvalidatePage(Vector2Int tile)
+        private void InvalidatePage(int tile)
         {
             if (_activePages.TryGetValue(tile, out var node))
             {
@@ -471,7 +469,7 @@ namespace UnityEngine.Rendering.Universal
         /// <summary>
         /// 请求页面加载
         /// </summary>
-        private bool OnStartRequestPageJob(RequestPageData request)
+        private bool OnStartRequestPageJob(CommandBuffer cmd, RequestPageData request)
         {
             if (beginTileRendering == null || beginTileRendering.GetInvocationList().Length == 0)
                 return false;
@@ -487,7 +485,7 @@ namespace UnityEngine.Rendering.Universal
                     page.payload.loadRequest = null;
                     page.payload.activeFrame = Time.frameCount;
 
-                    beginTileRendering.Invoke(request, tileTexture, tile);
+                    beginTileRendering.Invoke(cmd, request, tileTexture, tile);
 
                     return true;
                 }

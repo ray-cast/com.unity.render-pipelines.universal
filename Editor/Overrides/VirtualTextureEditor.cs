@@ -9,6 +9,7 @@ namespace UnityEngine.Rendering.Universal
         SerializedDataParameter _enable;
         SerializedDataParameter _center;
         SerializedDataParameter _size;
+        SerializedDataParameter _limit;
         SerializedDataParameter _regionAdaptation;
 
         public override void OnEnable()
@@ -18,6 +19,7 @@ namespace UnityEngine.Rendering.Universal
             _enable = Unpack(o.Find(x => x.enable));
             _center = Unpack(o.Find(x => x.center));
             _size = Unpack(o.Find(x => x.size));
+            _limit = Unpack(o.Find(x => x.requestLimit));
             _regionAdaptation = Unpack(o.Find(x => x.regionAdaptation));
 
             VirtualTextureSystem.beginTileRendering += beginTileRendering;
@@ -28,7 +30,7 @@ namespace UnityEngine.Rendering.Universal
             VirtualTextureSystem.beginTileRendering -= beginTileRendering;
         }
 
-        public void beginTileRendering(RequestPageData request, TiledTexture tileTexture, Vector2Int tile)
+        public void beginTileRendering(CommandBuffer cmd, RequestPageData request, TiledTexture tileTexture, int tile)
         {
             Repaint();
         }
@@ -37,15 +39,17 @@ namespace UnityEngine.Rendering.Universal
         {
             PropertyField(_enable);
 
-            EditorGUI.BeginChangeCheck();            
+            EditorGUI.BeginChangeCheck();
             PropertyField(_regionAdaptation);
             if (EditorGUI.EndChangeCheck())
                 VirtualTextureSystem.instance.Reset();
 
             EditorGUI.BeginDisabledGroup((target as VirtualTexture).regionAdaptation.value);
-            PropertyField(_center);
-            PropertyField(_size);
+            PropertyField(_center, EditorGUIUtility.TrTextContent("Center (m)"));
+            PropertyField(_size, EditorGUIUtility.TrTextContent("Size (m)"));
             EditorGUI.EndDisabledGroup();
+
+            PropertyField(_limit);
 
             GUILayout.Space(10);
 
