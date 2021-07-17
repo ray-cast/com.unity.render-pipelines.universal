@@ -53,16 +53,12 @@
 			mainLight.shadowAttenuation = SampleScreenSpaceShadowMap(input.uv.xy);
 
 			float3 lighting = surface.emission;
-#ifdef _CAPSULE_SHADOWS
-			lighting *= SampleCapsuleShadowMap(input.uv.xy);
-#endif
 #ifdef _ENVIRONMENT_OCCLUSION
 			float occlusion = SampleScreenSpaceOcclusionMap(input.uv.xy);
 			lighting *= GTAOMultiBounce(occlusion, surface.albedo);
 			mainLight.shadowAttenuation *= ComputeMicroShadowing(occlusion, abs(dot(mainLight.direction, n)), 0.5);
 #endif
-			lighting += LightingWrappedPhysicallyBased(brdfData, mainLight, n, v, surface.translucency);
-
+			
 			uint2 cullingLightIndex = GetCullingLightIndex(ComputeClusterClipSpacePosition(input.uv.xy), linearDepth);
 
 			UNITY_LOOP
@@ -71,6 +67,12 @@
 				Light light = GetClusterAdditionalLight(cullingLightIndex.x + i, worldPosition);
 				lighting += LightingWrappedPhysicallyBased(brdfData, light, n, v, surface.translucency);
 			}
+
+#ifdef _CAPSULE_SHADOWS
+			lighting *= SampleCapsuleShadowMap(input.uv.xy);
+#endif
+
+			lighting += LightingWrappedPhysicallyBased(brdfData, mainLight, n, v, surface.translucency);
 
 			return float4(lighting, 1);
 		}
@@ -94,9 +96,7 @@
 			float3 worldPosition = ComputeWorldSpacePosition(input.uv.zw, deviceDepth, unity_MatrixInvVP);
 
 			float3 lighting = surface.emission;
-#ifdef _CAPSULE_SHADOWS
-			lighting *= SampleCapsuleShadowMap(input.uv.xy);
-#endif
+
 #ifdef _ENVIRONMENT_OCCLUSION
 			lighting *= GTAOMultiBounce(SampleScreenSpaceOcclusionMap(input.uv.xy), surface.albedo);
 #endif
@@ -108,6 +108,10 @@
 				Light light = GetClusterAdditionalLight(cullingLightIndex.x + i, worldPosition);
 				lighting += LightingWrappedPhysicallyBased(brdfData, light, n, v, surface.translucency);
 			}
+
+#ifdef _CAPSULE_SHADOWS
+			lighting *= SampleCapsuleShadowMap(input.uv.xy);
+#endif
 
 			return float4(lighting, 1);
 		}

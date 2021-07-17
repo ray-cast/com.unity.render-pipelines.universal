@@ -18,6 +18,10 @@
         _Smoothness("光滑度", Range(0.0, 1.0)) = 0.0
         _Specular("镜面反射系数", Range(0.0, 1.0)) = 0.5
 
+        [Space(10)]
+        _minScale("最小缩放", Range(0.0, 1.0)) = 0.5
+        _maxScale("最大缩放", Range(0.0, 1.0)) = 1
+
         [Space(20)]
         [Toggle(_VIRTUAL_BLEND_ON)]_UseVirtualBlend("启用环境混合", int) = 0
         _VirtualBlendMaterial("环境纹理混合高度(米)", Range(0, 10)) = 0.1
@@ -95,6 +99,9 @@
             float _Width;
             float _Height;
 
+            float _minScale;
+            float _maxScale;
+
             half _VirtualBlendNormal;
             half _VirtualBlendMaterial;
 
@@ -123,7 +130,7 @@
             half3 pivotPositionWS = half3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
 
             float3 positionOS = input.positionOS.xyz;
-            positionOS = ApplyRotationAndScale(positionOS, pivotPositionWS, _Width, _Height, _Width);
+            positionOS = ApplyRotationAndScale(positionOS, pivotPositionWS, _Width, _Height, _Width, _minScale, _maxScale);
             positionOS = ApplyBending(positionOS.xyz, pivotPositionWS, _BendStrength);
 
             Wind wind = GetMainWind(pivotPositionWS, _WindStormWeight);
@@ -210,7 +217,7 @@
             half3 pivotPositionWS = half3(UNITY_MATRIX_M[0][3], UNITY_MATRIX_M[1][3], UNITY_MATRIX_M[2][3]);
 
             float3 positionOS = input.positionOS.xyz;
-            positionOS = ApplyRotationAndScale(positionOS, pivotPositionWS, 1, 1, 1);
+            positionOS = ApplyRotationAndScale(positionOS, pivotPositionWS, 1, 1, 1, _minScale, _maxScale);
             positionOS = ApplyBending(positionOS, pivotPositionWS, _BendStrength);
 
             Wind wind = GetMainWind(pivotPositionWS, _WindStormWeight);

@@ -185,15 +185,18 @@ namespace UnityEngine.Rendering.Universal
         private void OnAsyncFeedbackRequest(AsyncGPUReadbackRequest req)
         {
             var data = req.GetData<Color32>();
-            data.CopyTo(_feedbackData);
+            if (_feedbackData.Length == data.Length)
+			{
+                data.CopyTo(_feedbackData);
+
+                if (_shouldAsyncFeedback)
+                {
+                    _virtualTextureSystem.LoadPages(_feedbackData);
+                    _shouldAsyncFeedback = false;
+                }
+            }
 
             _isAsyncRequestComplete = true;
-
-            if (_shouldAsyncFeedback)
-            {
-                _virtualTextureSystem.LoadPages(_feedbackData);
-                _shouldAsyncFeedback = false;
-            }
         }
 
         static class ShaderConstants

@@ -19,7 +19,7 @@ namespace UnityEngine.Rendering.Universal
         public ClampedFloatParameter sharpness = new ClampedFloatParameter(5f, 0f, 10f);
 
         [Tooltip("偏离率")]
-        public ClampedFloatParameter bias = new ClampedFloatParameter(0.01f, 1e-3f, 1.0f);
+        public ClampedFloatParameter bias = new ClampedFloatParameter(0.01f, 0.1f, 1.0f);
 
         [Tooltip("全分辨率渲染")]
         public BoolParameter _fullRes = new BoolParameter(false);

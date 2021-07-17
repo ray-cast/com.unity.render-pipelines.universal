@@ -2,7 +2,6 @@
 
 namespace UnityEngine.Rendering.Universal
 {
-    [Serializable]
     public sealed class GlobalLightingQualitySettings
     {
         static int s_QualitySettingCount = Enum.GetNames(typeof(ScalableSettingLevelParameter.Level)).Length;
@@ -14,10 +13,12 @@ namespace UnityEngine.Rendering.Universal
 
         internal GlobalLightingQualitySettings()
         {
+            CapsuleShadowFullRes[(int)ScalableSettingLevelParameter.Level.Custom] = false;
             CapsuleShadowFullRes[(int)ScalableSettingLevelParameter.Level.Low] = false;
             CapsuleShadowFullRes[(int)ScalableSettingLevelParameter.Level.Medium] = false;
             CapsuleShadowFullRes[(int)ScalableSettingLevelParameter.Level.High] = true;
 
+            AmbientOcclusionFullRes[(int)ScalableSettingLevelParameter.Level.Custom] = false;
             AmbientOcclusionFullRes[(int)ScalableSettingLevelParameter.Level.Low] = false;
             AmbientOcclusionFullRes[(int)ScalableSettingLevelParameter.Level.Medium] = false;
             AmbientOcclusionFullRes[(int)ScalableSettingLevelParameter.Level.High] = true;

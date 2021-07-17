@@ -225,20 +225,20 @@
             GbufferData data = (GbufferData)0;
             data.albedo = lerp(rootColor, headColor.rgb, input.positionWS.a);
             data.albedo = lerp(data.albedo, data.albedo * _WindHightlightColor, input.color.a);
-        #if defined(_ROOTMODE_VIRTUALTEXTURE) && defined(_VIRTUAL_TEXTURE_HQ)
-            data.normalWS = lerp(input.normalWS.xyz, virtualData.normal, _RootBlendNormal);
-        #else
-            data.normalWS = input.normalWS.xyz;
-        #endif
-
-            data.specular = _Specular;
-            data.metallic = 0;
-            data.smoothness = _Smoothness;
             data.occlusion = 1;
             data.translucency = 0;
+
         #if defined(_ROOTMODE_VIRTUALTEXTURE) && defined(_VIRTUAL_TEXTURE_HQ)
+            data.metallic = virtualData.metallic;
+            data.specular = lerp(0.5, _Specular, input.positionWS.a);
+            data.smoothness = lerp(virtualData.smoothness, _Smoothness, input.positionWS.a);
             data.emission = virtualData.bakedGI * data.albedo;
+            data.normalWS = lerp(input.normalWS.xyz, virtualData.normal, _RootBlendNormal);
         #else
+            data.metallic = 0;
+            data.specular = _Specular;
+            data.smoothness = _Smoothness;
+            data.normalWS = input.normalWS.xyz;
             data.emission = input.bakeGI * data.albedo;
         #endif
 

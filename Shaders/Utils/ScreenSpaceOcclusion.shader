@@ -6,8 +6,8 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
-		#define SSDO_SAMPLER_COUNT 8
-		#define SSDO_SAMPLE_BLUR_COUNT 4
+		#define SSDO_SAMPLER_COUNT 16
+		#define SSDO_SAMPLE_BLUR_COUNT 3
 
 		TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
 
@@ -40,14 +40,14 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			float2(-0.0000,  0.3750),
 			float2(-0.1768, -0.1768),
 			float2( 0.1250,  0.0000),
-			float2(-0.7167,  0.6973),
-			float2( 0.0119, -0.8749),
-			float2( 0.5229,  0.5375),
-			float2(-0.6249, -0.0085),
-			float2( 0.3584, -0.3487),
-			float2(-0.0051,  0.3749),
-			float2(-0.1743, -0.1792),
-			float2( 0.1249,  0.0017),
+			float2(-0.7070, -0.7071),
+			float2( 0.8750, -0.0000),
+			float2(-0.5303,  0.5303),
+			float2(-0.0000, -0.6250),
+			float2(-0.3536,  0.3536),
+			float2( 0.3750, -0.0000),
+			float2(-0.1768, -0.1768),
+			float2( 0.0000,  0.1250),
 		};
 
 		float GetJitterOffset(float2 uv)
@@ -87,17 +87,16 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			if (dot(worldNormal, 1) < 0.001f)
 				worldNormal = normalize(cross(ddy(worldPos),ddx(worldPos)));
 
-			real2 screenPos = input.uv * _SSDO_SampleParams.xy;
-			real2 maxRadius = clamp(_SSDO_SampleParams.z / linearDepth, 1 / _SSDO_SampleParams.xy, 100 / _SSDO_SampleParams.xy);
-			if (floor(fmod(screenPos.x, 2)) > 0) maxRadius *= 0.5;
-			if (floor(fmod(screenPos.y, 2)) > 0) maxRadius *= 0.5;
+			real2 maxRadius = clamp(_SSDO_SampleParams.z / linearDepth, _SSDO_SampleParams.xy, _SSDO_SampleParams.xy * 100);
+			if (floor(fmod(input.positionCS.x, 2)) > 0) maxRadius *= 0.5;
+			if (floor(fmod(input.positionCS.y, 2)) > 0) maxRadius *= 0.5;
 
 			real2 sampleRotate[SSDO_SAMPLER_COUNT];
 			real2 sampleRadius = maxRadius;
 			real4 sampleOcclustion = 0.0f;
 
 			real2 sampleSinCos = 0;
-			sincos(GetJitterOffset(screenPos) * PI * 2, sampleSinCos.y, sampleSinCos.x);
+			sincos(GetJitterOffset(input.positionCS) * PI * 2, sampleSinCos.y, sampleSinCos.x);
 
 			real2x2 sampleRotMat = { sampleSinCos.y, sampleSinCos.x, -sampleSinCos.x, sampleSinCos.y };
 

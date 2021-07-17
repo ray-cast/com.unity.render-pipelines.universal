@@ -80,7 +80,7 @@ namespace UnityEngine.Rendering.Universal
             var radius = _ambientOcclusion.shouledFullRes ? _ambientOcclusion.radius.value : _ambientOcclusion.radius.value * 0.5f;
 
             cmd.EnableShaderKeyword(ShaderConstants._EnvironmentOcclusion);
-            cmd.SetGlobalVector(ShaderConstants._SSDO_SampleParams, new Vector4(_renderTextureDescriptor.width, _renderTextureDescriptor.height, radius, _ambientOcclusion.strength.value));
+            cmd.SetGlobalVector(ShaderConstants._SSDO_SampleParams, new Vector4(1.0f / _renderTextureDescriptor.width, 1.0f / _renderTextureDescriptor.height, radius, _ambientOcclusion.strength.value));
             cmd.SetGlobalVector(ShaderConstants._SSDO_SampleParams2, new Vector4(_ambientOcclusion.bias.value, 0, 0, 0));
             cmd.DrawProcedural(Matrix4x4.identity, _screenSpaceOcclusionMaterial, 0, MeshTopology.Triangles, 3);
 

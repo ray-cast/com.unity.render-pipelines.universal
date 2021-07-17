@@ -129,6 +129,9 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 
 			Light light = GetAdditionalPerObjectLight(uint(_LightParams.x), worldPosition);
 			float3 lighting = LightingWrappedPhysicallyBased(brdfData, light, n, v, surface.translucency);
+#ifdef _CAPSULE_SHADOWS
+			lighting *= SampleCapsuleShadowMap(input.uv.xy);
+#endif
 
 			return float4(lighting, 0);
 		}
@@ -197,6 +200,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
+				#pragma multi_compile _ _CAPSULE_SHADOWS
 			ENDHLSL
 		}
 		Pass
@@ -219,6 +223,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
+				#pragma multi_compile _ _CAPSULE_SHADOWS
 			ENDHLSL
 		}
 		Pass
@@ -241,6 +246,7 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 				#pragma multi_compile _ _ADDITIONAL_LIGHTS
 				#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
 				#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
+				#pragma multi_compile _ _CAPSULE_SHADOWS
 			ENDHLSL
 		}
 	}

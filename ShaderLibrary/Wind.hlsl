@@ -112,13 +112,13 @@ float3 ApplyWind(Wind wind, float3 position, float weight)
 	float small = sin(_Time.y * wind.frequency + dot(1, position.xz * wind.random));
 
     float windStrength = 0;
-    windStrength += lerp(small, small * 0.5 + 0.5, _WindParams4.x) * wind.bending;
+    windStrength += lerp(small, small * 0.5 + 0.5, _WindParams4.x) * wind.bending * weight;
     windStrength += wind.storm;
     windStrength *= wind.distanceAttenuation;
     windStrength *= wind.intensity;
     windStrength = clamp(windStrength, -1, 1);
 
-    float rad = saturate(_WindParams4.y + windStrength) * PI / 2 * weight;
+    float rad = saturate(_WindParams4.y * weight + windStrength) * PI / 2;
     float3 grassUpWS = float3(0, 1, 0);
     float3 windDir = wind.direction;
     windDir = windDir - dot(windDir, grassUpWS);

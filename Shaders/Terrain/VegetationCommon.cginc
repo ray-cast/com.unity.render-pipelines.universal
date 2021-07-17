@@ -132,7 +132,7 @@ inline float3 ApplyBending(float3 positionOS, float3 perGrassPivotPosWS, float b
 	}
 	return positionOS;
 }
-inline float3 ApplyRotationAndScale(float3 positionOS, float3 perGrassPivotPosWS, float xScale, float yScale, float zScale)
+inline float3 ApplyRotationAndScale(float3 positionOS, float3 perGrassPivotPosWS, float xScale, float yScale, float zScale, float minScale = 0.5, float maxScale = 1.0f)
 {
 	//float3 cameraTransformRightWS = UNITY_MATRIX_V[0].xyz;//UNITY_MATRIX_V[0].xyz == world space camera Right unit vector
 	//float3 cameraTransformUpWS = UNITY_MATRIX_V[1].xyz;//UNITY_MATRIX_V[1].xyz == world space camera Up unit vector
@@ -141,7 +141,7 @@ inline float3 ApplyRotationAndScale(float3 positionOS, float3 perGrassPivotPosWS
 	float radian = (sin(perGrassPivotPosWS.x*95.4643 + perGrassPivotPosWS.z) + 1) * PI;
 	positionOS = mul(RotationY(radian), positionOS);
 	//草缩放，Y根据位置随机缩放，xz直接缩放指定值
-	float perGrassHeight = lerp(0.5, 1, (sin(perGrassPivotPosWS.x*23.4643 + perGrassPivotPosWS.z) * 0.45 + 0.55)) * yScale;
+	float perGrassHeight = lerp(minScale, maxScale, (sin(perGrassPivotPosWS.x*23.4643 + perGrassPivotPosWS.z) * 0.45 + 0.55)) * yScale;
 	positionOS *= float3(xScale, perGrassHeight, zScale);
 	//move grass posOS -> posWS
 	return positionOS;
