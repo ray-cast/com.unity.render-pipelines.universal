@@ -2,74 +2,30 @@
 {
     Properties
     {
+        [Foldout(1, 2, 0, 0)]_AlbedoFoldout ("反照率贴图_Foldout", float) = 1
+        [Tex(_BaseColor)]_BaseMap ("基本贴图", 2D) = "white" { }
+        [HideInInspector]_BaseColor ("基本颜色", Color) = (1, 1, 1, 1)
+
+        [Foldout(1, 2, 0, 0)]_AlphaFoldout ("透明度_Foldout", float) = 1
         [Queue] _Surface("渲染队列", Float) = 0
-
-        [Space(20)]
-        [MainColor] _BaseColor("基本颜色", Color) = (1,1,1,1)
-        [MainTexture] _BaseMap("颜色贴图", 2D) = "white" {}
-
-        [Space(20)]
         [BlendSwitcher(_Surface)]_Blend("透明混合模式", Float) = 0
         [ShowIf(_Surface)] _AlphaScale("透明程度", Range(0.0, 1.0)) = 1
         [HideInInspector][TogglePass(TransparentDepthPrepass)]_TransparentPreDepth("启用提前透明深度写入", Float) = 0
-
-        [Space(20)]
         [Toggle(_ALPHATEST_ON)] _AlphaClip ("启用透明度剔除", Float) = 4
         [ShowIf(_AlphaClip)] _Cutoff("透明度剔除阈值", Range(0.0, 1.0)) = 0.5
 
-        [Space(20)]
+        [Foldout(1, 2, 0, 0)]_NormalFoldout ("法线贴图_Foldout", float) = 1
         [KeywordEnum(Tangent, World)]
         _NormalModel("法线贴图模式（切线空间，世界空间）", Float) = 0
         [TexToggle(_NORMALMAP)][NoScaleOffset]_NormalMap("法线贴图", 2D) = "grey" {}
         [EqualIf(_NormalModel, 0)]_NormalScale("法线强度", Range(-10, 10)) = 1.0
         [Toggle(_USE_COLOR_NORMAL_ON)] _UseColorNormal("启用顶点颜色法线", Float) = 0
 
-        [Space(20)]
-        [ToggleOff(_SPECULARHIGHLIGHTS_OFF)] _SpecularHighlights("启用高光反射", Float) = 1.0
-        [KeywordEnum(Standard, Cloth, Anisotropy, Subsurface, Skin)]
-        _LightModel("光照模型（标准，布料，各向异性（头发，金属)，次表面散射）", Float) = 0
-        _Smoothness("光滑度", Range(0.0, 1.0)) = 0.5
-        _Metallic("金属程度", Range(0.0, 1.0)) = 0.0
-        _SpecularColor("反射颜色", Color) = (1,1,1,1)
-        _Specular("反射程度", Range(0.0, 1.0)) = 0.5
-        [EqualIf(_LightModel, 1)]_Sheen("布料程度", Range(0.0, 1.0)) = 0.0
-        [EqualIf(_LightModel, 2)]_Anisotropy("各向异性程度", Range(0.0, 1.0)) = 0.0
-        [EqualIf(_LightModel, 2)]_AnisotropyOffset("各向异性偏移程度", Range(-2.0, 2.0)) = 0.0
-        [EqualIf(_LightModel, 2)]_AnisotropyShift("各向异性扰动程度", Range(0.0, 1.0)) = 1.0
-        [EqualIf(_LightModel, 3)]_Subsurface("次表面散射程度", Range(0, 1)) = 0.0
-        [EqualIf(_LightModel, 3)]_SubsurfaceStrength("次表面模糊程度", Range(0, 1)) = 0.0
-        [TexToggle(_METALLICSPECGLOSSMAP)]_MetallicGlossMap("R=金属 G=AO B=ALBEDO模式自发光的区域 A=光滑", 2D) = "white" {}
+        [Foldout(1, 2, 0, 0)]_MutilMaterials ("复合贴图_Foldout", float) = 1
+        [TexToggle(_METALLICSPECGLOSSMAP)]_MetallicGlossMap("R=金属 G=AO B=自发光区域 A=光滑", 2D) = "white" {}
         [TexToggle(_HAIRCLOTHMAP)]_Mask2("R=各向异性偏移贴图 G=曲率贴图, B=布料程度, A=厚度贴图", 2D) = "black" {}
 
-        [Space(20)]
-        [Toggle(_SPECULARHIGHLIGHTS2_ON)] _SpecularHighlights2("启用多层高光反射", Float) = 0.0
-        _Smoothness2("光滑度2", Range(0.0, 1.0)) = 0.5
-        _AnisotropyOffset2("各向异性偏移程度2", Range(-2.0, 2.0)) = 0.0
-        _AnisotropyShift2("各向异性扰动程度2", Range(0.0, 1.0)) = 1.0
-        _SpecularColor2("反射颜色2", Color) = (1,1,1,1)
-
-        [Space(20)]
-        _Translucency("次表面透射程度", Range(0, 1)) = 0.0
-        _TranslucencyColor("次表面透射颜色", Color) = (1,0,0,1)
-        _TranslucencyScale("次表面透射强度", Range(0.0, 10)) = 1.0
-        _TranslucencyAmbient("全局透射程度", Range(0.0, 1)) = 0.0
-        _TranslucencyDistortion("次表面投射密度", Range(0, 1)) = 0.1
-        _TranslucencyPower("次表面衰减速率", Range(0.01, 10)) = 4
-
-        [HideInInspector] [TexToggle(_FACIALSHADOWMAP)][NoScaleOffset]_FacialShadowMap("光照贴图", 2D) = "white" {}
-        [HideInInspector] _LightShadowStrength("光照贴图暗部程度", Range(0.0, 1.0)) = 0.5
-
-        [Space(20)]
-        [Toggle(_BACKLIGHT_ON)]_UseBackLight("启用背光", Float) = 0
-        [HDR]_RimColor("背光颜色", Color) = (1,1,1,1)
-        [NoScaleOffset]_RimLightLookup("背光查找表", 2D) = "black" {}
-        [NoScaleOffset]_RimLightMask("背光遮罩", 2D) = "black" {}
-
-        [Space(20)]
-        [Toggle(_FACTATTENUATION_ON)]_UseFaceAttenuation("启用面部衰减", Float) = 0
-        _FaceDirection("面部朝向", Vector) = (0, 0, 1, 1)
-
-        [Space(20)]
+        [Foldout(1, 2, 0, 0)]_BrushFoldout("漫反射_Foldout", float) = 1
         _BaseLayerColor("基础笔刷颜色", Color) = (1, 1, 1)
         _FirstLayerColor("亮调笔刷颜色", Color) = (0.8901, 0.4784, 0.3647, 0.25)
         _SecondLayerColor("中调笔刷颜色", Color) = (0.7725, 0.3843, 0.4078, 0.8)
@@ -85,20 +41,53 @@
         _LightOcclusionStrength("笔刷环境遮蔽程度", Range(0.0, 1.0)) = 1.0
         [Toggle(_VIEWBRUSH_ON)] _UseViewBrush ("启用视线方向照明", Float) = 0
 
-        [Space(20)]
+        [Foldout(1, 2, 1, 0)]_SpecularHighlights ("高光反射_Foldout", float) = 1
+        [KeywordEnum(Standard, Cloth, Anisotropy, Subsurface, Skin)]
+        _LightModel("反射模型（标准，布料，各向异性（头发，金属)，次表面散射）", Float) = 0
+        _SpecularColor("反射颜色", Color) = (1,1,1,1)
+        _Specular("反射程度", Range(0.0, 1.0)) = 0.5
+        _Smoothness("光滑度", Range(0.0, 1.0)) = 0.5
+        _Metallic("金属程度", Range(0.0, 1.0)) = 0.0
+        [EqualIf(_LightModel, 1)]_Sheen("布料程度", Range(0.0, 1.0)) = 0.0
+        [EqualIf(_LightModel, 2)]_Anisotropy("各向异性程度", Range(0.0, 1.0)) = 0.0
+        [EqualIf(_LightModel, 2)]_AnisotropyOffset("各向异性偏移程度", Range(-2.0, 2.0)) = 0.0
+        [EqualIf(_LightModel, 2)]_AnisotropyShift("各向异性扰动程度", Range(0.0, 1.0)) = 1.0
+        [EqualIf(_LightModel, 3)]_Subsurface("次表面散射程度", Range(0, 1)) = 0.0
+        [EqualIf(_LightModel, 3)]_SubsurfaceStrength("次表面模糊程度", Range(0, 1)) = 0.0
+
+        [Foldout(1, 2, 1, 0)]_SpecularHighlights2 ("附加高光反射_Foldout", float) = 0
+        _SpecularColor2("反射颜色", Color) = (1,1,1,1)
+        _Smoothness2("光滑度", Range(0.0, 1.0)) = 0.5
+        _AnisotropyOffset2("各向异性偏移程度", Range(-2.0, 2.0)) = 0.0
+        _AnisotropyShift2("各向异性扰动程度", Range(0.0, 1.0)) = 1.0
+
+        [Foldout(1, 2, 1, 0)]_Translucency("次表面透射_Foldout", float) = 1
+        _TranslucencyColor("次表面透射颜色", Color) = (1,0,0,1)
+        _TranslucencyStrength("次表面透射程度", Range(0, 1)) = 0.0
+        _TranslucencyScale("次表面透射强度", Range(0.0, 10)) = 1.0
+        _TranslucencyAmbient("全局透射程度", Range(0.0, 1)) = 0.0
+        _TranslucencyDistortion("次表面投射密度", Range(0, 1)) = 0.1
+        _TranslucencyPower("次表面衰减速率", Range(0.01, 10)) = 4
+
+        [Foldout(1, 2, 1, 0)]_BackLight("背光_Foldout", float) = 0
+        [HDR]_RimColor("背光颜色", Color) = (1,1,1,1)
+        [Tex][NoScaleOffset]_RimLightLookup("背光查找表", 2D) = "black" {}
+        [Tex][NoScaleOffset]_RimLightMask("背光遮罩", 2D) = "black" {}
+
+        [Foldout(1, 2, 1, 0)]_EnvironmentLight("环境光_Foldout", float) = 1
         [ToggleOff(_ENVIRONMENTREFLECTIONS_OFF)] _EnvironmentReflections("启用环境反射", Float) = 1.0
         _OcclusionLimit("环境光最低亮度", Range(0.0, 2.0)) = 0.5
         _OcclusionStrength("环境光遮蔽程度", Range(0.0, 1.0)) = 1.0
         _AmbientDecoloration("环境光去色程度", Range(0.0, 1.0)) = 1
 
-        [Space(20)]
+        [Foldout(1, 2, 0, 0)]_EmissiveFoldout("自发光_Foldout", float) = 1
         [KeywordEnum(None, Color, Albedo, Texture)]
         _EmissionMode("自发光模式（无，颜色，主纹理，自定义纹理）", Float) = 0
         _EmissionColor("自发光颜色", Color) = (1,1,1)
         _EmissionIntensity("自发光强度", Float) = 100.0
         [EqualIf(_EmissionMode, 3)][NoScaleOffset]_EmissionMap("自定义发光贴图", 2D) = "white" {}
 
-        [Space(20)]
+        [Foldout(1, 2, 0, 0)]_OutGlowFoldout("外发光_Foldout", float) = 1
         [TogglePass(OutGlow)]_OutGlowEnable("启用外发光", Float) = 0
         [KeywordEnum(Color, Albedo, Texture)]
         _OutGlowMode("外发光模式（无，颜色，自定义纹理）", Float) = 0
@@ -106,7 +95,7 @@
         _OutGlowIntensity("外发光强度", Float) = 100.0
         [EqualIf(_OutGlowMode, 2)][NoScaleOffset]_OutGlowMap("自定义外发光贴图", 2D) = "white" {}
 
-        [Space(20)]//边缘光
+        [Foldout(1, 2, 0, 0)]_RimFoldout("边缘光_Foldout", float) = 1
         [KeywordEnum(None, View, LightDir, Custom)]_RimMode("边缘光模式（无，视线方向，主光源方向，自定义方向）", Float) = 0
         [HDR]_RimLightColor ("边缘颜色，程序会动态控制", Color) = (0,0,0.7,1)
         [HDR]_RimLightColor2("附加外发光颜色", Color) = (0,0,0,0)
@@ -116,23 +105,22 @@
         [Toggle(_RIM_BUMPMAP_ON)] _Caustics("使用贴图法线（不勾选使用顶点法线）", Float) = 0
         [EqualIf(_RimMode, 3)]_Rim_Dir ("自定义遮蔽方向", Vector) = (-1.25,1.25,0,0)
 
-        [Space(20)]
+        [Foldout(1, 2, 0, 0)]_ShadowFoldout("阴影_Foldout", float) = 1
         [ToggleOff(_RECEIVE_SHADOWS_OFF)] _ReceiveShadows("接收阴影", Float) = 1.0
         [Toggle(_MAIN_LIGHT_EXPONENTIAL_SHADOWS)] _EnableExponentialShadows("使用指数阴影", Float) = 0.0
-        [ShowIf(_ReceiveShadows)]_ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
+        _ShadowDepthBias("阴影深度偏移", Range(0.0, 10.0)) = 1.0
       
-        [Space(20)]
-        [Toggle(_SPECULAR_ANTIALIASING)] _UseSpecularHighlights("启用镜面抗锯齿", Float) = 1
-        [ShowIf(_UseSpecularHighlights)]_SpecularAntiAliasingThreshold("镜面抗锯齿阈值", Range(0.0, 10.0)) = 0.2
-        [ShowIf(_UseSpecularHighlights)]_SpecularAntiAliasingVariance("镜面抗锯齿方差", Range(0.0, 10.0)) = 0.15
+        [Foldout(1, 2, 1, 0)]_SpecularAntiAliasing("镜面抗锯齿_Foldout", float) = 1
+        _SpecularAntiAliasingThreshold("镜面抗锯齿阈值", Range(0.0, 10.0)) = 0.2
+        _SpecularAntiAliasingVariance("镜面抗锯齿方差", Range(0.0, 10.0)) = 0.15
 
-        [Space(20)]
+        [Foldout(1, 2, 0, 0)]_ViewAlphaFoldout("视线透明衰减_Foldout", float) = 1
         [Toggle(_ALPHA_VIEWSCALE)] _UseViewAlpha("启用视线透明衰减", Float) = 0
         [Toggle(_ALPHA_ADDITIONAL_NORMAL_ON)]_UseAdditionalNormal("使用附加颜色法线", Float) = 1
         _AlphaViewBase("视线基本衰减", Range(0.0, 1.0)) = 0
         _AlphaViewPower("视线衰减速率", Range(0.0, 4.0)) = 1
 
-        [Space(20)]
+        [Foldout(1, 2, 0, 0)]_StippleCutoffFoldout("点阵像素剔除_Foldout", float) = 1
         [Toggle(_STIPPLETEST_ON)]_UseStippleCutoff("启用点阵像素剔除", int) = 0
         _StippleAlpha("点阵化透明程度", Range(0.0, 1.0)) = 1
         [ToggleOff(_STIPPLETEST_VIEW_OFF)] _ViewStippleCutoff("相机范围剔除", Float) = 0
@@ -142,7 +130,7 @@
         _TargetPosition("目标世界位置", Vector) = (0, 0, 0)
 
         // OVERLAY ,溶解
-        [Space(20)]
+        [Foldout(1, 2, 0, 0)]_DissolveFoldout("溶解_Foldout", float) = 1
         [Toggle(_OVERLAY_DISSOLVE)]_UseDissolve("启用溶解", Float) = 0
         _DissolveShowStep("溶解进度", Range(0,1)) = 1.0 //出生进度
         _OverlayExponential("特效进度指数衰减", Float) = 3
@@ -154,13 +142,18 @@
         _DissolveEdgeThreshold("溶解颜色和边界颜色阈值", Range(0.0, 1.0)) = 0.878
         [NoScaleOffset]_DissolveMap("溶解遮罩图（示例：NoiseTexture）", 2D) = "white" {}
 
-        [Space(20)]
-        [KeywordEnum(None, Albedo, Normal, NormalEx, Occlusion, Smoothness, Metallic, Sheen, Translucency)]
-        _DebugMode("调试输出", Float) = 0
-
+        [Foldout(1, 2, 0, 0)]_PipelineFoldout("管线设置_Foldout", float) = 1
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("剔除模式", Float) = 2.0
         [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("深度测试", Float) = 4
-        [Enum(Off, 0, On, 1)] _ZWrite ("深度写入", Float) = 0
+        [Enum(Off, 0, On, 1)] _ZWrite ("深度写入", Float) = 1
+
+        [Foldout(1, 2, 0, 0)]_DebugFoldout("调试_Foldout", float) = 1
+        [KeywordEnum(None, Albedo, Normal, NormalEx, Occlusion, Smoothness, Metallic, Sheen, Translucency)]
+        _DebugMode("调试输出", Float) = 0
+        [TexToggle(_FACIALSHADOWMAP)][NoScaleOffset]_FacialShadowMap("光照贴图", 2D) = "white" {}
+        _LightShadowStrength("光照贴图暗部程度", Range(0.0, 1.0)) = 0.5
+        [Toggle(_FACTATTENUATION_ON)]_UseFaceAttenuation("启用面部衰减", Float) = 0
+        _FaceDirection("面部朝向", Vector) = (0, 0, 1, 1)
 
         //Scratch Cutting 刀痕
         [HideInInspector] _CuttingTex ("Cutting Texture", 2D) = "black" {}
@@ -335,6 +328,7 @@
             // Material Keywords
             #pragma shader_feature _ALPHATEST_ON
 
+            #pragma shader_feature_local _SPECULARHIGHLIGHTS_ON
             #pragma shader_feature_local _FACIALSHADOWMAP
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _ALPHA_VIEWSCALE
@@ -353,6 +347,7 @@
 
             #pragma shader_feature_local _BACKLIGHT_ON
             #pragma shader_feature_local _FACTATTENUATION_ON
+            #pragma shader_feature_local _SPECULARANTIALIASING_ON
             #pragma shader_feature_local _SPECULAR_ANTIALIASING
             #pragma shader_feature_local _TRANSLUCENCY_THICKNESS_OFF
             #pragma shader_feature_local _RECEIVE_SHADOWS_OFF
@@ -377,6 +372,8 @@
 
             #pragma shader_feature _SPECULARHIGHLIGHTS_OFF
             #pragma shader_feature_local _SPECULARHIGHLIGHTS2_ON
+            #pragma shader_feature_local _ENVIRONMENTLIGHT_ON
+            #pragma shader_feature_local _TRANSLUCENCY_ON
             #pragma shader_feature _ENVIRONMENTREFLECTIONS_OFF
 
             //--------------------------------------
@@ -505,7 +502,6 @@
 
                 material.albedo = albedoAlpha.rgb * _BaseColor.rgb;
                 material.metallic = specGloss.r;
-                material.specular = lerp(_SpecularColor * _Specular * _Specular * 0.16, material.albedo, material.metallic);
                 material.smoothness = specGloss.a;
             #if defined(_NORMALMODEL_WORLD) && defined(_NORMALMAP)
                 material.normalTS = reflect(UnpackNormalRGBNoScale(pow(SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, uv), 1.0f / 2.2f)), float3(1, 0, 0));
@@ -575,6 +571,7 @@
                 half reflectivity = 1.0 - oneMinusReflectivity;
 
                 material.diffuse = material.albedo * oneMinusReflectivity;
+                material.specular = lerp(_SpecularColor * _Specular * _Specular * 0.16, material.albedo, material.metallic);
 
             #ifdef _ALPHAPREMULTIPLY_ON
                 material.diffuse *= alpha;
@@ -637,7 +634,7 @@
                 geometryContext.bakedGI = SampleSH(normalize(lerp(geometryContext.normalWS, geometryContext.viewDirectionWS, 0)));
                 geometryContext.bakedGI = lerp(geometryContext.bakedGI, Luminance(geometryContext.bakedGI), material.ambientDecoloration);
 
-            #if _SPECULAR_ANTIALIASING
+            #if _SPECULARANTIALIASING_ON
                 material.smoothness = GeometricNormalFiltering(material.smoothness, geometryContext.normalWS, _SpecularAntiAliasingVariance, _SpecularAntiAliasingThreshold);
             #endif
 
@@ -655,6 +652,7 @@
 
             half3 ImageBasedGlobalIllumination(GeometryContext geometryContext, PhysicalMaterial material)
             {
+            #ifdef _ENVIRONMENTLIGHT_ON
                 half3 domainNormal = geometryContext.domainNormal;
 
             #if _LIGHTMODEL_ANISOTROPY
@@ -680,6 +678,10 @@
                 return EnvironmentBRDF(domainNormal, geometryContext.viewDirectionWS, indirectDiffuse, indirectSpecular, material.diffuse, material.specular, geometryContext.roughness2, geometryContext.grazingTerm);
             #else
                 return EnvironmentBRDF(domainNormal, geometryContext.viewDirectionWS, indirectDiffuse, indirectSpecular, material.diffuse, material.specular, geometryContext.roughness2, geometryContext.grazingTerm);
+            #endif
+
+            #else
+                return 0;
             #endif
             }
 
@@ -752,14 +754,14 @@
                 return diffuse;
             }
 
-            float sigmoid(float x, float offset, float sharp, float base)
+            float Sigmoid(float x, float offset, float sharp, float base)
             {
                 float s;
                 s = 1.0f / (1.0f + pow(base, (-3.0f * sharp * (x - offset))));
                 return s;
             }
 
-            real4 DiffuseRamp(real nl, real ir)
+            real4 DiffuseLookupRamp(real nl, real ir)
             {
                 real x = nl * 0.8;
 
@@ -773,10 +775,10 @@
                 real _ThirdLayerSharp = pow(lerp(1.1, 3.0, pow(ir, 1.6)), 3.0);
                 real _FourLayerSharp = pow(lerp(0.5, 0.8, ir), 2.0);
 
-                real _FirstLayer = sigmoid(x, firstLayerOffset, _FirstLayerSharp, 2000);
-                real _SecondLayer = sigmoid(x, secondLayerOffset, _SecondLayerSharp, 5);
-                real _ThirdLayer = sigmoid(x, thirdLayerOffset, _ThirdLayerSharp, 5);
-                real _FourLayer = sigmoid(x, fourLayerOffset, _FourLayerSharp, 10000000);
+                real _FirstLayer = Sigmoid(x, firstLayerOffset, _FirstLayerSharp, 2000);
+                real _SecondLayer = Sigmoid(x, secondLayerOffset, _SecondLayerSharp, 5);
+                real _ThirdLayer = Sigmoid(x, thirdLayerOffset, _ThirdLayerSharp, 5);
+                real _FourLayer = Sigmoid(x, fourLayerOffset, _FourLayerSharp, 10000000);
 
                 return real4(_FirstLayer, _SecondLayer, _ThirdLayer, _FourLayer);
             }
@@ -812,9 +814,9 @@
             #endif
 
             #ifdef _VIEWBRUSH_ON
-                half4 layers = DiffuseRamp(nv * 2 - 1, 1 - material.softness) * occlusion;
+                half4 layers = DiffuseLookupRamp(nv * 2 - 1, 1 - material.softness) * occlusion;
             #else
-                half4 layers = DiffuseRamp(nl, 1 - material.softness) * occlusion;
+                half4 layers = DiffuseLookupRamp(nl, 1 - material.softness) * occlusion;
             #endif
 
             #ifdef _FACTATTENUATION_ON
@@ -829,9 +831,11 @@
                 diffuseTerm = lerp(material.diffuseShadowStrength * diffuseTerm, diffuseTerm, shadowAttenuation);
                 diffuseTerm = lerp(saturate(nl * (1 - material.softness * 0.5) + material.softness * 0.5) * shadowAttenuation, diffuseTerm, material.diffuseBrushStrength);
 
+            #ifdef _TRANSLUCENCY_ON
                 half3 transLightDir = light.direction + geometryContext.normalWS * material.translucencyDistortion;
                 half transDot = pow(saturate(dot(geometryContext.viewDirectionWS, -transLightDir)), material.translucencyPower) * material.translucencyScale;
                 half translucencyTerm = saturate(1 - nl) * (transDot + material.translucencyAmbient) * material.translucency;
+            #endif
 
             #ifdef _BACKLIGHT_ON
                 half falloff = clamp(1.0 - nv, 0.02, 0.98);
@@ -840,18 +844,22 @@
                 half3 rimTerm = _RimColor * rimLight * saturate(lv);
             #endif
 
-            #ifdef _LIGHTMODEL_CLOTH
-                half3 specularTerm = BRDF_Specular_GGX(light, geometryContext.normalWS, geometryContext.viewDirectionWS, geometryContext.roughness2, geometryContext.roughness2MinusOne, geometryContext.normalizationTerm);
+            half3 specularTerm = 0;
+
+            #ifdef _SPECULARHIGHLIGHTS_ON
+            #   ifdef _LIGHTMODEL_CLOTH
                 half3 clothD = BRDF_Specular_Sheen(light, geometryContext.normalWS, geometryContext.viewDirectionWS, geometryContext.roughness);
+                specularTerm = BRDF_Specular_GGX(light, geometryContext.normalWS, geometryContext.viewDirectionWS, geometryContext.roughness2, geometryContext.roughness2MinusOne, geometryContext.normalizationTerm);
                 specularTerm = lerp(specularTerm, clothD, material.sheen);
-            #elif _LIGHTMODEL_ANISOTROPY
+            #   elif _LIGHTMODEL_ANISOTROPY
                 half3 X = geometryContext.bitangentWS;
                 half3 Y = geometryContext.tangentWS;
-                half3 specularTerm = BRDF_Specular_Anisotropic_GGX(light, geometryContext.normalWS, X, Y, geometryContext.viewDirectionWS, material.anisotropy, geometryContext.roughness);
-            #elif _LIGHTMODEL_SKIN
-                half3 specularTerm = BRDF_Specular_Skin(geometryContext.normalWS, light.direction, geometryContext.viewDirectionWS, geometryContext.roughness, 4 * PI);
-            #else
-                half3 specularTerm = BRDF_Specular_GGX(light, geometryContext.normalWS, geometryContext.viewDirectionWS, geometryContext.roughness2, geometryContext.roughness2MinusOne, geometryContext.normalizationTerm);
+                specularTerm = BRDF_Specular_Anisotropic_GGX(light, geometryContext.normalWS, X, Y, geometryContext.viewDirectionWS, material.anisotropy, geometryContext.roughness);
+            #   elif _LIGHTMODEL_SKIN
+                specularTerm = BRDF_Specular_Skin(geometryContext.normalWS, light.direction, geometryContext.viewDirectionWS, geometryContext.roughness, 4 * PI);
+            #   else
+                specularTerm = BRDF_Specular_GGX(light, geometryContext.normalWS, geometryContext.viewDirectionWS, geometryContext.roughness2, geometryContext.roughness2MinusOne, geometryContext.normalizationTerm);
+            #   endif
             #endif
 
             #ifdef _SPECULARHIGHLIGHTS2_ON
@@ -861,7 +869,9 @@
 
                 half3 lighting = material.diffuse * diffuseTerm;
                 lighting += material.specular * lerp(material.diffuseShadowStrength * specularTerm, specularTerm, light.shadowAttenuation) * saturate(nl);
+            #ifdef _TRANSLUCENCY_ON
                 lighting += material.diffuse * translucencyTerm * material.translucencyColor;
+            #endif
             #ifdef _BACKLIGHT_ON
                 lighting += rimTerm * light.shadowAttenuation;
             #endif
@@ -1337,4 +1347,5 @@
     }
 
     FallBack "Hidden/Universal Render Pipeline/FallbackError"
+    CustomEditor "UnityEditor.Rendering.Universal.ShaderGUI.SimpleShaderGUI"
 }
