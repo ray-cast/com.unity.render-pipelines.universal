@@ -23,6 +23,7 @@ namespace UnityEngine.Rendering.Universal
             public readonly GUIContent SpotAngle = EditorGUIUtility.TrTextContent("Spot Angle", "Controls the angle in degrees at the base of a Spot light's cone.");
             public static readonly GUIContent AttenuationBulbSize = EditorGUIUtility.TrTextContent("Attenuation Bulb Size");
             public static readonly GUIContent Softness = EditorGUIUtility.TrTextContent("Softness");
+            public static readonly GUIContent DiffuseStrength = EditorGUIUtility.TrTextContent("Diffuse Strength");
 
             public readonly GUIContent BakingWarning = EditorGUIUtility.TrTextContent("Light mode is currently overridden to Realtime mode. Enable Baked Global Illumination to use Mixed or Baked light modes.");
             public readonly GUIContent DisabledLightWarning = EditorGUIUtility.TrTextContent("Lighting has been disabled in at least one Scene view. Any changes applied to lights in the Scene will not be updated in these views until Lighting has been enabled again.");
@@ -81,6 +82,7 @@ namespace UnityEngine.Rendering.Universal
         SerializedObject _additionalLightDataSO;
 
         SerializedProperty _softnessProp;
+        SerializedProperty _diffuseStrengthProp;
         SerializedProperty _useAdditionalDataProp;
         SerializedProperty _attenuationBulbSizeProp;
 
@@ -99,6 +101,7 @@ namespace UnityEngine.Rendering.Universal
 
             _additionalLightDataSO = new SerializedObject(additionalLightData);
             _softnessProp = _additionalLightDataSO.FindProperty("_softness");
+            _diffuseStrengthProp = _additionalLightDataSO.FindProperty("_diffuseStrength");
             _attenuationBulbSizeProp = _additionalLightDataSO.FindProperty("_attenuationBulbSize");
             _useAdditionalDataProp = _additionalLightDataSO.FindProperty("_usePipelineSettings");
 
@@ -159,6 +162,7 @@ namespace UnityEngine.Rendering.Universal
 
             DrawAttenuationBulbSize();
             DrawSoftness();
+            DrawDiffuseStrength();
 
             using (var group = new EditorGUILayout.FadeGroupScope(m_AnimLightBounceIntensity.faded))
                 if (group.visible)
@@ -333,6 +337,31 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
+        void DrawDiffuseStrength()
+        {
+            Light light = target as Light;
+
+            EditorGUI.BeginChangeCheck();
+
+            Rect controlRect = EditorGUILayout.GetControlRect(true);
+            EditorGUI.BeginProperty(controlRect, Styles.DiffuseStrength, _diffuseStrengthProp);
+            EditorGUI.showMixedValue = _diffuseStrengthProp.hasMultipleDifferentValues;
+            float diffuseStrength = EditorGUI.Slider(controlRect, Styles.DiffuseStrength, _diffuseStrengthProp.floatValue, 0, 1);
+            EditorGUI.EndProperty();
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (_additionalLightData == null)
+                {
+                    _additionalLightData = Undo.AddComponent<UniversalAdditionalLightData>(light.gameObject);
+                    init(_additionalLightData);
+                }
+
+                _diffuseStrengthProp.floatValue = diffuseStrength;
+                _additionalLightDataSO.ApplyModifiedProperties();
+            }
+        }
+
         void ShadowsGUI()
         {
             // Shadows drop-down. Area lights can only be baked and always have shadows.
@@ -370,6 +399,9 @@ namespace UnityEngine.Rendering.Universal
                     EditorGUI.indentLevel -= 1;
                 }
             }
+
+            using (var group = new EditorGUILayout.FadeGroupScope(show * m_AnimRuntimeOptions.faded))
+                settings.DrawRenderingLayerMask();
 
             EditorGUI.indentLevel -= 1;
 

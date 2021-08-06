@@ -182,6 +182,7 @@ namespace UnityEngine.Rendering.Universal
             using (new ProfilingScope(cmd, _profilingSampler))
             {
                 var settings = new ShadowDrawingSettings(cullResults, shadowLightIndex);
+                settings.useRenderingLayerMaskTest = true;
 
                 for (int cascadeIndex = 0; cascadeIndex < _shadowCasterCascadesCount; ++cascadeIndex)
                 {

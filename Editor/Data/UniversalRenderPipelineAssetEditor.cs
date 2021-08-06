@@ -55,6 +55,11 @@ namespace UnityEngine.Rendering.Universal
             public static readonly GUIContent clusterRequireDrawClusterLabel = EditorGUIUtility.TrTextContent("显示光源集群体");
             public static readonly GUIContent clusterMaxDistanceLabel = EditorGUIUtility.TrTextContent("可视光源距离");
 
+            // Per Object Shadow
+            public static readonly GUIContent requirePerObjectShadowText = EditorGUIUtility.TrTextContent("对象影子", "If enabled the pipeline will copy the screen to texture after opaque objects are drawn. For transparent objects this can be bound in shaders as _CameraOpaqueTexture.");
+            public static GUIContent perObjectShadowLimit = EditorGUIUtility.TrTextContent("对象影子最大数量", "Maximum amount of additional lights. These lights are sorted and culled per-object.");
+            public static GUIContent perObjectShadowmapResolution = EditorGUIUtility.TrTextContent("阴影贴图分辨率", "All additional lights are packed into a single shadowmap atlas. This setting controls the atlas size.");
+
             // Shadow settings
             public static GUIContent shadowDistanceText = EditorGUIUtility.TrTextContent("Distance", "Maximum shadow rendering distance.");
             public static GUIContent shadowCascadesText = EditorGUIUtility.TrTextContent("Cascades", "Number of cascade splits used in for directional shadows");
@@ -131,6 +136,10 @@ namespace UnityEngine.Rendering.Universal
         SerializedProperty _additionalLightShadowsSupportedProp;
         SerializedProperty _additionalLightShadowmapResolutionProp;
 
+        SerializedProperty _perObjectShadowModeProp;
+        SerializedProperty _perObjectShadowLimitProp;
+        SerializedProperty _perObjectShadowmapResolutionProp;
+
         SerializedProperty _deferredLightingModeProp;
         SerializedProperty _deferredRequireClusterHeatMapProp;
         SerializedProperty _deferredRequireDrawClusterProp;
@@ -155,6 +164,7 @@ namespace UnityEngine.Rendering.Universal
 
         LightRenderingMode selectedLightRenderingMode;
         DeferredRenderingMode selectedDeferredLightRenderingMode;
+        PerObjectShadowMode selectedPerObjectShadowMode;
 
         SerializedProperty _postProcessingFeatureSet;
         SerializedProperty _colorGradingMode;
@@ -215,6 +225,10 @@ namespace UnityEngine.Rendering.Universal
             _additionalLightShadowsSupportedProp = serializedObject.FindProperty("m_AdditionalLightShadowsSupported");
             _additionalLightShadowmapResolutionProp = serializedObject.FindProperty("m_AdditionalLightsShadowmapResolution");
 
+            _perObjectShadowModeProp = serializedObject.FindProperty("_perObjectShadowMode");
+            _perObjectShadowLimitProp = serializedObject.FindProperty("_perObjectShadowLimit");
+            _perObjectShadowmapResolutionProp = serializedObject.FindProperty("_perObjectShadowmapResolution");
+
             _deferredLightingModeProp = serializedObject.FindProperty("_deferredLightingMode");
             _deferredRequireClusterHeatMapProp = serializedObject.FindProperty("_deferredRequireClusterHeatMap");
             _deferredRequireDrawClusterProp = serializedObject.FindProperty("_deferredRequireDrawCluster");
@@ -244,6 +258,7 @@ namespace UnityEngine.Rendering.Universal
 
             selectedLightRenderingMode = (LightRenderingMode)_additionalLightsRenderingModeProp.intValue;
             selectedDeferredLightRenderingMode = (DeferredRenderingMode)_deferredLightingModeProp.intValue;
+            selectedPerObjectShadowMode = (PerObjectShadowMode)_perObjectShadowModeProp.intValue;
         }
 
         void DrawGeneralSettings()
@@ -354,6 +369,27 @@ namespace UnityEngine.Rendering.Universal
                     disableGroup |= !_additionalLightShadowsSupportedProp.boolValue;
                     EditorGUI.BeginDisabledGroup(disableGroup);
                     EditorGUILayout.PropertyField(_additionalLightShadowmapResolutionProp, Styles.additionalLightsShadowmapResolution);
+                    EditorGUI.EndDisabledGroup();
+
+                    EditorGUI.indentLevel--;
+                    EditorGUILayout.Space();
+                }
+
+                // Per Object Shadow
+                selectedPerObjectShadowMode = (PerObjectShadowMode)EditorGUILayout.EnumPopup(Styles.requirePerObjectShadowText, selectedPerObjectShadowMode);
+                {
+                    _perObjectShadowModeProp.intValue = (int)selectedPerObjectShadowMode;
+
+                    disableGroup = _perObjectShadowModeProp.intValue == (int)DeferredRenderingMode.Disabled;
+                    EditorGUI.indentLevel++;
+
+                    disableGroup |= (_perObjectShadowLimitProp.intValue == 0 || _perObjectShadowModeProp.intValue != (int)LightRenderingMode.PerPixel);
+                    EditorGUI.BeginDisabledGroup(disableGroup);
+                    _perObjectShadowLimitProp.intValue = EditorGUILayout.IntSlider(Styles.perObjectShadowLimit, _perObjectShadowLimitProp.intValue, 0, UniversalRenderPipeline.maxPerObjectShadows);
+                    EditorGUI.EndDisabledGroup();
+
+                    EditorGUI.BeginDisabledGroup(disableGroup);
+                    EditorGUILayout.PropertyField(_perObjectShadowmapResolutionProp, Styles.perObjectShadowmapResolution);
                     EditorGUI.EndDisabledGroup();
 
                     EditorGUI.indentLevel--;

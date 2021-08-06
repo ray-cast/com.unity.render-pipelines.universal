@@ -30,6 +30,9 @@
         [Tooltip("柔和程度")]
         [SerializeField] float _softness = 0.0f;
 
+        [Tooltip("漫反射程度")]
+        [SerializeField] float _diffuseStrength = 1.0f;
+
         [Tooltip("光源颜色混合权重")]
         [SerializeField] float _weight = 1.0f;
 
@@ -43,6 +46,12 @@
         {
             get { return _softness; }
             set { _softness = value; }
+        }
+
+        public float diffuseStrength
+        {
+            get { return _diffuseStrength; }
+            set { _diffuseStrength = value; }
         }
 
         public float weight

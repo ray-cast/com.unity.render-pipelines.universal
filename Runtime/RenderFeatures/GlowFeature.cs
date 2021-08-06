@@ -24,9 +24,9 @@
                 _filteringSettings = new FilteringSettings(renderQueueRange, layerMask);
             }
 
-            public void Setup(RenderTextureDescriptor baseDescriptor, RenderTargetIdentifier depthTargetIdentifier, RenderTargetHandle emissiveAttachmentHandle, int depthBufferBits = 0)
+            public void Setup(RenderTextureDescriptor baseDescriptor, RenderTargetIdentifier depthTargetIdentifier, RenderTargetHandle glowAttachmentHandle, int depthBufferBits = 0)
             {
-                this.glowAttachmentHandle = emissiveAttachmentHandle;
+                this.glowAttachmentHandle = glowAttachmentHandle;
                 baseDescriptor.colorFormat = RenderTextureFormat.ARGB32;
                 baseDescriptor.depthBufferBits = depthBufferBits;
 

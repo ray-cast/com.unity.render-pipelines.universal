@@ -105,20 +105,33 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
     public class EqualIfDrawer : MaterialPropertyDrawer
     {
         string propertyName;
-        float propertyValue;
+        float[] propertyValue = new float[2];
 
         public EqualIfDrawer(string toggleName, float value)
         {
             propertyName = toggleName;
-            propertyValue = value;
+            propertyValue = new float[1] { value  };
+        }
+
+        public EqualIfDrawer(string toggleName, float value1, float value2)
+        {
+            propertyName = toggleName;
+            propertyValue = new float[2] { value1, value2 };
         }
 
         public override void OnGUI(Rect pos, MaterialProperty prop, string label, MaterialEditor editor)
         {
             var mat = prop.targets[0] as Material;
-            var condition = mat.GetFloat(propertyName) == propertyValue;
-            if (condition)
-                editor.DefaultShaderProperty(prop, label);
+
+            for (var i = 0; i < propertyValue.Length; i++)
+			{
+                var condition = mat.GetFloat(propertyName) == propertyValue[i];
+                if (condition)
+				{
+                    editor.DefaultShaderProperty(prop, label);
+                    break;
+                }
+            }
         }
 
         public override float GetPropertyHeight(MaterialProperty prop, string label, MaterialEditor editor)
@@ -291,11 +304,12 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
                             material.renderQueue = (int)RenderQueue.Geometry;
                             material.SetOverrideTag("RenderType", "Opaque");
                         }
+                        material.SetInt("_ZWrite", 1);
                         material.renderQueue += material.HasProperty("_QueueOffset") ? (int)material.GetFloat("_QueueOffset") : 0;
                         break;
                     case SurfaceType.Transparent:
+                        material.SetInt("_ZWrite", 0);
                         material.SetOverrideTag("RenderType", "Transparent");
-                        material.SetInt("_ZWrite", 1);
                         material.renderQueue = (int)RenderQueue.Transparent;
                         material.renderQueue += material.HasProperty("_QueueOffset") ? (int)material.GetFloat("_QueueOffset") : 0;
                         break;
@@ -314,10 +328,11 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
     {
         bool _alphaClip = false;
         float _surface = -1.0f;
-        string propertyName;
+        string propertyName = null;
 
         public enum BlendMode
         {
+            None,
             Alpha,   // Old school alpha-blending mode, fresnel does not affect amount of transparency
             Premultiply, // Physically plausible transparency mode, implemented as alpha pre-multiply
             Additive,
@@ -336,8 +351,12 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
         public override void OnGUI(Rect pos, MaterialProperty prop, string label, MaterialEditor editor)
         {
             var mat = prop.targets[0] as Material;
-            var condition = mat.GetFloat(propertyName) > 0;
-            if (!condition) return;
+
+            if (propertyName != null)
+			{
+                var condition = mat.GetFloat(propertyName) > 0;
+                if (!condition) return;
+            }
 
             EditorGUI.BeginChangeCheck();
             EditorGUI.showMixedValue = prop.hasMixedValue;
@@ -360,39 +379,14 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
             if (EditorGUI.EndChangeCheck() || _alphaClip != material.IsKeywordEnabled("_ALPHATEST_ON") || _surface != surface)
             {
                 _surface = surface;
-                _alphaClip = material.IsKeywordEnabled("_ALPHATEST_ON");
+                _alphaClip = material.IsKeywordEnabled("_ALPHATEST_ON") || value != BlendMode.None;
 
                 prop.floatValue = (float)value;
 
                 if (surface > 0)
 				{
-                    switch (value)
-                    {
-                        case BlendMode.Alpha:
-                            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                            break;
-                        case BlendMode.Premultiply:
-                            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                            material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
-                            break;
-                        case BlendMode.Additive:
-                            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                            break;
-                        case BlendMode.Multiply:
-                            material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.DstColor);
-                            material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
-                            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                            material.EnableKeyword("_ALPHAMODULATE_ON");
-                            break;
-                    }
-
                     material.SetOverrideTag("RenderType", "Transparent");
-                    material.SetInt("_ZWrite", 1);
+                    material.SetInt("_ZWrite", 0);
                     material.renderQueue = (int)RenderQueue.Transparent;
                     material.renderQueue += material.HasProperty("_QueueOffset") ? (int)material.GetFloat("_QueueOffset") : 0;
                 }
@@ -414,8 +408,41 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
                     material.DisableKeyword("_ALPHAMODULATE_ON");
                     material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
                     material.SetInt("_ZWrite", 1);
-                    material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                    material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                }
+
+                switch (value)
+                {
+                    case BlendMode.None:
+                        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                        material.SetShaderPassEnabled("PrepassDepth", true);
+                        break;
+                    case BlendMode.Alpha:
+                        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                        material.SetShaderPassEnabled("PrepassDepth", false);
+                        break;
+                    case BlendMode.Premultiply:
+                        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                        material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+                        material.SetShaderPassEnabled("PrepassDepth", false);
+                        break;
+                    case BlendMode.Additive:
+                        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                        material.SetShaderPassEnabled("PrepassDepth", false);
+                        break;
+                    case BlendMode.Multiply:
+                        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.DstColor);
+                        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                        material.EnableKeyword("_ALPHAMODULATE_ON");
+                        material.SetShaderPassEnabled("PrepassDepth", false);
+                        break;
                 }
             }
         }
@@ -423,7 +450,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
         public override float GetPropertyHeight(MaterialProperty prop, string label, MaterialEditor editor)
         {
             var mat = prop.targets[0] as Material;
-            var condition = mat.GetFloat(propertyName) > 0;
+            var condition = propertyName == null || mat.GetFloat(propertyName) > 0;
             return condition ? base.GetPropertyHeight(prop, label, editor) : 0;
         }
     }

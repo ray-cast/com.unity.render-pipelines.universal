@@ -77,6 +77,12 @@ namespace UnityEngine.Rendering.Universal
         PerCluster = 2,
     }
 
+    public enum PerObjectShadowMode
+    {
+        Disabled = 0,
+        PerPixel = 1,
+    }
+
     public enum ShaderVariantLogLevel
     {
         Disabled,
@@ -183,6 +189,10 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] int m_AdditionalLightsPerObjectLimit = 4;
         [SerializeField] bool m_AdditionalLightShadowsSupported = false;
         [SerializeField] ShadowResolution m_AdditionalLightsShadowmapResolution = ShadowResolution._512;
+
+        [SerializeField] PerObjectShadowMode _perObjectShadowMode = PerObjectShadowMode.PerPixel;
+        [SerializeField] int _perObjectShadowLimit = 4;
+        [SerializeField] ShadowResolution _perObjectShadowmapResolution = ShadowResolution._512;
 
         // Deferred Lighting settings
         [SerializeField] DeferredRenderingMode _deferredLightingMode = DeferredRenderingMode.PerCluster;
@@ -627,6 +637,23 @@ namespace UnityEngine.Rendering.Universal
         public int additionalLightsShadowmapResolution
         {
             get { return (int)m_AdditionalLightsShadowmapResolution; }
+        }
+
+        public PerObjectShadowMode perObjectShadowMode
+		{
+            get { return _perObjectShadowMode; }
+            set { _perObjectShadowMode = value; }
+        }
+
+        public int maxPerObjectShadowLimit
+        {
+            get { return _perObjectShadowLimit; }
+            set { _perObjectShadowLimit = System.Math.Max(0, System.Math.Min(value, UniversalRenderPipeline.maxPerObjectShadows)); }
+        }
+
+        public int perObjectShadowmapResolution
+        {
+            get { return (int)_perObjectShadowmapResolution; }
         }
 
         public DeferredRenderingMode deferredLightingMode

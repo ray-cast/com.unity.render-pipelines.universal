@@ -13,6 +13,7 @@
         FeedbackPass _feedbackPass;
         MainLightShadowCasterPass _mainLightShadowCasterPass;
         AdditionalLightsShadowCasterPass _additionalLightsShadowCasterPass;
+        PerObjectShadowPass _perObjectShadowPass;
         ScreenSpaceShadowResolvePass _screenSpaceShadowResolvePass;
         ScreenSpaceOcclusionResolvePass _screenSpaceOcclusionResolvePass;
         CapsuleShadowPass _capsuleShadowResolvePass;
@@ -114,6 +115,7 @@
             _screenSpaceOcclusionResolvePass = new ScreenSpaceOcclusionResolvePass(RenderPassEvent.BeforeRenderingOpaques, _screenSpaceOcclusionMaterial);
             _capsuleShadowResolvePass = new CapsuleShadowPass(RenderPassEvent.BeforeRenderingOpaques, _capsuleShadowMaterial);
             _additionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
+            _perObjectShadowPass = new PerObjectShadowPass(RenderPassEvent.BeforeRenderingShadows);
             _depthOnlyPass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, RenderQueueRange.opaque, data.opaqueLayerMask);
             _depthPrePass = new DepthPrePass(RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask);
             _renderGbufferDepthPass = new GbufferDepthPass("G-Buffer Depth", RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
@@ -241,9 +243,9 @@
             if (additionalLightShadows)
                 EnqueuePass(_additionalLightsShadowCasterPass);
 
-            bool requiresDepthOnlyPass = cameraData.requiresDepthTexture && !CanCopyDepth(ref renderingData.cameraData);
-            requiresDepthOnlyPass |= isSceneViewCamera;
-            requiresDepthOnlyPass |= isPreviewCamera;
+            bool perObjectShadows = _perObjectShadowPass.Setup(ref renderingData);
+            if (perObjectShadows)
+                EnqueuePass(_perObjectShadowPass);
 
             bool isRunningHololens = false;
 #if ENABLE_VR && ENABLE_VR_MODULE
@@ -255,7 +257,7 @@
             createColorTexture &= !isPreviewCamera;
             createColorTexture |= (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled);
 
-            bool createDepthTexture = cameraData.requiresDepthTexture && !requiresDepthOnlyPass;
+            bool createDepthTexture = cameraData.requiresDepthTexture;
             createDepthTexture |= (cameraData.renderType == CameraRenderType.Base && !cameraData.resolveFinalTarget);
             createDepthTexture |= (cameraData.deferredLightingMode != DeferredRenderingMode.Disabled);
 
@@ -270,8 +272,8 @@
 
             if (cameraData.renderType == CameraRenderType.Base)
             {
-                _activeCameraColorAttachment = (createColorTexture) ? _cameraColorAttachment : RenderTargetHandle.CameraTarget;
-                _activeCameraDepthAttachment = (createDepthTexture) ? _cameraDepthAttachment : RenderTargetHandle.CameraTarget;
+                _activeCameraColorAttachment = createColorTexture ? _cameraColorAttachment : RenderTargetHandle.CameraTarget;
+                _activeCameraDepthAttachment = createDepthTexture ? _cameraDepthAttachment : RenderTargetHandle.CameraTarget;
                 _activeCameraDepthTexture = _cameraDepthTexture;
 
                 bool intermediateRenderTexture = createColorTexture || createDepthTexture;
@@ -288,12 +290,6 @@
                 _activeCameraDepthTexture = _cameraDepthTexture;
             }
 
-            if (requiresDepthOnlyPass)
-            {
-                _depthOnlyPass.Setup(cameraTargetDescriptor, _cameraDepthTexture);
-                EnqueuePass(_depthOnlyPass);
-            }
-
             _depthPrePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment);
             EnqueuePass(_depthPrePass);
 
@@ -302,14 +298,14 @@
                 _renderOpaqueGbufferPass.Setup(cameraTargetDescriptor, _cameraGbufferAttachments, _activeCameraDepthAttachment);
                 EnqueuePass(_renderOpaqueGbufferPass);
 
-                if (!requiresDepthOnlyPass && renderingData.cameraData.requiresDepthTexture && createDepthTexture)
+                if (renderingData.cameraData.requiresDepthTexture && createDepthTexture)
                 {
                     _copyGbufferDepthPass.Setup(_activeCameraDepthAttachment, _cameraDepthTexture);
                     EnqueuePass(_copyGbufferDepthPass);
                 }
             }
 
-            if (requiresDepthOnlyPass || createDepthTexture)
+            if (createDepthTexture)
 			{
                 if (_screenSpaceOcclusionResolvePass.Setup(cameraTargetDescriptor, _activeCameraDepthAttachment))
                     EnqueuePass(_screenSpaceOcclusionResolvePass);
@@ -397,13 +393,13 @@
             }
 #endif
 
-            if (!requiresDepthOnlyPass && renderingData.cameraData.requiresDepthTexture && createDepthTexture)
+            if (renderingData.cameraData.requiresDepthTexture && createDepthTexture)
             {
                 _copyDepthPass.Setup(_activeCameraDepthAttachment, _cameraDepthTexture);
                 EnqueuePass(_copyDepthPass);
             }
 			
-            if (requiresDepthOnlyPass || createDepthTexture)
+            if (createDepthTexture)
 			{
                 _hizPass.Setup(_cameraDepthTexture);
                 EnqueuePass(_hizPass);

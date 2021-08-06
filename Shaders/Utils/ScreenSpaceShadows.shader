@@ -8,11 +8,11 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ImageBasedLighting.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/PerObjectShadows.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/CloudShadow.hlsl"
 		#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
-		#define SHADOW_BLUR_COUNT 4
+		#define SHADOW_BLUR_COUNT 3
 
 		TEXTURE2D(_MainTex); SAMPLER(sampler_MainTex);
 
@@ -65,7 +65,8 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 			float4 anotherWeights;
 			float4 distances2 = ComputeCascadeWeightsSplit(worldPos, weights, anotherWeights);
 
-			float shadowAttenuation = MainLightRealtimeShadow(TransformWorldToShadowCoord(worldPos, weights));
+			float shadowRandom = InterleavedGradientNoise(input.positionCS.xy, 0);
+			float shadowAttenuation = MainLightRealtimeShadow(TransformWorldToShadowCoord(worldPos, weights), shadowRandom);
 
 		#ifdef _MAIN_LIGHT_SHADOWS_CASCADE
 			UNITY_BRANCH
@@ -73,7 +74,15 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 			{
 				float blendFactor = saturate(distances2.x / _CascadeShadowSplitSphereRadii.x * 2 - 1);
 				float4 shadowCoord2 = TransformWorldToShadowCoord(worldPos, anotherWeights);
-				shadowAttenuation = lerp(shadowAttenuation, MainLightRealtimeShadow(shadowCoord2), blendFactor);
+				shadowAttenuation = lerp(shadowAttenuation, MainLightRealtimeShadow(shadowCoord2, shadowRandom), blendFactor);
+			}
+		#endif
+
+		#ifdef _MAIN_LIGHT_PER_OBJECT_SHADOWS
+			uint objectShadowCount = GetPerObjectShadowsCount();
+			for (uint shadowIndex = 0u; shadowIndex < objectShadowCount; ++shadowIndex)
+			{
+				shadowAttenuation *= PerObjectRealtimeShadow(shadowIndex, worldPos, 0);
 			}
 		#endif
 
@@ -154,10 +163,10 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 			Cull Off
 
 			HLSLPROGRAM
-                #pragma target 3.5
-                #pragma prefer_hlslcc gles
-                #pragma exclude_renderers d3d11_9x
-                #pragma editor_sync_compilation
+				#pragma target 3.5
+				#pragma prefer_hlslcc gles
+				#pragma exclude_renderers d3d11_9x
+				#pragma editor_sync_compilation
 
 				#pragma vertex   MainShadowVertex
 				#pragma fragment MainShadowFragment
@@ -165,6 +174,7 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
 				#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
 				#pragma multi_compile _ _MAIN_LIGHT_CLOUD_SHADOWS
+				#pragma multi_compile _ _MAIN_LIGHT_PER_OBJECT_SHADOWS
 				#pragma multi_compile _ _SHADOWS_SOFT
 			ENDHLSL
 		}
@@ -178,10 +188,10 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 			Cull Off
 
 			HLSLPROGRAM
-                #pragma target 3.5
-                #pragma prefer_hlslcc gles
-                #pragma exclude_renderers d3d11_9x
-                #pragma editor_sync_compilation
+				#pragma target 3.5
+				#pragma prefer_hlslcc gles
+				#pragma exclude_renderers d3d11_9x
+				#pragma editor_sync_compilation
 
 				#pragma vertex   BlurVertex
 				#pragma fragment BlurFragment

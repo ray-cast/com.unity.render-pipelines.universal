@@ -21,10 +21,9 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Lit
-  m_Shader: {fileID: 4800000, guid: 4e2a951c2e6ec8a419ceca9dcaad6b36, type: 3}
+  m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
   m_ShaderKeywords: _ALPHA_ADDITIONAL_NORMAL_ON _DEBUGMODE_NONE _EMISSIONMODE_NONE
-    _LIGHTMODEL_SUBSURFACE _OUTGLOWMODE_COLOR _RECEIVE_SHADOWS_OFF _RIMMODE_NONE
-    _SPECULAR_ANTIALIASING _STIPPLETEST_TARGET_OFF _STIPPLETEST_VIEW_OFF
+    _LIGHTMODEL_SUBSURFACE _OUTGLOWMODE_COLOR _RIMMODE_NONE _SPECULAR_ANTIALIASING
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 1
   m_DoubleSidedGI: 0
@@ -71,10 +70,6 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
-    - _FacialShadowMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     - _MainTex:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -103,14 +98,6 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
-    - _RimLightLookup:
-        m_Texture: {fileID: 2800000, guid: c3ba06703e27d5b4e9c9411437fd722c, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _RimLightMask:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     - _SkinRamp:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -136,7 +123,6 @@ Material:
     - _CuttingTimeFactor: 0
     - _DebugMode: 0
     - _DetailNormalMapScale: 1
-    - _DiffuseBrushStrength: 1
     - _DissolveEdgeThreshold: 0.878
     - _DissolveShowStep: 1
     - _DissolveThreshold: 0
@@ -145,19 +131,16 @@ Material:
     - _EmissionMode: 0
     - _EnableExponentialShadows: 0
     - _EnvironmentReflections: 1
-    - _FirstLayerStrength: 1
-    - _FirstShadowStrength: 1
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossinessSource: 0
     - _GlossyReflections: 1
     - _LightModel: 3
-    - _LightOcclusionStrength: 0.51
-    - _LightShadowStrength: 0.5
+    - _LightOcclusionStrength: 0.5
     - _MaxDistance: 1
     - _Metallic: 0
     - _Mode: 0
-    - _OcclusionLimit: 0
+    - _OcclusionLimit: 0.5
     - _OcclusionStrength: 1
     - _OffsetY: 0
     - _OutGlowEnable: 0
@@ -166,21 +149,19 @@ Material:
     - _OverlayExponential: 3
     - _Parallax: 0.02
     - _QueueOffset: 0
-    - _ReceiveShadows: 0
+    - _ReceiveShadows: 1
     - _ReflectionSource: 0
     - _RimLight_Pow: 4
     - _RimMode: 0
     - _RimUseColorNormal: 0
     - _Rim_Cover: 1
-    - _SecondLayerStrength: 1
-    - _SecondShadowStrength: 1
     - _ShadowDepthBias: 1
     - _ShadowNormalBias: 1
     - _Sheen: 0
     - _Shininess: 1
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
-    - _Softness: 1
+    - _Softness: 0
     - _SpecSource: 0
     - _Specular: 0.5
     - _SpecularAntiAliasingThreshold: 0.2
@@ -193,8 +174,6 @@ Material:
     - _Surface: 0
     - _TargetRangeCutoff: 1
     - _TargetStippleCutoff: 0
-    - _ThirdLayerStrength: 1
-    - _ThirdShadowStrength: 1
     - _Translucency: 0
     - _TranslucencyAmbient: 0
     - _TranslucencyDistortion: 0.1
@@ -204,32 +183,25 @@ Material:
     - _UVSec: 0
     - _UseAdditionalNormal: 1
     - _UseAlphaCutoff: 0
-    - _UseBackLight: 0
     - _UseColorNormal: 0
     - _UseDissolve: 0
     - _UseSpecularHighlights: 1
     - _UseStippleCutoff: 0
     - _UseViewAlpha: 0
-    - _UseViewBrush: 0
     - _ViewStippleCutoff: 0
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-    - _BaseLayerColor: {r: 0, g: 0, b: 0, a: 1}
     - _Color: {r: 0.5, g: 0.5, b: 0.5, a: 1}
     - _DissolveColor: {r: 0.37647, g: 0.37647, b: 0.37647, a: 0}
     - _DissolveEdgeColor: {r: 0.8760047, g: 1.2485584, b: 1.9231827, a: 0}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _FirstLayerColor: {r: 0.8867924, g: 0.39841354, b: 0.26352793, a: 0.25}
     - _OutGlowColor: {r: 1, g: 1, b: 1, a: 1}
-    - _RimColor: {r: 1, g: 1, b: 1, a: 1}
     - _RimLightColor: {r: 0, g: 0, b: 0.7, a: 1}
     - _RimLightColor2: {r: 0, g: 0, b: 0, a: 0}
     - _Rim_Dir: {r: -1.25, g: 1.25, b: 0, a: 0}
-    - _SecondLayerColor: {r: 0.7725, g: 0.38429996, b: 0.40779993, a: 0.8}
     - _SpecColor: {r: 1, g: 1, b: 1, a: 1}
     - _SpecularColor: {r: 1, g: 1, b: 1, a: 1}
     - _TargetPosition: {r: 0, g: 0, b: 0, a: 1}
-    - _ThirdLayerColor: {r: 0.6117, g: 0.28619996, b: 0.34499997, a: 0.9}
     - _TranslucencyColor: {r: 1, g: 0, b: 0, a: 1}

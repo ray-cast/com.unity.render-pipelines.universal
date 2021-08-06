@@ -27,8 +27,7 @@
         static ShadowUtils()
         {
             _shadowmapFormat = RenderTextureFormat.Depth;
-            _forceShadowPointSampling = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal &&
-                GraphicsSettings.HasShaderDefine(Graphics.activeTier, BuiltinShaderDefine.UNITY_METAL_SHADOWS_USE_POINT_FILTERING);
+            _forceShadowPointSampling = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Metal && GraphicsSettings.HasShaderDefine(Graphics.activeTier, BuiltinShaderDefine.UNITY_METAL_SHADOWS_USE_POINT_FILTERING);
         }
 
         public static bool ExtractDirectionalLightMatrix(ref CullingResults cullResults, ref ShadowData shadowData, int shadowLightIndex, int cascadeIndex, int shadowmapWidth, int shadowmapHeight, int shadowResolution, float shadowNearPlane, out Vector4 cascadeSplitDistance, out ShadowSliceData shadowSliceData, out Matrix4x4 viewMatrix, out Matrix4x4 projMatrix)
@@ -62,9 +61,80 @@
             return success;
         }
 
-        public static void RenderShadowSlice(CommandBuffer cmd, ref ScriptableRenderContext context,
-            ref ShadowSliceData shadowSliceData, ref ShadowDrawingSettings settings,
-            Matrix4x4 proj, Matrix4x4 view)
+        public static void ExtractSpotLightMatrix(VisibleLight vl, Bounds bound, out Matrix4x4 view, out Matrix4x4 proj)
+        {
+            Matrix4x4 scaleMatrix = Matrix4x4.identity;
+            scaleMatrix.m22 = -1.0f;
+
+            var size = bound.size;
+            var zfar = Mathf.Max(Vector3.Distance(vl.light.transform.position, bound.min), Vector3.Distance(vl.light.transform.position, bound.max));
+            var znear = Mathf.Max(vl.light.shadowNearPlane, Vector3.Distance(vl.light.transform.position, bound.ClosestPoint(vl.light.transform.position)));
+            var fov = vl.spotAngle;
+            var length = Mathf.Tan(Mathf.Acos(Vector3.Dot(Vector3.up, vl.light.transform.forward)));
+
+            view = scaleMatrix * vl.localToWorldMatrix.inverse;
+            proj = Matrix4x4.Perspective(fov, 1.0f, znear, zfar + length * size.y);
+        }
+
+        public static Bounds TransformBoundingBox(Bounds bound, Matrix4x4 localToWorldMatrix)
+        {
+            var m = localToWorldMatrix.transpose;
+
+            var _worldBoundingBox = new Bounds();
+            _worldBoundingBox.SetMinMax(new Vector3(m.m30, m.m31, m.m32), new Vector3(m.m30, m.m31, m.m32));
+
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    float e = m[j * 4 + i] * bound.min[j];
+                    float f = m[j * 4 + i] * bound.max[j];
+
+                    var min = _worldBoundingBox.min;
+                    var max = _worldBoundingBox.max;
+
+                    if (e < f)
+                    {
+                        min[i] += e;
+                        max[i] += f;
+                    }
+                    else
+                    {
+                        min[i] += f;
+                        max[i] += e;
+                    }
+
+                    _worldBoundingBox.min = min;
+                    _worldBoundingBox.max = max;
+                }
+            }
+
+            return _worldBoundingBox;
+        }
+
+        public static void ExtractDirectionalLightMatrix(VisibleLight vl, Bounds bound, out Matrix4x4 view, out Matrix4x4 proj)
+        {
+            Matrix4x4 scaleMatrix = Matrix4x4.identity;
+            scaleMatrix.m22 = -1.0f;
+
+            var size = bound.size;
+            var maxDims = Mathf.Max(Mathf.Max(size.y, size.x), size.z);
+            var position = bound.center - vl.light.transform.forward * maxDims;
+            var localToWorld = Matrix4x4.TRS(position, vl.light.transform.rotation, Vector3.one);
+            var worldToLocal = localToWorld.inverse;
+
+            var boundingView = TransformBoundingBox(bound, worldToLocal);
+            var extents = boundingView.extents;
+
+            var zfar = Mathf.Max(Vector3.Distance(position, bound.min), Vector3.Distance(position, bound.max));
+            var znear = Mathf.Max(vl.light.shadowNearPlane, Vector3.Distance(position, bound.ClosestPoint(position)));
+            var length = Mathf.Tan(Mathf.Acos(Vector3.Dot(Vector3.up, vl.light.transform.forward)));
+
+            view = scaleMatrix * worldToLocal;
+            proj = Matrix4x4.Ortho(-extents.x, extents.x, -extents.y, extents.y, znear, zfar + Mathf.Abs(length) * size.y);
+        }
+
+        public static void RenderShadowSlice(CommandBuffer cmd, ref ScriptableRenderContext context, ref ShadowSliceData shadowSliceData, ref ShadowDrawingSettings settings, Matrix4x4 proj, Matrix4x4 view)
         {
             cmd.SetViewport(new Rect(shadowSliceData.offsetX, shadowSliceData.offsetY, shadowSliceData.resolution, shadowSliceData.resolution));
             cmd.EnableScissorRect(new Rect(shadowSliceData.offsetX + 4, shadowSliceData.offsetY + 4, shadowSliceData.resolution - 8, shadowSliceData.resolution - 8));
@@ -78,11 +148,9 @@
             cmd.Clear();
         }
 
-        public static void RenderShadowSlice(CommandBuffer cmd, ref ScriptableRenderContext context,
-            ref ShadowSliceData shadowSliceData, ref ShadowDrawingSettings settings)
+        public static void RenderShadowSlice(CommandBuffer cmd, ref ScriptableRenderContext context, ref ShadowSliceData shadowSliceData, ref ShadowDrawingSettings settings)
         {
-            RenderShadowSlice(cmd, ref context, ref shadowSliceData, ref settings,
-                shadowSliceData.projectionMatrix, shadowSliceData.viewMatrix);
+            RenderShadowSlice(cmd, ref context, ref shadowSliceData, ref settings, shadowSliceData.projectionMatrix, shadowSliceData.viewMatrix);
         }
 
         public static int GetMaxTileResolutionInAtlas(int atlasWidth, int atlasHeight, int tileCount)
@@ -133,7 +201,7 @@
                 // handle this. For now, as a poor approximation we do a constant bias and compute the size of
                 // the frustum as if it was orthogonal considering the size at mid point between near and far planes.
                 // Depending on how big the light range is, it will be good enough with some tweaks in bias
-                frustumSize = Mathf.Tan(shadowLight.spotAngle * 0.5f * Mathf.Deg2Rad) * shadowLight.range;
+                frustumSize = Mathf.Tan(shadowLight.spotAngle * 0.5f * Mathf.Deg2Rad);
             }
             else
             {
@@ -177,7 +245,7 @@
             return shadowTexture;
         }
 
-        static Matrix4x4 GetShadowTransform(Matrix4x4 proj, Matrix4x4 view)
+        public static Matrix4x4 GetShadowTransform(Matrix4x4 proj, Matrix4x4 view)
         {
             // Currently CullResults ComputeDirectionalShadowMatricesAndCullingPrimitives doesn't
             // apply z reversal to projection matrix. We need to do it manually here.

@@ -48,6 +48,7 @@ namespace UnityEngine.Rendering.Universal
         PostProcessData m_Data;
 
         // Builtin effects settings
+        AntiAliasing m_AntiAliasing;
         DepthOfField m_DepthOfField;
         MotionBlur m_MotionBlur;
         PaniniProjection m_PaniniProjection;
@@ -189,6 +190,7 @@ namespace UnityEngine.Rendering.Universal
             // Start by pre-fetching all builtin effect settings we need
             // Some of the color-grading settings are only used in the color grading lut pass
             var stack = VolumeManager.instance.stack;
+            m_AntiAliasing = stack.GetComponent<AntiAliasing>();
             m_DepthOfField = stack.GetComponent<DepthOfField>();
             m_MotionBlur = stack.GetComponent<MotionBlur>();
             m_PaniniProjection = stack.GetComponent<PaniniProjection>();
@@ -305,9 +307,9 @@ namespace UnityEngine.Rendering.Universal
             }
 
             // Anti-aliasing
-            if (cameraData.antialiasing == AntialiasingMode.SubpixelMorphologicalAntiAliasing && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES2)
+            if ((cameraData.antialiasing == AntialiasingMode.SubpixelMorphologicalAntiAliasing || m_AntiAliasing.mode.value == AntialiasingMode.SubpixelMorphologicalAntiAliasing)
+                && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES2)
             {
-
                 using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.SMAA)))
                 {
                     DoSubpixelMorphologicalAntialiasing(ref cameraData, cmd, GetSource(), GetDestination());

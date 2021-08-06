@@ -30,26 +30,6 @@ Shader "Hidden/Universal Render Pipeline/Lighting"
 			UNITY_VERTEX_OUTPUT_STEREO
 		};
 
-		static const float2 PoissonDisk[16] = 
-		{
-			float2(-0.7071,  0.7071),
-			float2(-0.0000, -0.8750),
-			float2( 0.5303,  0.5303),
-			float2(-0.6250, -0.0000),
-			float2( 0.3536, -0.3536),
-			float2(-0.0000,  0.3750),
-			float2(-0.1768, -0.1768),
-			float2( 0.1250,  0.0000),
-			float2(-0.7070, -0.7071),
-			float2( 0.8750, -0.0000),
-			float2(-0.5303,  0.5303),
-			float2(-0.0000, -0.6250),
-			float2(-0.3536,  0.3536),
-			float2( 0.3750, -0.0000),
-			float2(-0.1768, -0.1768),
-			float2( 0.0000,  0.1250),
-		};
-
 		float GetJitterOffset(float2 uv)
 		{
 			return dot(frac(uv * 0.25), float2(1.0, 0.25));

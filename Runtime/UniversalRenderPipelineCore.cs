@@ -178,16 +178,24 @@ namespace UnityEngine.Rendering.Universal
 
     public struct ShadowData
     {
+        public bool supportsSoftShadows;
         public bool supportsMainLightShadows;
+
         public bool requiresScreenSpaceShadowResolve;
         public int mainLightShadowmapWidth;
         public int mainLightShadowmapHeight;
         public int mainLightShadowCascadesCount;
         public Vector3 mainLightShadowCascadesSplit;
+
         public bool supportsAdditionalLightShadows;
         public int additionalLightsShadowmapWidth;
         public int additionalLightsShadowmapHeight;
-        public bool supportsSoftShadows;
+
+        public bool supportsPerObjectShadows;
+        public int perObjectShadowLimit;
+        public int perObjectShadowmapWidth;
+        public int perObjectShadowmapHeight;
+        
         public int shadowmapDepthBufferBits;
         public List<Vector4> bias;
     }
@@ -226,6 +234,7 @@ namespace UnityEngine.Rendering.Universal
     {
         public const string MainLightShadows = "_MAIN_LIGHT_SHADOWS";
         public const string MainLightShadowCascades = "_MAIN_LIGHT_SHADOWS_CASCADE";
+        public const string MainLightPerObjectShadow = "_MAIN_LIGHT_PER_OBJECT_SHADOWS";
         public const string AdditionalLightsVertex = "_ADDITIONAL_LIGHTS_VERTEX";
         public const string AdditionalLightsPixel = "_ADDITIONAL_LIGHTS";
         public const string AdditionalLightShadows = "_ADDITIONAL_LIGHT_SHADOWS";

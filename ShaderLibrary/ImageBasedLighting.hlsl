@@ -1,29 +1,29 @@
 #ifndef UNIVERSAL_IMAGE_BASED_LIGHTING_INCLUDED
 #define UNIVERSAL_IMAGE_BASED_LIGHTING_INCLUDED
 
-float3 ComputeSphereNormal(float2 coord, float phiStart = 0.0, float phiLength = PI* 2, float thetaStart = 0, float thetaLength = PI)
+real3 ComputeSphereNormal(real2 coord, real phiStart = 0.0, real phiLength = PI* 2, real thetaStart = 0, real thetaLength = PI)
 {
-    float3 normal;
+    real3 normal;
     normal.x = -sin(thetaStart + coord.y * thetaLength) * sin(phiStart + coord.x * phiLength);
     normal.y = -cos(thetaStart + coord.y * thetaLength);
     normal.z = -sin(thetaStart + coord.y * thetaLength) * cos(phiStart + coord.x * phiLength);
     return normal;
 }
 
-float VanDerCorpus(uint n, uint base)
+real VanDerCorpus(uint n, uint base)
 {
-    float invBase = 1.0 / float(base);
-    float denom   = 1.0;
-    float result  = 0.0;
+    real invBase = 1.0 / real(base);
+    real denom   = 1.0;
+    real result  = 0.0;
 
     for (uint i = 0u; i < 32u; ++i)
     {
         if (n > 0u)
         {
-            denom   = float(n) % 2.0;
+            denom   = real(n) % 2.0;
             result += denom * invBase;
             invBase = invBase / 2.0;
-            n = uint(float(n) / 2.0);
+            n = uint(real(n) / 2.0);
         }
     }
 
@@ -75,19 +75,35 @@ real3 HammersleySampleCos(real2 Xi)
     return H;
 }
 
-float3 HammersleySampleGGX(float2 Xi, float roughness)
+real3 HammersleySampleGGX(real2 Xi, real roughness)
 {
-    float m = roughness * roughness;
-    float m2 = m * m;
-    float u = (1 - Xi.y) / (1 + (m2 - 1) * Xi.y);
+    real m = roughness * roughness;
+    real m2 = m * m;
+    real u = (1 - Xi.y) / (1 + (m2 - 1) * Xi.y);
 
-    return HammersleySampleCos(float2(Xi.x, u));
+    return HammersleySampleCos(real2(Xi.x, u));
 }
 
-float3 TangentToWorld(float3 N, float3 H)
+real4 CosineSampleHemisphere( real2 E )
 {
-    float3 TangentY = abs(N.z) < 0.999 ? float3(0,0,1) : float3(1,0,0);
-    float3 TangentX = normalize(cross(TangentY, N));
+	real Phi = 2 * PI * E.x;
+	real CosTheta = sqrt( E.y );
+	real SinTheta = sqrt( 1 - CosTheta * CosTheta );
+
+	real3 H;
+	H.x = SinTheta * cos( Phi );
+	H.y = SinTheta * sin( Phi );
+	H.z = CosTheta;
+
+	real PDF = CosTheta * (1.0 /  PI);
+
+	return real4( H, PDF );
+}
+
+real3 TangentToWorld(real3 N, real3 H)
+{
+    real3 TangentY = abs(N.z) < 0.999 ? real3(0,0,1) : real3(1,0,0);
+    real3 TangentX = normalize(cross(TangentY, N));
     return TangentX * H.x + cross(N, TangentX) * H.y + N * H.z;
 }
 

@@ -27,7 +27,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
         //折叠页样式
         private FoldoutStyle _foldoutStyle = FoldoutStyle.Big;
         //是否绘制折叠页复选框
-        private bool _foldoutToggleDraw = false;
+        private int _foldoutToggleDraw = 0;
         //折叠页内容是否可以被编辑
         private bool _foldoutEditor = true;
         //绘制折叠页的ShaderGUI
@@ -68,7 +68,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
             }
 
             //是否绘制复选框
-            _foldoutToggleDraw = toggleDraw == 0 ? false : true;
+            _foldoutToggleDraw = toggleDraw;
 
             //折叠页默认展开状态
             _foldoutOpen = open == 0 ? false : true;
@@ -178,7 +178,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
             style.fontSize = EditorStyles.boldLabel.fontSize + fontSize;
             style.fixedHeight = height;
             style.contentOffset = new Vector2(20f, -1);//折叠页文本偏移
-            if (_foldoutToggleDraw)
+            if (_foldoutToggleDraw > 0)
                 style.contentOffset += new Vector2(18f, 0); //如果绘制复选框，文本向后偏移
 
             Rect rect = GUILayoutUtility.GetRect(0, height, style);
@@ -193,7 +193,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
 
             //复选框绘制
             Rect toggleRect = new Rect(triangleRect.x + 16, triangleRect.y - 1, 14f, 14f);//创建复选框矩形
-            if (_foldoutToggleDraw)
+            if (_foldoutToggleDraw > 0)
             {
                 EditorGUI.BeginChangeCheck();
                 if (_property.hasMixedValue)
@@ -214,7 +214,7 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
             if (e.type == EventType.MouseDown)//在折叠页内点击，进行切换
             {
                 //当在折叠框内点击时，切换折叠状态
-                if (rect.Contains(e.mousePosition) && !(_foldoutToggleDraw && toggleRect.Contains(e.mousePosition)))
+                if (rect.Contains(e.mousePosition) && !(_foldoutToggleDraw > 0 && toggleRect.Contains(e.mousePosition)))
                 {
                     _foldoutOpen = !_foldoutOpen;
                     e.Use();//标记该事件已被使用
@@ -249,13 +249,23 @@ namespace UnityEditor.Rendering.Universal.ShaderGUI
         private void SetFoldoutEditorKeyword(MaterialProperty pro, bool foldoutEditor)
         {
             //设置正常关键字
-            string keyword = pro.name.ToUpperInvariant() + "_ON";
-            foreach (Material m in pro.targets)
+            if (_foldoutToggleDraw == 1)
+			{
+                string keyword = pro.name.ToUpperInvariant() + "_ON";
+                foreach (Material m in pro.targets)
+                {
+                    if (foldoutEditor)
+                        m.EnableKeyword(keyword);
+                    else
+                        m.DisableKeyword(keyword);
+                }
+            }
+            else if (_foldoutToggleDraw == 2)
             {
-                if (foldoutEditor)
-                    m.EnableKeyword(keyword);
-                else
-                    m.DisableKeyword(keyword);
+                string keyword = pro.name.Trim('_');
+
+                foreach (Material m in pro.targets)
+                    m.SetShaderPassEnabled(keyword, foldoutEditor);
             }
         }
     }

@@ -68,6 +68,13 @@ namespace UnityEngine.Rendering.Universal
             get => (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2) ? 4 : 8;
         }
 
+        public static int maxPerObjectShadows
+        {
+            // No support to bitfield mask and int[] in gles2. Can't index fast more than 4 shadows.
+            // Check Lighting.hlsl for more details.
+            get => (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2) ? 4 : 8;
+        }
+
         public static int maxPerClusterLights
         {
             get => (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2) ? 16 : 32;
@@ -816,7 +823,7 @@ namespace UnityEngine.Rendering.Universal
                         Light light = visibleLights[i].light;
 
                         // UniversalRP doesn't support additional directional lights or point light shadows yet
-                        if (visibleLights[i].lightType == LightType.Spot && light != null && light.shadows != LightShadows.None)
+                        if ((visibleLights[i].lightType == LightType.Spot || visibleLights[i].lightType == LightType.Directional) && light != null && light.shadows != LightShadows.None)
                         {
                             additionalLightsCastShadows = true;
                             break;
@@ -905,6 +912,11 @@ namespace UnityEngine.Rendering.Universal
 
             shadowData.supportsAdditionalLightShadows = SystemInfo.supportsShadows && settings.supportsAdditionalLightShadows && additionalLightsCastShadows;
             shadowData.additionalLightsShadowmapWidth = shadowData.additionalLightsShadowmapHeight = settings.additionalLightsShadowmapResolution;
+
+            shadowData.supportsPerObjectShadows = settings.perObjectShadowMode == PerObjectShadowMode.PerPixel;
+            shadowData.perObjectShadowLimit = settings.maxPerObjectShadowLimit;
+            shadowData.perObjectShadowmapWidth = shadowData.perObjectShadowmapHeight = settings.perObjectShadowmapResolution;
+
             shadowData.supportsSoftShadows = settings.supportsSoftShadows && (shadowData.supportsMainLightShadows || shadowData.supportsAdditionalLightShadows);
             shadowData.shadowmapDepthBufferBits = 16;
         }

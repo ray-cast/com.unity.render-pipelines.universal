@@ -6,6 +6,7 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ImageBasedLighting.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/PerObjectShadows.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/CloudShadow.hlsl"
 
 // If lightmap is not defined than we evaluate GI (ambient + probes) from SH
@@ -45,6 +46,7 @@ struct Light
     half    distanceAttenuation;
     half    shadowAttenuation;
     half    softness;
+    half    diffuseStrength;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -120,6 +122,7 @@ Light GetMainLight()
     light.shadowAttenuation = 1.0;
     light.softness = 0.0;
     light.color = _MainLightColor.rgb;
+    light.diffuseStrength = 1.0f;
 
     return light;
 }
@@ -163,6 +166,7 @@ Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS)
     light.shadowAttenuation = AdditionalLightRealtimeShadow(perObjectLightIndex, positionWS);
     light.softness = color.w;
     light.color = color.rgb;
+    light.diffuseStrength = spotDirection.w;
 
     // In case we're using light probes, we can sample the attenuation from the `unity_ProbesOcclusion`
 #if defined(LIGHTMAP_ON) || defined(_MIXED_LIGHTING_SUBTRACTIVE)
@@ -292,16 +296,57 @@ half OneMinusReflectivityMetallic(half metallic)
     return oneMinusDielectricSpec - metallic * oneMinusDielectricSpec;
 }
 
-float StrandSpecular(float3 T, float3 V, float3 L, float exponent, float specular)
+real FresnelReflectance( real3 H, real3 V, real F0 )
 {
-    float3 H = normalize(L + V);
-    float dotTH = dot(T, H);
-    float sinTH = sqrt(1.0 - dotTH * dotTH);
-    float dirAtten = smoothstep(-1.0, 0.0, dotTH);
-    return dirAtten * pow(sinTH, exponent) * specular;
+    real base = 1.0 - dot( V, H );
+    real exponential = pow( base, 5.0 );
+    return exponential + F0 * ( 1.0 - exponential );
+} 
+
+real PHBeckmann( real ndoth, real m )
+{
+    real alpha = acos( ndoth );
+    real ta = tan(alpha);
+    real val = 1.0f / (m*m*pow(ndoth,4.0))*exp(-(ta*ta)/(m*m));
+    return val;
 }
 
-float3 BRDF_Specular_Sheen(Light light, half3 normalWS, half3 viewDirectionWS, half roughness2)
+real BRDF_Specular_Skin( real3 N, real3 L, real3 V, real m, real rho_s)
+{
+    real result = 0.0;
+    real ndotl = dot( N, L );
+    if (ndotl > 0.0) {
+        real3 h = L + V;
+        real3 H = normalize( h );
+        real ndoth = dot( N, H );
+        real PH = PHBeckmann(ndoth, m);
+        real F = FresnelReflectance( H, V, 0.028 );
+        real frSpec = max( PH * F / dot( h, h ), 0 );
+        result = frSpec * rho_s;
+    }
+    return result;
+} 
+
+real BRDF_Specular_KajiyaKay(real3 T, real3 V, real3 L, real exponent, real specular)
+{
+    real3 H = normalize(L + V);
+
+    real TdotH = dot(T, H);
+    real sinTHSq = saturate(1.0 - TdotH * TdotH);
+
+    real dirAttn = saturate(TdotH + 1.0); // Evgenii: this seems like a hack? Do we really need this?
+
+                                           // Note: Kajiya-Kay is not energy conserving.
+                                           // We attempt at least some energy conservation by approximately normalizing Blinn-Phong NDF.
+                                           // We use the formulation with the NdotL.
+                                           // See http://www.thetenthplanet.de/archives/255.
+    real n = exponent;
+    real norm = (n + 2) * rcp(2 * PI);
+
+    return dirAttn * norm * PositivePow(sinTHSq, 0.5 * n) * specular;
+}
+
+float BRDF_Specular_Sheen(Light light, half3 normalWS, half3 viewDirectionWS, half roughness)
 {
 #ifndef _SPECULARHIGHLIGHTS_OFF
     float3 halfDir = normalize(light.direction + viewDirectionWS);
@@ -311,8 +356,7 @@ float3 BRDF_Specular_Sheen(Light light, half3 normalWS, half3 viewDirectionWS, h
     half dotNV = saturate(dot(normalWS, viewDirectionWS)) + 1e-5;
     half dotLH = saturate(dot(light.direction, halfDir));
 
-    half sin2 = (1 - dotNH * dotNH);
-    half specularTerm = (2 + 1 / roughness2) * pow(sin2, 0.5 / roughness2) / (2 * PI);
+    half specularTerm = D_Charlie(dotNH, roughness);
 
     half G = 4 * (dotNL + dotNV - dotNL * dotNV);
     specularTerm /= G;
@@ -855,6 +899,7 @@ Light GetClusterAdditionalLight(uint i, float3 positionWS)
 	light.distanceAttenuation = lerp(attenuation, 1, distanceAndSpotAttenuation.y);
 	light.shadowAttenuation = AdditionalLightRealtimeShadow(perObjectLightIndex, positionWS);
     light.softness = color.w;
+    light.diffuseStrength = spotDirection.w;
 
 #if defined(LIGHTMAP_ON) || defined(_MIXED_LIGHTING_SUBTRACTIVE)
     int probeChannel = lightOcclusionProbeInfo.x;

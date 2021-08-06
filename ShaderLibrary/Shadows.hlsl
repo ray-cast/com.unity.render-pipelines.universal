@@ -6,7 +6,28 @@
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShadowSamplingTent.hlsl"
 
 #define SHADOWS_SCREEN 0
+#define SHADOWS_SAMPLE_COUNT 8
 #define MAX_SHADOW_CASCADES 4
+
+static const float2 PoissonDisk[16] = 
+{
+    float2(-0.7071,  0.7071),
+    float2(-0.0000, -0.8750),
+    float2( 0.5303,  0.5303),
+    float2(-0.6250, -0.0000),
+    float2( 0.3536, -0.3536),
+    float2(-0.0000,  0.3750),
+    float2(-0.1768, -0.1768),
+    float2( 0.1250,  0.0000),
+    float2(-0.7070, -0.7071),
+    float2( 0.8750, -0.0000),
+    float2(-0.5303,  0.5303),
+    float2(-0.0000, -0.6250),
+    float2(-0.3536,  0.3536),
+    float2( 0.3750, -0.0000),
+    float2(-0.1768, -0.1768),
+    float2( 0.0000,  0.1250),
+};
 
 #if !defined(_RECEIVE_SHADOWS_OFF)
     #if defined(_MAIN_LIGHT_SHADOWS)
@@ -26,14 +47,14 @@
     #define REQUIRES_WORLD_SPACE_POS_INTERPOLATOR
 #endif
 
-SCREENSPACE_TEXTURE(_ScreenSpaceShadowmapTexture);
-SAMPLER(sampler_ScreenSpaceShadowmapTexture);
-
 TEXTURE2D(_MainLightShadowmapTexture);
 SAMPLER(sampler_MainLightShadowmapTexture);
 
 TEXTURE2D(_AdditionalLightsShadowmapTexture);
 SAMPLER(sampler_AdditionalLightsShadowmapTexture);
+
+SCREENSPACE_TEXTURE(_ScreenSpaceShadowmapTexture);
+SAMPLER(sampler_ScreenSpaceShadowmapTexture);
 
 SCREENSPACE_TEXTURE(_ScreenSpaceOcclusionTexture);
 SAMPLER(sampler_ScreenSpaceOcclusionTexture);
@@ -188,12 +209,8 @@ half SampleCapsuleShadowMap(float2 shadowCoord)
     return attenuation;
 }
 
-real SampleShadowmapFiltered(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData)
+real SampleShadowmapFiltered(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData, half random)
 {
-    real attenuation;
-
-    real fetchesWeights[9];
-    real2 fetchesUV[9];
     real blurSize = 1.0;
 
     UNITY_BRANCH
@@ -204,34 +221,38 @@ real SampleShadowmapFiltered(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), floa
         blurSize *= size;
     }
 
-    SampleShadow_ComputeSamples_Tent_5x5(samplingData.shadowmapSize, blurSize, shadowCoord.xy, fetchesWeights, fetchesUV);
+    real2 sampleRotate[SHADOWS_SAMPLE_COUNT];
 
+    real2 sampleSinCos = 0;
+    sincos(random * PI * 2, sampleSinCos.y, sampleSinCos.x);
+
+    real2x2 sampleRotMat = { sampleSinCos.y, sampleSinCos.x, -sampleSinCos.x, sampleSinCos.y };
+
+    UNITY_UNROLL
+    for (int i = 0; i < SHADOWS_SAMPLE_COUNT; i += 4)
+    {
+        sampleRotate[i + 0] = mul(PoissonDisk[i + 0], sampleRotMat) * blurSize;
+        sampleRotate[i + 1] = mul(PoissonDisk[i + 1], sampleRotMat) * blurSize;
+        sampleRotate[i + 2] = mul(PoissonDisk[i + 2], sampleRotMat) * blurSize;
+        sampleRotate[i + 3] = mul(PoissonDisk[i + 3], sampleRotMat) * blurSize;
+    }
+
+    real attenuation = 0;
+
+    for (int i = 0; i < SHADOWS_SAMPLE_COUNT; i++)
+    {
+        float2 shadow = SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, shadowCoord.xy + sampleRotate[i] * samplingData.shadowmapSize).x;
 #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
-    attenuation = fetchesWeights[0] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[0].xy).x > shadowCoord.z);
-    attenuation += fetchesWeights[1] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[1].xy).x > shadowCoord.z);
-    attenuation += fetchesWeights[2] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[2].xy).x > shadowCoord.z);
-    attenuation += fetchesWeights[3] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[3].xy).x > shadowCoord.z);
-    attenuation += fetchesWeights[4] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[4].xy).x > shadowCoord.z);
-    attenuation += fetchesWeights[5] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[5].xy).x > shadowCoord.z);
-    attenuation += fetchesWeights[6] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[6].xy).x > shadowCoord.z);
-    attenuation += fetchesWeights[7] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[7].xy).x > shadowCoord.z);
-    attenuation += fetchesWeights[8] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[8].xy).x > shadowCoord.z);
+        attenuation += shadow > shadowCoord.z;
 #else
-    attenuation = fetchesWeights[0] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[0].xy).x < shadowCoord.z);
-    attenuation += fetchesWeights[1] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[1].xy).x < shadowCoord.z);
-    attenuation += fetchesWeights[2] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[2].xy).x < shadowCoord.z);
-    attenuation += fetchesWeights[3] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[3].xy).x < shadowCoord.z);
-    attenuation += fetchesWeights[4] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[4].xy).x < shadowCoord.z);
-    attenuation += fetchesWeights[5] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[5].xy).x < shadowCoord.z);
-    attenuation += fetchesWeights[6] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[6].xy).x < shadowCoord.z);
-    attenuation += fetchesWeights[7] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[7].xy).x < shadowCoord.z);
-    attenuation += fetchesWeights[8] * (SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, fetchesUV[8].xy).x < shadowCoord.z);
+        attenuation += shadow < shadowCoord.z;
 #endif
+    }
 
-    return attenuation;
+    return attenuation / SHADOWS_SAMPLE_COUNT;
 }
 
-real SampleShadowmap(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData, half4 shadowParams, bool isPerspectiveProjection = true)
+real SampleShadowmap(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData, half4 shadowParams, bool isPerspectiveProjection = true, half random = 0)
 {
     real attenuation;
     real shadowStrength = shadowParams.x;
@@ -241,7 +262,7 @@ real SampleShadowmap(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), float4 shado
     attenuation = exp(-max(1e-5, shadow - shadowCoord.z - 0.05) * 100);
 #else
     #ifdef _SHADOWS_SOFT
-        attenuation = SampleShadowmapFiltered(TEXTURE2D_ARGS(ShadowMap, sampler_ShadowMap), shadowCoord, samplingData);
+        attenuation = SampleShadowmapFiltered(TEXTURE2D_ARGS(ShadowMap, sampler_ShadowMap), shadowCoord, samplingData, random);
     #else
         real shadow = SAMPLE_TEXTURE2D_X(ShadowMap, sampler_ShadowMap, shadowCoord.xy).x;
         #if defined(SHADER_API_GLCORE) || defined(SHADER_API_GLES) || defined(SHADER_API_GLES3)
@@ -319,7 +340,7 @@ float4 TransformWorldToShadowCoord(float3 positionWS, float4 weights)
     return shadowCoord;
 }
 
-half MainLightRealtimeShadow(float4 shadowCoord)
+half MainLightRealtimeShadow(float4 shadowCoord, real random = 0)
 {
 #if !defined(MAIN_LIGHT_CALCULATE_SHADOWS)
     return 1.0h;
@@ -327,7 +348,7 @@ half MainLightRealtimeShadow(float4 shadowCoord)
 
     ShadowSamplingData shadowSamplingData = GetMainLightShadowSamplingData();
     half4 shadowParams = GetMainLightShadowParams();
-    return SampleShadowmap(TEXTURE2D_ARGS(_MainLightShadowmapTexture, sampler_MainLightShadowmapTexture), shadowCoord, shadowSamplingData, shadowParams);
+    return SampleShadowmap(TEXTURE2D_ARGS(_MainLightShadowmapTexture, sampler_MainLightShadowmapTexture), shadowCoord, shadowSamplingData, shadowParams, random);
 }
 
 half AdditionalLightRealtimeShadow(int lightIndex, float3 positionWS)

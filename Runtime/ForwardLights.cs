@@ -139,7 +139,7 @@ namespace UnityEngine.Rendering.Universal
             if (lightData.lightType == LightType.Spot)
             {
                 Vector4 dir = lightData.localToWorldMatrix.GetColumn(2);
-                lightSpotDir = new Vector4(-dir.x, -dir.y, -dir.z, 0.0f);
+                lightSpotDir = new Vector4(-dir.x, -dir.y, -dir.z, lightAdditionalData.diffuseStrength);
 
                 // Spot Attenuation with a linear falloff can be defined as
                 // (SdotL - cosOuterAngle) / (cosInnerAngle - cosOuterAngle)
@@ -161,6 +161,10 @@ namespace UnityEngine.Rendering.Universal
                 float add = -cosOuterAngle * invAngleRange;
                 lightAttenuation.z = invAngleRange;
                 lightAttenuation.w = add;
+            }
+			else
+			{
+                lightSpotDir.w = lightAdditionalData.diffuseStrength;
             }
 
             Light light = lightData.light;
