@@ -82,14 +82,13 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 			uint objectShadowCount = GetPerObjectShadowsCount();
 			for (uint shadowIndex = 0u; shadowIndex < objectShadowCount; ++shadowIndex)
 			{
-				shadowAttenuation *= PerObjectRealtimeShadow(shadowIndex, worldPos, 0);
+				shadowAttenuation *= PerObjectRealtimeShadow(shadowIndex, worldPos, shadowRandom);
 			}
 		#endif
 
 		#ifdef _MAIN_LIGHT_CLOUD_SHADOWS
-			float random = InterleavedGradientNoise(input.positionCS.xy, _Frame.x);
 			shadowAttenuation *= GetCloudShadow(worldPos);
-			shadowAttenuation += lerp(-0.5, 0.5, random) / 255.f;
+			shadowAttenuation += lerp(-0.5, 0.5, shadowRandom) / 255.f;
 			shadowAttenuation = saturate(shadowAttenuation);
 		#endif
 
@@ -100,7 +99,7 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 		{
 			const real blurSigma = sigma * 0.5f;
 			const real blurFalloff = 1.0f / (2.0f * blurSigma * blurSigma);
-			real ddiff = (depth - center_d) * sharpness;
+			real ddiff = (depth - center_d) / center_d * sharpness;
 			return exp(-r * r * blurFalloff - ddiff * ddiff);
 		}
 
@@ -136,8 +135,8 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 				real shadow1 = SAMPLE_TEXTURE2D_X(_MainTex, sampler_MainTex, offset1).r;
 				real shadow2 = SAMPLE_TEXTURE2D_X(_MainTex, sampler_MainTex, offset2).r;
 
-				real bilateralWeight1 = BilateralWeight(r, depth1, center_d, SHADOW_BLUR_COUNT, 10);
-				real bilateralWeight2 = BilateralWeight(r, depth2, center_d, SHADOW_BLUR_COUNT, 10);
+				real bilateralWeight1 = BilateralWeight(r, depth1, center_d, SHADOW_BLUR_COUNT, 64);
+				real bilateralWeight2 = BilateralWeight(r, depth2, center_d, SHADOW_BLUR_COUNT, 64);
 
 				totalColor += shadow1 * bilateralWeight1;
 				totalColor += shadow2 * bilateralWeight2;
@@ -149,7 +148,10 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 				offset2 -= _Offset;
 			}
 
-			return totalColor / totalWeight + lerp(-0.5, 0.5, InterleavedGradientNoise(input.positionCS.xy, _Frame.x)) / 255.f;
+			totalColor /= totalWeight;
+			totalColor += lerp(-0.5, 0.5, InterleavedGradientNoise(input.positionCS.xy, _Frame.x)) / 255.f;
+
+			return saturate(totalColor);
 		}
 
 		ENDHLSL

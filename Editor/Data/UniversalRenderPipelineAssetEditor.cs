@@ -56,8 +56,8 @@ namespace UnityEngine.Rendering.Universal
             public static readonly GUIContent clusterMaxDistanceLabel = EditorGUIUtility.TrTextContent("可视光源距离");
 
             // Per Object Shadow
-            public static readonly GUIContent requirePerObjectShadowText = EditorGUIUtility.TrTextContent("对象影子", "If enabled the pipeline will copy the screen to texture after opaque objects are drawn. For transparent objects this can be bound in shaders as _CameraOpaqueTexture.");
-            public static GUIContent perObjectShadowLimit = EditorGUIUtility.TrTextContent("对象影子最大数量", "Maximum amount of additional lights. These lights are sorted and culled per-object.");
+            public static readonly GUIContent requirePerObjectShadowText = EditorGUIUtility.TrTextContent("角色影子", "If enabled the pipeline will copy the screen to texture after opaque objects are drawn. For transparent objects this can be bound in shaders as _CameraOpaqueTexture.");
+            public static GUIContent perObjectShadowLimit = EditorGUIUtility.TrTextContent("角色影子最大数量", "Maximum amount of additional lights. These lights are sorted and culled per-object.");
             public static GUIContent perObjectShadowmapResolution = EditorGUIUtility.TrTextContent("阴影贴图分辨率", "All additional lights are packed into a single shadowmap atlas. This setting controls the atlas size.");
 
             // Shadow settings
@@ -383,11 +383,12 @@ namespace UnityEngine.Rendering.Universal
                     disableGroup = _perObjectShadowModeProp.intValue == (int)DeferredRenderingMode.Disabled;
                     EditorGUI.indentLevel++;
 
-                    disableGroup |= (_perObjectShadowLimitProp.intValue == 0 || _perObjectShadowModeProp.intValue != (int)LightRenderingMode.PerPixel);
+                    disableGroup |= _perObjectShadowModeProp.intValue != (int)LightRenderingMode.PerPixel;
                     EditorGUI.BeginDisabledGroup(disableGroup);
                     _perObjectShadowLimitProp.intValue = EditorGUILayout.IntSlider(Styles.perObjectShadowLimit, _perObjectShadowLimitProp.intValue, 0, UniversalRenderPipeline.maxPerObjectShadows);
                     EditorGUI.EndDisabledGroup();
 
+                    disableGroup |= _perObjectShadowLimitProp.intValue == 0;
                     EditorGUI.BeginDisabledGroup(disableGroup);
                     EditorGUILayout.PropertyField(_perObjectShadowmapResolutionProp, Styles.perObjectShadowmapResolution);
                     EditorGUI.EndDisabledGroup();

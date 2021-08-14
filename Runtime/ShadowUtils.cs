@@ -112,7 +112,7 @@
             return _worldBoundingBox;
         }
 
-        public static void ExtractDirectionalLightMatrix(VisibleLight vl, Bounds bound, out Matrix4x4 view, out Matrix4x4 proj)
+        public static void ExtractDirectionalLightMatrix(VisibleLight vl, Bounds bound, float range, out Matrix4x4 view, out Matrix4x4 proj)
         {
             Matrix4x4 scaleMatrix = Matrix4x4.identity;
             scaleMatrix.m22 = -1.0f;
@@ -128,10 +128,18 @@
 
             var zfar = Mathf.Max(Vector3.Distance(position, bound.min), Vector3.Distance(position, bound.max));
             var znear = Mathf.Max(vl.light.shadowNearPlane, Vector3.Distance(position, bound.ClosestPoint(position)));
-            var length = Mathf.Tan(Mathf.Acos(Vector3.Dot(Vector3.up, vl.light.transform.forward)));
+            var cosAngle = Vector3.Dot(Vector3.up, vl.light.transform.forward);
+
+            var angle = 0.0f;
+            if (cosAngle <= -1.0f)
+                angle = Mathf.PI;
+            else if (cosAngle >= 1.0f)
+                angle = 0.0f;
+            else
+                angle = Mathf.Acos(cosAngle);
 
             view = scaleMatrix * worldToLocal;
-            proj = Matrix4x4.Ortho(-extents.x, extents.x, -extents.y, extents.y, znear, zfar + Mathf.Abs(length) * size.y);
+            proj = Matrix4x4.Ortho(-extents.x, extents.x, -extents.y, extents.y, znear, range + Mathf.Abs(Mathf.Tan(angle)) * size.y);
         }
 
         public static void RenderShadowSlice(CommandBuffer cmd, ref ScriptableRenderContext context, ref ShadowSliceData shadowSliceData, ref ShadowDrawingSettings settings, Matrix4x4 proj, Matrix4x4 view)

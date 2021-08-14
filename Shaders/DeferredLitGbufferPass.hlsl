@@ -209,7 +209,7 @@ FragmentOutput LitPassFragment(Varyings input)
 #endif
 
 #if _SPECULAR_ANTIALIASING
-    surfaceData.smoothness = GeometricNormalFiltering(surfaceData.smoothness, inputData.normalWS, _specularAntiAliasingThreshold, 2);
+    surfaceData.smoothness = GeometricNormalFiltering(surfaceData.smoothness, inputData.normalWS, _SpecularAntiAliasingVariance, _SpecularAntiAliasingThreshold);
 #endif
 
     GbufferData data = (GbufferData)0;

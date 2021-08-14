@@ -403,6 +403,7 @@ namespace UnityEngine.Rendering.Universal
             using (var group = new EditorGUILayout.FadeGroupScope(show * m_AnimRuntimeOptions.faded))
                 settings.DrawRenderingLayerMask();
 
+            EditorGUILayout.Space();
             EditorGUI.indentLevel -= 1;
 
             if (bakingWarningValue)

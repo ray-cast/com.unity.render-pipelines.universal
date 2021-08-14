@@ -93,6 +93,7 @@ real SamplePerObjectShadowMapFiltered(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowM
         attenuation += shadow > shadowCoord.z;
 #else
         attenuation += shadow < shadowCoord.z;
+        //attenuation += exp(-max(1e-5, shadow - shadowCoord.z) * 50);
 #endif
     }
 
@@ -102,12 +103,10 @@ real SamplePerObjectShadowMapFiltered(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowM
 real SamplePerObjectShadowMap(TEXTURE2D_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData, half4 shadowParams, half random)
 {
     real attenuation;
-    real shadowStrength = shadowParams.x;
-
     attenuation = SamplePerObjectShadowMapFiltered(TEXTURE2D_ARGS(ShadowMap, sampler_ShadowMap), shadowCoord, samplingData, random);
-    attenuation = LerpWhiteTo(attenuation, shadowStrength);
+    attenuation = LerpWhiteTo(attenuation, shadowParams.x);
 
-    return BEYOND_SHADOW_FAR(shadowCoord) ? 1.0 : attenuation;
+    return attenuation;
 }
 
 half PerObjectRealtimeShadow(int lightIndex, float3 positionWS, half random)

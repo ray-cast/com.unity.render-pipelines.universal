@@ -47,7 +47,8 @@ Shader "Universal Render Pipeline/Deferred Lit"
 
         [Space(20)]
         [Toggle(_SPECULAR_ANTIALIASING)] _UseSpecularHighlights("启用镜面抗锯齿", Float) = 0
-        [PowerSlider(2.0)] _specularAntiAliasingThreshold("镜面抗锯齿程度", Range(0.0, 10.0)) = 1
+        _SpecularAntiAliasingThreshold("镜面抗锯齿程度", Range(0.0, 10.0)) = 0.2
+        _SpecularAntiAliasingVariance("镜面抗锯齿方差", Range(0.0, 10.0)) = 0.15
 
         [Space(20)]
         [Toggle(_VIRTUAL_BLEND_ON)]_UseVirtualBlend("启用环境混合", int) = 0

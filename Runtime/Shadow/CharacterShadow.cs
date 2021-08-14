@@ -20,20 +20,34 @@ namespace UnityEngine.Rendering.Universal
 
         private Bounds _boundingBox = new Bounds();
 
+        public float range = 10;
+
         public List<Renderable> _renderable = new List<Renderable>();
 
         public Bounds worldBoundingBox
-		{
+        {
             get { return _boundingBox; }
-		}
+        }
+
+        public void SetCasterMainShadow(bool enable)
+        {
+            var renderers = this.GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
+            {
+                for (int j = 0; j < renderers.Length; j++)
+                    renderers[j].renderingLayerMask = enable ? 1u : 2u;
+            }
+        }
 
         private void OnEnable()
         {
+            SetCasterMainShadow(false);
             CharacterShadowManager.instance.Register(this, _previousLayer);
         }
 
         private void OnDisable()
         {
+            SetCasterMainShadow(true);
             CharacterShadowManager.instance.Unregister(this, gameObject.layer);
         }
 
@@ -110,10 +124,13 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_EDITOR
         void OnDrawGizmos()
         {
-            Gizmos.matrix = Matrix4x4.identity;
-            Gizmos.color = CoreRenderPipelinePreferences.volumeGizmoColor;
+            if (this.isActiveAndEnabled)
+			{
+                Gizmos.matrix = Matrix4x4.identity;
+                Gizmos.color = CoreRenderPipelinePreferences.volumeGizmoColor;
 
-            Gizmos.DrawWireCube(worldBoundingBox.center, worldBoundingBox.size);
+                Gizmos.DrawWireCube(worldBoundingBox.center, worldBoundingBox.size);
+            }
         }
 #endif
     }

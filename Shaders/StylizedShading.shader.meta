@@ -1,0 +1,21 @@
+fileFormatVersion: 2
+guid: 4e2a951c2e6ec8a419ceca9dcaad6b36
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures:
+  - _BaseMap: {instanceID: 0}
+  - _BumpMap: {instanceID: 0}
+  - _MetallicGlossMap: {instanceID: 0}
+  - _Mask2: {instanceID: 0}
+  - _FacialShadowMap: {instanceID: 0}
+  - _RimLightLookup: {fileID: 2800000, guid: c3ba06703e27d5b4e9c9411437fd722c, type: 3}
+  - _RimLightMask: {instanceID: 0}
+  - _EmissionMap: {instanceID: 0}
+  - _OutGlowMap: {instanceID: 0}
+  - _DissolveMap: {fileID: 2800000, guid: 5bd1ed7345c8b6245b81532c95929f89, type: 3}
+  - _CuttingTex: {instanceID: 0}
+  - _MainTex: {instanceID: 0}
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

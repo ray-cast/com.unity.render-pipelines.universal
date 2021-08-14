@@ -1,15 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace UnityEngine.Rendering.Universal
 {
     public class PerObjectShadowPass : ScriptableRenderPass
     {
-        int _shadowmapWidth;
-        int _shadowmapHeight;
-
-        private RenderTargetHandle _perObjectShadowTexture;
-        private bool _supportsBoxFilterForShadows;
-
         public struct ShadowData
         {
             public int index;
@@ -24,6 +19,12 @@ namespace UnityEngine.Rendering.Universal
             public Matrix4x4 projectionMatrix;
             public Matrix4x4 shadowTransform;
         }
+
+        private int _shadowmapWidth;
+        private int _shadowmapHeight;
+
+        private RenderTargetHandle _perObjectShadowTexture;
+        private bool _supportsBoxFilterForShadows;
 
         private ShadowData[] _perObjectShadowData = null;
         private Matrix4x4[] _perObjectWorldToShadow = null;
@@ -45,6 +46,19 @@ namespace UnityEngine.Rendering.Universal
             _supportsBoxFilterForShadows = Application.isMobilePlatform || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Switch;
         }
 
+        public class CharacterShadowComparer : IComparer<CharacterShadow>
+        {
+            public Camera camera;
+
+            public int Compare(CharacterShadow a, CharacterShadow b)
+            {
+                var distanceA = Vector3.Distance(a.worldBoundingBox.center, camera.transform.position);
+                var distanceB = Vector3.Distance(b.worldBoundingBox.center, camera.transform.position);
+
+                return distanceA < distanceB ? -1 : 1;
+            }
+        }
+
         public bool Setup(ref RenderingData renderingData)
         {
             if (!renderingData.shadowData.supportsPerObjectShadows || renderingData.lightData.mainLightIndex < 0)
@@ -54,6 +68,10 @@ namespace UnityEngine.Rendering.Universal
             var shadowLight = renderingData.lightData.visibleLights[shadowIndex];
             var shadows = CharacterShadowManager.instance._perObjectShadows;
             var shadowCastingLights = CharacterShadowManager.instance._perObjectShadows.Count;
+            var shadowComparer = new CharacterShadowComparer();
+
+            shadowComparer.camera = renderingData.cameraData.camera;
+            shadows.Sort(shadowComparer);
 
             _shadowmapWidth = renderingData.shadowData.perObjectShadowmapWidth;
             _shadowmapHeight = renderingData.shadowData.perObjectShadowmapHeight;
@@ -62,12 +80,14 @@ namespace UnityEngine.Rendering.Universal
 
             for (int i = 0; i < shadowCastingLights && _perObjectCastingShadowIndices.Count < renderingData.shadowData.perObjectShadowLimit; i++)
             {
+                shadows[i].SetCasterMainShadow(false);
+
                 var boundingBox = shadows[i].worldBoundingBox;
                 if (boundingBox.size != Vector3.zero)
                 {
                     var shadowCastingLightIndex = _perObjectCastingShadowIndices.Count;
 
-                    ShadowUtils.ExtractDirectionalLightMatrix(shadowLight, boundingBox, out var viewMatrix, out var projectionMatrix);
+                    ShadowUtils.ExtractDirectionalLightMatrix(shadowLight, boundingBox, shadows[i].range, out var viewMatrix, out var projectionMatrix);
 
                     _perObjectShadowData[shadowCastingLightIndex].index = i;
                     _perObjectShadowData[shadowCastingLightIndex].offsetX = 0;
@@ -84,6 +104,9 @@ namespace UnityEngine.Rendering.Universal
                     _perObjectCastingShadowIndices.Add(shadowCastingLightIndex);
                 }
             }
+
+            for (int i = renderingData.shadowData.perObjectShadowLimit; i < shadowCastingLights; i++)
+                shadows[i].SetCasterMainShadow(true);
 
             if (_perObjectCastingShadowIndices.Count > 1)
             {
@@ -122,7 +145,7 @@ namespace UnityEngine.Rendering.Universal
                 }
             }
 
-            return true;
+            return _perObjectCastingShadowIndices.Count > 0 ? true : false;
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
