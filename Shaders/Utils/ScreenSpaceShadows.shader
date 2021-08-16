@@ -135,8 +135,8 @@ Shader "Hidden/Universal Render Pipeline/ScreenSpaceShadows"
 				real shadow1 = SAMPLE_TEXTURE2D_X(_MainTex, sampler_MainTex, offset1).r;
 				real shadow2 = SAMPLE_TEXTURE2D_X(_MainTex, sampler_MainTex, offset2).r;
 
-				real bilateralWeight1 = BilateralWeight(r, depth1, center_d, SHADOW_BLUR_COUNT, 64);
-				real bilateralWeight2 = BilateralWeight(r, depth2, center_d, SHADOW_BLUR_COUNT, 64);
+				real bilateralWeight1 = BilateralWeight(r, depth1, center_d, SHADOW_BLUR_COUNT, 100);
+				real bilateralWeight2 = BilateralWeight(r, depth2, center_d, SHADOW_BLUR_COUNT, 100);
 
 				totalColor += shadow1 * bilateralWeight1;
 				totalColor += shadow2 * bilateralWeight2;

@@ -14,11 +14,11 @@ namespace UnityEngine.Rendering.Universal
 
         private ScreenSpaceAmbientOcclusion _ambientOcclusion;
 
-        public ScreenSpaceOcclusionResolvePass(RenderPassEvent evt, Material capsuleOcclusionMaterial)
+        public ScreenSpaceOcclusionResolvePass(RenderPassEvent evt, Material occlusionMaterial)
         {
             renderPassEvent = evt;
 
-            _screenSpaceOcclusionMaterial = capsuleOcclusionMaterial;
+            _screenSpaceOcclusionMaterial = occlusionMaterial;
             _screenSpaceOcclusionMap.Init("_ScreenSpaceOcclusionTexture");
             _screenSpaceOcclusionTempMap.Init("_ScreenSpaceOcclusionTempTexture");
         }

@@ -1,8 +1,9 @@
 ﻿using UnityEditor;
 
+#if false
 namespace UnityEngine.Rendering.Universal
 {
-    public class TiledAssetPostProcessor : AssetPostprocessor
+    public class SphericalHarmonicsPostprocessor : AssetPostprocessor
     {
         uint ReverseBits32(uint bits)
         {
@@ -139,3 +140,4 @@ namespace UnityEngine.Rendering.Universal
         }
     }
 }
+#endif

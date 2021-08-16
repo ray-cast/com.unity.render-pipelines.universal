@@ -159,7 +159,7 @@ namespace UnityEngine.Rendering.Universal
             _requestPageJob.startRequestPageJob += OnStartRequestPageJob;
             _requestPageJob.cancelRequestPageJob += OnCancelRequestPageJob;
 
-            if (lookupTexture)
+            if (lookupTexture != null)
                 RenderTexture.ReleaseTemporary(lookupTexture);
 
             lookupTexture = RenderTexture.GetTemporary(pageSize, pageSize, 0, RenderTextureFormat.ARGBHalf);
@@ -509,10 +509,16 @@ namespace UnityEngine.Rendering.Universal
 
 		public void Dispose()
 		{
-            if (lookupTexture)
+            if (lookupTexture != null)
             {
                 RenderTexture.ReleaseTemporary(lookupTexture);
                 lookupTexture = null;
+            }
+
+            if (tileTexture != null)
+			{
+                tileTexture.Dispose();
+                tileTexture = null;
             }
         }
 	}
