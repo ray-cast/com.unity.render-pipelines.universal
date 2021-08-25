@@ -56,39 +56,37 @@ namespace UnityEngine.Rendering.Universal
             FrustumCulling,
             Dispatch
         }
-
-        private void OnEnable()
+        private void Start()
         {
-            if (instanceBatchData == null)
-                instanceBatchData = new MeshBatchData();
-
-            instanceBatchData.onUploadMeshData += UploadBatchData;
-
             _shouldUpdateInstanceData = true;
             _meshFilter = GetComponent<MeshFilter>();
             _cullingComputeShader = Resources.Load<ComputeShader>("CullingCompute");
             _clearUniqueCounterKernel = _cullingComputeShader.FindKernel("ClearIndirectArgument");
             _computeFrustumCullingKernel = _cullingComputeShader.FindKernel("ComputeFrustumCulling");
             _computeOcclusionCullingKernel = _cullingComputeShader.FindKernel("ComputeOcclusionCulling");
-
+            if (instanceBatchData == null)
+                instanceBatchData = new MeshBatchData();
+            instanceBatchData.onUploadMeshData += UploadBatchData;
+        }
+        private void OnEnable()
+        {
             RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
             RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
 #if UNITY_EDITOR
             UnityEditor.Lightmapping.bakeCompleted += OnBakeCompleted;
 #endif
         }
-
-        public void OnDisable()
+        private void OnDisable()
         {
-            instanceBatchData.onUploadMeshData -= UploadBatchData;
-
             RenderPipelineManager.beginFrameRendering -= OnBeginFrameRendering;
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
-
 #if UNITY_EDITOR
             UnityEditor.Lightmapping.bakeCompleted -= OnBakeCompleted;
 #endif
-
+        }
+        public void OnDestroy()
+        {
+            instanceBatchData.onUploadMeshData -= UploadBatchData;
             _allBatchDataBuffer?.Dispose();
             _allBatchPositionBuffer?.Dispose();
             _allBatchVisibleIndexBuffer?.Dispose();

@@ -39,61 +39,67 @@ namespace UnityEngine.Rendering.Universal
             }
         }
 
-        private void OnEnable()
-        {
-            SetCasterMainShadow(false);
-            CharacterShadowManager.instance.Register(this, _previousLayer);
-        }
-
-        private void OnDisable()
-        {
-            SetCasterMainShadow(true);
-            CharacterShadowManager.instance.Unregister(this, gameObject.layer);
-        }
-
-		private void OnDestroy()
+		private void UpdateShadowData()
 		{
+            var renderers = this.GetComponentsInChildren<Renderer>();
+
             foreach (var renderable in _renderable)
-			{
+            {
                 if (renderable.isSkinnedMesh)
                     DestroyImmediate(renderable.mesh);
             }
-        }
 
-        private void LateUpdate()
-		{
-            var renderers = this.GetComponentsInChildren<Renderer>();
+            _renderable.Clear();
+
             if (renderers.Length > 0)
             {
-                if (renderers[0].shadowCastingMode != ShadowCastingMode.Off)
-                    _boundingBox = renderers[0].bounds;
+                var startIndex = -1;
 
-                for (int j = 1; j < renderers.Length; j++)
+                for (int i = 0; i < renderers.Length; i++)
                 {
-                    if (renderers[j].shadowCastingMode != ShadowCastingMode.Off)
-                        _boundingBox.Encapsulate(renderers[j].bounds);
+                    var renderer = renderers[i];
+                    if (renderer.isVisible && renderer.shadowCastingMode != ShadowCastingMode.Off)
+                    {
+                        startIndex = i;
+                        break;
+                    }
                 }
 
-                foreach (var renderable in _renderable)
-				{
-                    if (renderable.isSkinnedMesh)
-                        DestroyImmediate(renderable.mesh);
-                }
+                if (startIndex >= 0)
+                {
+                    _boundingBox = renderers[startIndex].bounds;
 
-                _renderable.Clear();
+                    for (int j = startIndex + 1; j < renderers.Length; j++)
+                    {
+                        var renderer = renderers[j];
+                        if (renderer.isVisible && renderer.shadowCastingMode != ShadowCastingMode.Off)
+                            _boundingBox.Encapsulate(renderers[j].bounds);
+                    }
+                }
+                else
+                {
+                    _boundingBox.SetMinMax(Vector3.zero, Vector3.zero);
+                }
 
                 foreach (var renderer in renderers)
                 {
+                    if (!renderer.isVisible)
+                        continue;
+
                     if (renderer.shadowCastingMode == ShadowCastingMode.Off)
                         continue;
 
-                    var renderable = new Renderable();
-                    renderable.localToWorldMatrix = renderer.transform.localToWorldMatrix;
 #if UNITY_EDITOR
-                    renderable.material = renderer.sharedMaterial;
+                    var material = renderer.sharedMaterial;
 #else
-                    renderable.material = renderer.material;
+                    var material = renderer.material;
 #endif
+                    if (material == null)
+                        continue;
+
+                    var renderable = new Renderable();
+                    renderable.material = material;
+                    renderable.localToWorldMatrix = renderer.transform.localToWorldMatrix;
                     renderable.shadowPass = renderable.material.FindPass("ShadowCaster");
                     renderable.isSkinnedMesh = renderer is SkinnedMeshRenderer;
 
@@ -116,9 +122,37 @@ namespace UnityEngine.Rendering.Universal
                 }
             }
             else
-			{
+            {
                 _boundingBox.SetMinMax(Vector3.zero, Vector3.zero);
             }
+        }
+
+		private void OnEnable()
+        {
+            SetCasterMainShadow(false);
+            CharacterShadowManager.instance.Register(this, _previousLayer);
+            RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
+        }
+
+        private void OnDisable()
+        {
+            SetCasterMainShadow(true);
+            CharacterShadowManager.instance.Unregister(this, gameObject.layer);
+            RenderPipelineManager.beginFrameRendering -= OnBeginFrameRendering;
+        }
+
+		private void OnDestroy()
+		{
+            foreach (var renderable in _renderable)
+			{
+                if (renderable.isSkinnedMesh)
+                    DestroyImmediate(renderable.mesh);
+            }
+        }
+
+        public void OnBeginFrameRendering(ScriptableRenderContext context, Camera[] cameras)
+        {
+            this.UpdateShadowData();
         }
 
 #if UNITY_EDITOR

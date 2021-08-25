@@ -192,13 +192,14 @@ namespace UnityEngine.Rendering.Universal
 
         [SerializeField] PerObjectShadowMode _perObjectShadowMode = PerObjectShadowMode.PerPixel;
         [SerializeField] int _perObjectShadowLimit = 4;
+        [SerializeField] float _perObjectShadowMaxDistance = 10.0f;
         [SerializeField] ShadowResolution _perObjectShadowmapResolution = ShadowResolution._512;
 
         // Deferred Lighting settings
         [SerializeField] DeferredRenderingMode _deferredLightingMode = DeferredRenderingMode.PerCluster;
         [SerializeField] bool _deferredRequireClusterHeatMap = false;
         [SerializeField] bool _deferredRequireDrawCluster = false;
-        [SerializeField] float _deferredMaxLightingDistance = 200;
+        [SerializeField] float _deferredMaxLightingDistance = 100;
         [SerializeField] int _deferredLightsPerClusterLimit = 8;
 
         // Shadows Settings
@@ -611,6 +612,7 @@ namespace UnityEngine.Rendering.Universal
         public bool supportsMainLightShadows
         {
             get { return m_MainLightShadowsSupported; }
+            set { m_MainLightShadowsSupported = value; }
         }
 
         public int mainLightShadowmapResolution
@@ -632,6 +634,7 @@ namespace UnityEngine.Rendering.Universal
         public bool supportsAdditionalLightShadows
         {
             get { return m_AdditionalLightShadowsSupported; }
+            set { m_AdditionalLightShadowsSupported = value; }
         }
 
         public int additionalLightsShadowmapResolution
@@ -649,6 +652,12 @@ namespace UnityEngine.Rendering.Universal
         {
             get { return _perObjectShadowLimit; }
             set { _perObjectShadowLimit = System.Math.Max(0, System.Math.Min(value, UniversalRenderPipeline.maxPerObjectShadows)); }
+        }
+
+        public float maxPerObjectShadowDistance
+        {
+            get { return _perObjectShadowMaxDistance; }
+            set { _perObjectShadowMaxDistance = value; }
         }
 
         public int perObjectShadowmapResolution

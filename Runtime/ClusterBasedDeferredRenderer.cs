@@ -13,7 +13,7 @@
         FeedbackPass _feedbackPass;
         MainLightShadowCasterPass _mainLightShadowCasterPass;
         AdditionalLightsShadowCasterPass _additionalLightsShadowCasterPass;
-        PerObjectShadowPass _perObjectShadowPass;
+        CharacterShadowPass _characterShadowPass;
         ScreenSpaceShadowResolvePass _screenSpaceShadowResolvePass;
         ScreenSpaceOcclusionResolvePass _screenSpaceOcclusionResolvePass;
         CapsuleShadowPass _capsuleShadowResolvePass;
@@ -115,7 +115,7 @@
             _screenSpaceOcclusionResolvePass = new ScreenSpaceOcclusionResolvePass(RenderPassEvent.BeforeRenderingOpaques, _screenSpaceOcclusionMaterial);
             _capsuleShadowResolvePass = new CapsuleShadowPass(RenderPassEvent.BeforeRenderingOpaques, _capsuleShadowMaterial);
             _additionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
-            _perObjectShadowPass = new PerObjectShadowPass(RenderPassEvent.BeforeRenderingShadows);
+            _characterShadowPass = new CharacterShadowPass(RenderPassEvent.BeforeRenderingShadows);
             _depthOnlyPass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, RenderQueueRange.opaque, data.opaqueLayerMask);
             _depthPrePass = new DepthPrePass(RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask);
             _renderGbufferDepthPass = new GbufferDepthPass("G-Buffer Depth", RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, _defaultStencilState, stencilData.stencilReference);
@@ -243,9 +243,8 @@
             if (additionalLightShadows)
                 EnqueuePass(_additionalLightsShadowCasterPass);
 
-            bool perObjectShadows = _perObjectShadowPass.Setup(ref renderingData);
-            if (perObjectShadows)
-                EnqueuePass(_perObjectShadowPass);
+            if (mainLightShadows && _characterShadowPass.Setup(ref renderingData))
+                EnqueuePass(_characterShadowPass);
 
             bool isRunningHololens = false;
 #if ENABLE_VR && ENABLE_VR_MODULE

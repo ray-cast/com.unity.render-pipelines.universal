@@ -195,7 +195,8 @@ namespace UnityEngine.Rendering.Universal
         public int perObjectShadowLimit;
         public int perObjectShadowmapWidth;
         public int perObjectShadowmapHeight;
-        
+        public float perObjectShadowMaxDistance;
+
         public int shadowmapDepthBufferBits;
         public List<Vector4> bias;
     }

@@ -80,11 +80,10 @@ namespace UnityEngine.Rendering.Universal
 #endif
 
         public int instanceCount { get { return _instanceCount; } }
-
-        void OnEnable()
+        void Start()
         {
             _shouldUpdateTerrain = true;
-            
+
             _instancePatchMesh = Resources.Load<Mesh>("Quad");
 
             _computeShader = Resources.Load<ComputeShader>("TerrainCulling");
@@ -115,29 +114,32 @@ namespace UnityEngine.Rendering.Universal
             _visibleShadowArgsBuffer = new ComputeBuffer(args.Length, sizeof(uint), ComputeBufferType.IndirectArguments);
             _visibleShadowArgsBuffer.SetData(args);
 
+            InitializeQuadMesh();
+        }
+
+        void OnEnable()
+        {
             RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
             RenderPipelineManager.beginFrameRendering += OnBeginFrameRendering;
 
             VirtualTextureSystem.beginTileRendering += OnBeginTileRendering;
-
-            InitializeQuadMesh();
-
 #if UNITY_EDITOR
             Lightmapping.bakeCompleted += OnBakeCompleted;
 #endif
         }
-
-        void OnDisable()
+        private void OnDisable()
         {
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
             RenderPipelineManager.beginFrameRendering -= OnBeginFrameRendering;
 
             VirtualTextureSystem.beginTileRendering -= OnBeginTileRendering;
-
 #if UNITY_EDITOR
             UnityEditor.Lightmapping.bakeCompleted -= OnBakeCompleted;
 #endif
+        }
 
+        void OnDestroy()
+        {
             _allInstancesPatchBuffer?.Dispose();
             _visibleHoleIndexBuffer?.Dispose();
             _visiblePatchIndexBuffer?.Dispose();

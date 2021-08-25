@@ -915,6 +915,7 @@ namespace UnityEngine.Rendering.Universal
 
             shadowData.supportsPerObjectShadows = settings.perObjectShadowMode == PerObjectShadowMode.PerPixel;
             shadowData.perObjectShadowLimit = settings.maxPerObjectShadowLimit;
+            shadowData.perObjectShadowMaxDistance = settings.maxPerObjectShadowDistance;
             shadowData.perObjectShadowmapWidth = shadowData.perObjectShadowmapHeight = settings.perObjectShadowmapResolution;
 
             shadowData.supportsSoftShadows = settings.supportsSoftShadows && (shadowData.supportsMainLightShadows || shadowData.supportsAdditionalLightShadows);

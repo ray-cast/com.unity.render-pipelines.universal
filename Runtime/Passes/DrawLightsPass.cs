@@ -46,7 +46,7 @@ namespace UnityEngine.Rendering.Universal
                     var lightRange = light.light.range + 0.05f;
                     var lightRangeSqr = lightRange * lightRange;
                     var distanceThreadhold = renderingData.lightData.maxLightingDistance * renderingData.lightData.maxLightingDistance;
-                    var distanceSqr = Vector3.Magnitude(camera.transform.position - light.light.transform.position);
+                    var distanceSqr = Vector3.SqrMagnitude(camera.transform.position - light.light.transform.position);
                     if (distanceSqr - lightRangeSqr > distanceThreadhold)
                         continue;
                     

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace UnityEngine.Rendering.Universal
 {
-    public class PerObjectShadowPass : ScriptableRenderPass
+    public class CharacterShadowPass : ScriptableRenderPass
     {
         public struct ShadowData
         {
@@ -33,7 +33,7 @@ namespace UnityEngine.Rendering.Universal
 
         private readonly bool _forceShadowPointSampling;
 
-        public PerObjectShadowPass(RenderPassEvent evt)
+        public CharacterShadowPass(RenderPassEvent evt)
         {
             renderPassEvent = evt;
 
@@ -64,11 +64,12 @@ namespace UnityEngine.Rendering.Universal
             if (!renderingData.shadowData.supportsPerObjectShadows || renderingData.lightData.mainLightIndex < 0)
                 return false;
             
-            var shadowIndex = renderingData.lightData.mainLightIndex;
-            var shadowLight = renderingData.lightData.visibleLights[shadowIndex];
+            var shadowLightIndex = renderingData.lightData.mainLightIndex;
+            var shadowLight = renderingData.lightData.visibleLights[shadowLightIndex];
             var shadows = CharacterShadowManager.instance._perObjectShadows;
             var shadowCastingLights = CharacterShadowManager.instance._perObjectShadows.Count;
             var shadowComparer = new CharacterShadowComparer();
+            var maxShadowDistance2 = renderingData.shadowData.perObjectShadowMaxDistance * renderingData.shadowData.perObjectShadowMaxDistance;
 
             shadowComparer.camera = renderingData.cameraData.camera;
             shadows.Sort(shadowComparer);
@@ -80,10 +81,8 @@ namespace UnityEngine.Rendering.Universal
 
             for (int i = 0; i < shadowCastingLights && _perObjectCastingShadowIndices.Count < renderingData.shadowData.perObjectShadowLimit; i++)
             {
-                shadows[i].SetCasterMainShadow(false);
-
                 var boundingBox = shadows[i].worldBoundingBox;
-                if (boundingBox.size != Vector3.zero)
+                if (boundingBox.size != Vector3.zero && Vector3.SqrMagnitude(boundingBox.center - shadowComparer.camera.transform.position) <= maxShadowDistance2)
                 {
                     var shadowCastingLightIndex = _perObjectCastingShadowIndices.Count;
 
@@ -95,18 +94,21 @@ namespace UnityEngine.Rendering.Universal
                     _perObjectShadowData[shadowCastingLightIndex].resolution = _shadowmapWidth;
                     _perObjectShadowData[shadowCastingLightIndex].viewMatrix = viewMatrix;
                     _perObjectShadowData[shadowCastingLightIndex].projectionMatrix = projectionMatrix;
-                    _perObjectShadowData[shadowCastingLightIndex].shadowBias = ShadowUtils.GetShadowBias(ref shadowLight, shadowIndex, ref renderingData.shadowData, projectionMatrix, _shadowmapWidth);
+                    _perObjectShadowData[shadowCastingLightIndex].shadowBias = ShadowUtils.GetShadowBias(ref shadowLight, shadowLightIndex, ref renderingData.shadowData, projectionMatrix, _shadowmapWidth);
 
-                    _perObjectShadowClip[i] = new Vector4(0, 0, 1, 1);
+                    _perObjectShadowClip[shadowCastingLightIndex] = new Vector4(0, 0, 1, 1);
 
                     _perObjectWorldToShadow[shadowCastingLightIndex] = ShadowUtils.GetShadowTransform(projectionMatrix, viewMatrix);
 
                     _perObjectCastingShadowIndices.Add(shadowCastingLightIndex);
+
+                    shadows[i].SetCasterMainShadow(false);
+                }
+                else
+				{
+                    shadows[i].SetCasterMainShadow(true);
                 }
             }
-
-            for (int i = renderingData.shadowData.perObjectShadowLimit; i < shadowCastingLights; i++)
-                shadows[i].SetCasterMainShadow(true);
 
             if (_perObjectCastingShadowIndices.Count > 1)
             {
